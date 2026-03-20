@@ -1171,7 +1171,19 @@ function getProductDeposit(p){
 let selectedDelivery = '寄送';
 
 // ─── USER PROFILE ────────────────────────────────────────
-let userProfile = JSON.parse(localStorage.getItem('tf_prof') || 'null') || { name:'', phone:'' };
+let userProfile = { name:'', phone:'' }; // 登入後依 email 載入
+
+function loadProfileForUser(email){
+  if(!email){ userProfile={name:'',phone:''}; return; }
+  const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
+  userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:''};
+}
+
+function saveProfileForUser(email, profile){
+  if(!email) return;
+  const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
+  localStorage.setItem(key, JSON.stringify(profile));
+}
 
 function persist(){
   localStorage.setItem('tf_p',JSON.stringify(products));
@@ -1180,7 +1192,8 @@ function persist(){
   localStorage.setItem('tf_o',JSON.stringify(orders));
   localStorage.setItem('tf_cfg',JSON.stringify(shopSettings));
   localStorage.setItem('tf_ejs',JSON.stringify(emailjsConfig));
-  localStorage.setItem('tf_prof',JSON.stringify(userProfile));
+  // profile 依登入帳號分開儲存
+  if(user?.email) saveProfileForUser(user.email, userProfile);
 }
 
 // ─── VIEWS ────────────────────────────────────────────────
@@ -1233,6 +1246,7 @@ function saveProfile(){
   const phone = document.getElementById('pfPhone')?.value.trim()||'';
   if(!name){ showToast('⚠️ 請填寫姓名'); return; }
   userProfile = { name, phone };
+  if(user?.email) saveProfileForUser(user.email, userProfile);
   persist();
   toggleProfileEdit(false);
   renderProfile();
@@ -2190,15 +2204,19 @@ _sb.auth.onAuthStateChange((event, session) => {
       email: u.email,
       photo: u.user_metadata?.avatar_url || null,
     };
-    // 不自動帶入 Google 姓名，讓使用者自行填寫
+    // 載入此帳號專屬的 profile（姓名、電話）
+    loadProfileForUser(u.email);
     persist();
     closeAuth();
     renderAuth();
     if(event==='SIGNED_IN') showToast(`👋 歡迎，${user.name.split(' ')[0]}！`);
   } else {
     user = null;
+    userProfile = { name:'', phone:'' }; // 登出時清空 profile
+    cart = []; // 登出時清空購物車，避免混用
     persist();
     renderAuth();
+    updBadge();
   }
 });
 
@@ -2818,8 +2836,10 @@ setInterval(()=>{
       email: u.email,
       photo: u.user_metadata?.avatar_url || null,
     };
+    loadProfileForUser(u.email); // 載入此帳號的 profile
   } else {
     user = null;
+    userProfile = { name:'', phone:'' };
   }
   renderAuth(); // 確定狀態後才渲染
   updBadge();
