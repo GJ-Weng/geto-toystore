@@ -1037,6 +1037,8 @@ let orders   = JSON.parse(localStorage.getItem('tf_o')||'[]');
 
 let filter='全部', subFilter='', editingId=null, selEmoji=EMOJIS[0], searchQ='';
 let currentProductId=null, selectedVariant=null, detailQty=1;
+// 已成立訂單的商品（防止重複下單）
+let orderedProductIds = JSON.parse(localStorage.getItem('tf_ordered')||'[]');
 
 // ─── 店家設定 ────────────────────────────────────────────
 // ─── EMAIL 設定 ──────────────────────────────────────────
@@ -1145,8 +1147,8 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   const subjectStatus = hasDeposit ? '待付款' : '已成立';
   const headerTitle = hasDeposit ? '訂單已成立 — 待付款' : '訂單已成立！';
   const headerSub = hasDeposit
-    ? `${customerName} 您好，感謝您的訂購！您的訂單編號為 <b>#${orderNum}</b>，請儘快完成付款。`
-    : `${customerName} 您好，感謝您的訂購！您的訂單編號為 <b>#${orderNum}</b>，已成功建立。`;
+    ? `${customerName} 您好，感謝您的訂購！您的訂單編號為 #${orderNum}，請儘快完成付款。`
+    : `${customerName} 您好，感謝您的訂購！您的訂單編號為 #${orderNum}，已成功建立。`;
 
   const params = {
     to_name: customerName,
@@ -1290,6 +1292,10 @@ function p_cardClick(id, e){
   // 預購過期：不允許加單
   if(p.type==='預購' && isDeadlinePassed(p.deadline)){
     showToast('⚠️ 此商品已結單，無法預購');
+    return;
+  }
+  if(orderedProductIds.includes(String(id))){
+    showToast('⚠️ 您已下訂此商品');
     return;
   }
   if(p.type==='現貨'){
@@ -1767,26 +1773,46 @@ function selVariant(el,v){
   updateDetailBuyBtn(p);
 }
 function chgDQty(d){
-  detailQty=Math.max(1,detailQty+d);
+  const p=products.find(x=>String(x.id)===String(currentProductId));
+  const maxQty=parseLimit(p?.limit);
+  const v=selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
+  const inCart=cart.filter(x=>String(x.id)===String(currentProductId)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
+  const maxAdd=Math.max(0, maxQty-inCart); // 還能加多少
+  const newQty=Math.max(1, Math.min(detailQty+d, maxAdd>0?maxAdd:1));
+  detailQty=newQty;
   document.getElementById('dQtyVal').textContent=detailQty;
+  // 更新 + 按鈕狀態
+  const plusBtn=document.querySelector('[onclick="chgDQty(1)"]');
+  if(plusBtn){ plusBtn.disabled=(detailQty>=maxAdd); plusBtn.style.opacity=detailQty>=maxAdd?'0.35':''; }
 }
 function updateDetailBuyBtn(p){
   const btn=document.getElementById('btnPreorder');
+  if(!btn) return;
   const needVariant=p.variants&&p.variants.length>0;
-  const alreadyIn = cart.find(x=>String(x.id)===String(p.id && (x.variant||''))===(selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:''));
+  const v=selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
+  const maxQty=parseLimit(p?.limit);
+  const inCart=cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
+  const limitReached = inCart>=maxQty;
+
   // 結單已過期
   if(p.type==='預購' && isDeadlinePassed(p.deadline)){
-    btn.textContent='已結單';
-    btn.disabled=true;
-    btn.style.background='#ccc';
+    btn.textContent='已結單'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='';
+    return;
+  }
+  // 已成立過訂單（同商品不重複下單）
+  if(orderedProductIds.includes(String(p.id))){
+    btn.textContent='已下訂單'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888';
     return;
   }
   if(needVariant && !selectedVariant){
-    btn.textContent='請選擇規格'; btn.disabled=true; btn.style.background='';
-  } else if(alreadyIn){
-    btn.textContent='已加入購物車'; btn.disabled=false; btn.style.background='#aaa';
+    btn.textContent='請選擇規格'; btn.disabled=true; btn.style.background=''; btn.style.color='';
+  } else if(limitReached){
+    btn.textContent='已加入購物車'; btn.disabled=true;
+    btn.style.background='#ccc'; btn.style.color='#888';
+  } else if(inCart>0){
+    btn.textContent=`再加入 ${Math.min(detailQty, maxQty-inCart)} 件`; btn.disabled=false; btn.style.background=''; btn.style.color='';
   } else {
-    btn.textContent=p.type==='預購'?'加入預購':'加入購物車'; btn.disabled=false; btn.style.background='';
+    btn.textContent=p.type==='預購'?'加入預購':'加入購物車'; btn.disabled=false; btn.style.background=''; btn.style.color='';
   }
 }
 function addDetailToCart(){
@@ -1945,6 +1971,9 @@ async function submitCheckoutOrder(){
   // increment preorder count (per person, not per qty)
   const _orderedIds = [...new Set(cart.map(ci=>ci.id))];
   _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
+  // 記錄已下單商品，防止重複
+  orderedProductIds = [...new Set([...orderedProductIds, ..._orderedIds.map(String)])];
+  localStorage.setItem('tf_ordered', JSON.stringify(orderedProductIds));
 
   cart=[];
 
@@ -2255,6 +2284,8 @@ _sb.auth.onAuthStateChange((event, session) => {
     user = null;
     userProfile = { name:'', phone:'' }; // 登出時清空 profile
     cart = []; // 登出時清空購物車，避免混用
+    orderedProductIds = []; // 登出時清除已下單記錄
+    localStorage.removeItem('tf_ordered');
     persist();
     renderAuth();
     updBadge();
