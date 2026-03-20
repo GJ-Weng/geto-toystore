@@ -587,6 +587,20 @@ textarea.fi{min-height:64px;resize:vertical}
 .ac-item:hover{background:var(--bg)}
 .ac-item.selected{background:var(--red-light);color:var(--red)}
 
+
+/* ─── VARIANT PRICE ──────────────────────────────────── */
+.vp-grid{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.vp-row{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:var(--r);padding:6px 10px;font-size:13px}
+.vp-name{flex:1;font-weight:500;color:var(--ink)}
+.vp-price-inp{width:90px;border:1px solid var(--border2);border-radius:4px;padding:4px 8px;font-size:12px;text-align:right;font-family:var(--font);outline:none}
+.vp-price-inp:focus{border-color:var(--red)}
+.vp-lbl{font-size:11px;color:var(--ink3);flex-shrink:0}
+/* Price range on card */
+.pprice b{color:var(--red);font-weight:700}
+.pprice-range{color:var(--red);font-weight:700;font-size:15px}
+/* Deadline bold red */
+.pdeadline{color:var(--red);font-weight:700}
+
 </style>
 </head>
 <body>
@@ -919,7 +933,13 @@ textarea.fi{min-height:64px;resize:vertical}
             </div>
           </div>
         </div>
-        <div class="fr c1"><div class="fg"><label class="fl">規格（選填，用逗號分隔）</label><input class="fi" id="fVariants" placeholder="例：小栗帽,玉藻十字,美浦波旁,米浴"></div></div>
+        <div class="fr c1"><div class="fg">
+          <label class="fl">規格（選填，用逗號分隔）</label>
+          <input class="fi" id="fVariants" placeholder="例：小栗帽,玉藻十字,美浦波旁,米浴" oninput="renderVariantPrices()">
+          <div class="vp-grid" id="variantPriceGrid" style="display:none">
+            <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>
+          </div>
+        </div></div>
         <div class="fr c1"><div class="fg"><label class="fl">上架狀態</label><select class="fi" id="fStatus"><option value="published">上架</option><option value="unlisted">下架</option></select></div></div>
         <div class="fr c1"><div class="fg"><label class="fl">商品圖片</label>
           <div class="img-upload-wrap">
@@ -1232,7 +1252,7 @@ function saveProfile(){
   showToast('✅ 資料已儲存');
 }
 function p_cardClick(id, e){
-  const p = products.find(x=>x.id===id);
+  const p = products.find(x=>String(x.id)===String(id));
   if(!p) return;
   // 預購過期：不允許加單
   if(p.type==='預購' && isDeadlinePassed(p.deadline)){
@@ -1590,10 +1610,14 @@ function renderShop(){
       <div class="pbody">
         <div class="pcat">${p.brand}</div>
         <div class="pname">${p.name}</div>
-        <div class="pprice">NT$ ${p.price.toLocaleString()} <span>起</span></div>
+        <div class="pprice">${(()=>{
+          const r=getPriceRange(p);
+          if(r.min!==r.max) return `<b class="pprice-range">NT$ ${r.min.toLocaleString()} – ${r.max.toLocaleString()}</b>`;
+          return `<b style="color:var(--red);font-weight:700">NT$ ${r.min.toLocaleString()}</b> <span>起</span>`;
+        })()}</div>
         <div class="pinfo">
           <div class="pir"><span>每人限購：${p.limit||'無限制'}</span><span>${p.cnt} 人已預購</span></div>
-          ${p.deadline?`<div class="pir"><span>結單：<b>${p.deadline}</b></span><span>預計到貨：${p.arrival}</span></div>`:''}
+          ${p.deadline?`<div class="pir"><span class="pdeadline">結單：${p.deadline}</span><span style="color:var(--ink3)">到貨：${p.arrival}</span></div>`:''}
         </div>
         <button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'加入購物車'}</button>
       </div>
@@ -1610,7 +1634,9 @@ function renderShop(){
 
 // ─── DETAIL PAGE ─────────────────────────────────────────
 function openDetail(id){
-  const p=products.find(x=>x.id===id);
+  // Supabase 回傳數字 ID，統一轉字串比較
+  const sid = String(id);
+  const p=products.find(x=>String(x.id)===sid);
   if(!p) return;
   currentProductId=id;
   selectedVariant=null;
@@ -1641,7 +1667,10 @@ function openDetail(id){
   // Info
   document.getElementById('dCat').textContent=p.brand;
   document.getElementById('dName').textContent=p.name;
-  document.getElementById('dPrice').innerHTML=`NT$ ${p.price.toLocaleString()} <span>起</span>`;
+  const _pr=getPriceRange(p);
+  document.getElementById('dPrice').innerHTML=_pr.min!==_pr.max
+    ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} – ${_pr.max.toLocaleString()}</b>`
+    : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b> <span>起</span>`;
   // show deposit per product
   const _dep = getProductDeposit(p);
   const _ddep=document.getElementById('dDeposit');
@@ -1687,7 +1716,7 @@ function selVariant(el,v){
   document.querySelectorAll('.vchip').forEach(x=>x.classList.remove('sel'));
   el.classList.add('sel');
   selectedVariant=v;
-  const p=products.find(x=>x.id===currentProductId);
+  const p=products.find(x=>String(x.id)===String(currentProductId));
   updateDetailBuyBtn(p);
 }
 function chgDQty(d){
@@ -1715,7 +1744,7 @@ function updateDetailBuyBtn(p){
 }
 function addDetailToCart(){
   if(!user){openAuth();return;}
-  const p=products.find(x=>x.id===currentProductId);
+  const p=products.find(x=>String(x.id)===String(currentProductId));
   if(!p)return;
   if(p.type==='預購' && isDeadlinePassed(p.deadline)){
     showToast('⚠️ 此商品已結單，無法預購');
@@ -1838,7 +1867,7 @@ async function submitCheckoutOrder(){
   const orderNum = genOrderNum();
   const items = cart.map(ci=>{
     const p=products.find(x=>x.id===ci.id);
-    return { product_id:ci.id, product_name:p?.name||'', product_emoji:p?.emoji||'', variant:ci.variant||'', qty:ci.qty, price:(p?.price||0)*ci.qty, deposit:(getProductDeposit(p))*ci.qty };
+    const vp=getVariantPrice(p,ci.variant); return { product_id:ci.id, product_name:p?.name||'', product_emoji:p?.emoji||'', variant:ci.variant||'', qty:ci.qty, price:vp*ci.qty, deposit:(getProductDeposit(p))*ci.qty };
   });
 
   const record = {
@@ -1864,7 +1893,7 @@ async function submitCheckoutOrder(){
 
   // increment preorder count (per person, not per qty)
   const _orderedIds = [...new Set(cart.map(ci=>ci.id))];
-  _orderedIds.forEach(pid=>{ const p=products.find(x=>x.id===pid); if(p) p.cnt=(p.cnt||0)+1; });
+  _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
 
   // 寄訂單確認信
   if(user?.email){
@@ -1937,8 +1966,10 @@ const _sb = window.supabase.createClient('https://zmglfuzeplmfyfcwnqpd.supabase.
 // ─── 從 Supabase 同步商品 ─────────────────────────────────
 async function syncProductsFromSupabase(){
   try {
-    const {data,error} = await _sb.from('products').select('*').order('created_at',{ascending:false});
-    if(error){ console.warn('商品讀取失敗，使用本地資料:', error.message); return; }
+    const res = await _sb.from('products').select('*').order('created_at',{ascending:false});
+    const data = res.data;
+    const errMsg = res.error?.message || res.error?.details || null;
+    if(errMsg){ console.warn('商品讀取失敗，使用本地資料:', errMsg); return; }
     if(data && data.length > 0){
       // 轉換欄位格式（Supabase snake_case → JS camelCase）
       products = data.map(p=>({
@@ -1955,7 +1986,8 @@ async function syncProductsFromSupabase(){
         form:      p.form||'',
         variants:  p.variants||[],
         emoji:     p.emoji||'🧸',
-        imageUrl:  p.image_url||'',
+        imageUrl:    p.image_url||'',
+        variantPrices: p.variant_prices||{},
         status:    p.status||'published',
         isNew:     p.is_new||false,
         cnt:       p.order_count||0,
@@ -1982,7 +2014,8 @@ async function saveProductToSupabase(productData, existingId){
     form:        productData.form||'',
     variants:    productData.variants||[],
     emoji:       productData.emoji||'🧸',
-    image_url:   productData.imageUrl||'',
+    image_url:     productData.imageUrl||'',
+    variant_prices: productData.variantPrices||{},
     status:      productData.status||'published',
     is_new:      productData.isNew||false,
     order_count: productData.cnt||0,
@@ -2005,7 +2038,7 @@ async function deleteProductFromSupabase(id){
 }
 
 function updDetailMeta(){
-  const p=products.find(x=>x.id===currentProductId);
+  const p=products.find(x=>String(x.id)===String(currentProductId));
   if(!p)return;
   const el=document.getElementById('dMeta');
   if(el) el.querySelector('.dmeta-row').textContent=`${p.cnt} 人已預購`;
@@ -2014,7 +2047,7 @@ function updDetailMeta(){
 // ─── FAV ─────────────────────────────────────────────────
 function toggleFav(id){
   if(!user){openAuth();return;}
-  if(favs.includes(id)) favs=favs.filter(x=>x!==id);
+  const sid2=String(id);if(favs.map(String).includes(sid2)) favs=favs.filter(x=>String(x)!==sid2);
   else favs.push(id);
   persist();renderShop();updCounts();
 }
@@ -2058,7 +2091,7 @@ function renderCartPage(){
           <div class="cart-info">
             <div class="cart-iname">${p.name}</div>
             ${ci.variant&&ci.variant!=='單一規格'?`<div class="cart-ivar">${ci.variant}</div>`:''}
-            <div class="cart-iprice">NT$ ${(p.price).toLocaleString()}</div>
+            <div class="cart-iprice">NT$ ${getVariantPrice(p,ci.variant).toLocaleString()}</div>
           </div>
           <div class="cart-qty">
             <button class="cqb" onclick="cartChg('${ci.id}',-1)">−</button>
@@ -2076,7 +2109,7 @@ function renderCartPage(){
 function cartChg(id,d){
   const it=cart.find(x=>x.id===id); if(!it)return;
   if(d>0){
-    const p=products.find(x=>x.id===id);
+    const p=products.find(x=>String(x.id)===String(id));
     const maxQty = parseLimit(p?.limit);
     // 同規格限購
     const varQty = cart.filter(x=>x.id===id&&(x.variant||'')===(it.variant||'')).reduce((s,x)=>s+x.qty,0);
@@ -2292,6 +2325,7 @@ function clearImgField(){
   document.getElementById('fImgUrl').value = '';
   document.getElementById('fImgFile').value = '';
   hideImgPreview();
+  const vpg=document.getElementById('variantPriceGrid');if(vpg){vpg.innerHTML='';vpg.style.display='none';}
 }
 
 // ─── AUTOCOMPLETE ────────────────────────────────────────
@@ -2352,6 +2386,70 @@ function acRememberProduct(){
   if(form)  acAddMemory('form',  form);
 }
 
+// ─── VARIANT PRICES ──────────────────────────────────────
+function renderVariantPrices(){
+  const raw = document.getElementById('fVariants')?.value.trim()||'';
+  const grid = document.getElementById('variantPriceGrid');
+  if(!grid) return;
+  const variants = raw ? raw.split(',').map(v=>v.trim()).filter(Boolean) : [];
+  if(!variants.length){ grid.style.display='none'; grid.innerHTML=''; return; }
+  grid.style.display='flex';
+  // Keep existing price inputs if already rendered
+  const existing = {};
+  grid.querySelectorAll('.vp-row').forEach(row=>{
+    const n=row.dataset.v;
+    const inp=row.querySelector('.vp-price-inp');
+    if(n&&inp) existing[n]=inp.value;
+  });
+  grid.innerHTML = '<div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>' +
+    variants.map(v=>`
+      <div class="vp-row" data-v="${v}">
+        <span class="vp-name">${v}</span>
+        <span class="vp-lbl">NT$</span>
+        <input class="vp-price-inp" type="number" placeholder="同售價" value="${existing[v]||''}">
+      </div>`
+    ).join('');
+}
+
+function getVariantPrices(){
+  const grid = document.getElementById('variantPriceGrid');
+  if(!grid) return {};
+  const result = {};
+  grid.querySelectorAll('.vp-row').forEach(row=>{
+    const n=row.dataset.v;
+    const val=row.querySelector('.vp-price-inp')?.value.trim();
+    if(n && val) result[n]=parseInt(val)||0;
+  });
+  return result;
+}
+
+function restoreVariantPrices(variantPrices){
+  if(!variantPrices||!Object.keys(variantPrices).length) return;
+  // First render the grid
+  renderVariantPrices();
+  // Then fill in prices
+  const grid = document.getElementById('variantPriceGrid');
+  if(!grid) return;
+  grid.querySelectorAll('.vp-row').forEach(row=>{
+    const n=row.dataset.v;
+    const inp=row.querySelector('.vp-price-inp');
+    if(n&&inp&&variantPrices[n]) inp.value=variantPrices[n];
+  });
+}
+
+// Get effective price for a variant
+function getVariantPrice(p, variantName){
+  if(!p.variantPrices||!variantName) return p.price||0;
+  return p.variantPrices[variantName] || p.price||0;
+}
+
+// Get min/max price across variants (for price range display)
+function getPriceRange(p){
+  if(!p.variantPrices||!Object.keys(p.variantPrices).length) return {min:p.price,max:p.price};
+  const prices = [p.price, ...Object.values(p.variantPrices)].filter(v=>v>0);
+  return {min:Math.min(...prices), max:Math.max(...prices)};
+}
+
 function buildEmojiGrid(){
   document.getElementById('eg').innerHTML=EMOJIS.map(e=>
     `<button class="eo${e===selEmoji?' sel':''}" onclick="pickE('${e}')">${e}</button>`
@@ -2377,7 +2475,7 @@ function renderAdminList(){
     </div>`).join('');
 }
 async function togStatus(id){
-  const p=products.find(x=>x.id===id);if(!p)return;
+  const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   p.status=p.status==='published'?'unlisted':'published';
   persist();renderAdminList();renderShop();
   showToast(p.status==='published'?`✓ 已上架：${p.name.slice(0,14)}…`:`已下架：${p.name.slice(0,14)}…`);
@@ -2387,14 +2485,14 @@ async function togStatus(id){
   }
 }
 async function delP(id){
-  const p=products.find(x=>x.id===id);
+  const p=products.find(x=>String(x.id)===String(id));
   if(!confirm(`確定刪除「${p?.name.slice(0,20)}…」？`))return;
   await deleteProductFromSupabase(id);
   products=products.filter(x=>x.id!==id);
   persist();renderAdminList();renderShop();showToast('已刪除商品');
 }
 function editP(id){
-  const p=products.find(x=>x.id===id);if(!p)return;
+  const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   editingId=id;
   document.getElementById('fName').value=p.name;
   document.getElementById('fBrand').value=p.brand;
@@ -2413,6 +2511,7 @@ function editP(id){
     else { hideImgPreview(); }
   }
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
+  restoreVariantPrices(p.variantPrices||{});
   document.getElementById('fStatus').value=p.status;
   selEmoji=p.emoji;buildEmojiGrid();
   document.getElementById('editBadge').style.display='';
@@ -2430,7 +2529,8 @@ async function saveProduct(){
   const imgUrl=document.getElementById('fImgUrl')?.value.trim()||'';
   const depositVal = document.getElementById('fDeposit')?.value.trim();
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
-  const data={imageUrl:imgUrl,name,brand,price,deposit,
+  const variantPrices = getVariantPrices();
+  const data={imageUrl:imgUrl,name,brand,price,deposit,variantPrices,
     limit:document.getElementById('fLimit').value.trim(),
     type:document.getElementById('fType').value,
     deadline:document.getElementById('fDeadline').value,
@@ -2442,7 +2542,7 @@ async function saveProduct(){
     emoji:selEmoji,isNew:true,cnt:0};
   const btn = document.querySelector('.fsave');
   if(btn){btn.disabled=true;btn.textContent='儲存中...';}
-  const err = await saveProductToSupabase({...data, cnt: editingId ? (products.find(x=>x.id===editingId)?.cnt||0) : 0}, editingId);
+  const err = await saveProductToSupabase({...data, cnt: editingId ? (products.find(x=>String(x.id)===String(editingId))?.cnt||0) : 0}, editingId);
   if(btn){btn.disabled=false;btn.textContent='儲存商品';}
   if(err && !err.newId){
     showToast('❌ 儲存失敗：'+(err.message||'請確認 Supabase products 表格是否存在'));
