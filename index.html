@@ -643,22 +643,9 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
       <div class="ssep"></div>
       <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><span>IP主題</span><span class="ar">▾</span></div>
-      <div class="ssub" id="ipSub">
-        <a onclick="setSubFilter('寶可夢')">寶可夢</a>
-        <a onclick="setSubFilter('鬼滅之刃')">鬼滅之刃</a>
-        <a onclick="setSubFilter('排球少年')">排球少年</a>
-        <a onclick="setSubFilter('賽馬娘')">賽馬娘</a>
-        <a onclick="setSubFilter('咒術迴戰')">咒術迴戰</a>
-        <a onclick="setSubFilter('其他IP')">其他</a>
-      </div>
-      <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><span>商品形式</span><span class="ar">▾</span></div>
-      <div class="ssub" id="typeSub">
-        <a onclick="setSubFilter('絨毛')">絨毛/吊偶</a>
-        <a onclick="setSubFilter('Figure')">Figure</a>
-        <a onclick="setSubFilter('模型')">模型</a>
-        <a onclick="setSubFilter('積木')">積木</a>
-        <a onclick="setSubFilter('卡牌')">卡牌</a>
-      </div>
+      <div class="ssub" id="ipSub"><div id="ipList"></div></div>
+      <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><span>商品類型</span><span class="ar">▾</span></div>
+      <div class="ssub" id="typeSub"><div id="typeList"></div></div>
       <div class="ssep"></div>
       <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><span>廠牌</span><span class="ar">▾</span></div>
       <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
@@ -926,9 +913,9 @@ textarea.fi{min-height:64px;resize:vertical}
               <div class="ac-list" id="fIP-list"></div>
             </div>
           </div>
-          <div class="fg"><label class="fl">商品形式</label>
+          <div class="fg"><label class="fl">商品類型</label>
             <div class="ac-wrap">
-              <input class="fi" id="fForm" placeholder="例：絨毛、Figure、模型" autocomplete="off" oninput="acInput('fForm','form')" onblur="acBlur('fForm')" onfocus="acInput('fForm','form')">
+              <input class="fi" id="fForm" placeholder="例：絨毛、Figure、景品" autocomplete="off" oninput="acInput('fForm','form')" onblur="acBlur('fForm')" onfocus="acInput('fForm','form')">
               <div class="ac-list" id="fForm-list"></div>
             </div>
           </div>
@@ -1532,8 +1519,22 @@ function updCounts(){
   set('sbStock', pub.filter(p=>p.type==='現貨').length);
   set('sbPre',   pub.filter(p=>p.type==='預購').length);
   set('sbOther', pub.filter(p=>!p.ip&&!p.form).length);
-  // 動態更新廠牌列表
+  // 動態更新 IP / 商品類型 / 廠牌
+  renderDynamicFilter('ipList',   [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort());
+  renderDynamicFilter('typeList', [...new Set(pub.map(p=>p.form).filter(Boolean))].sort());
   renderBrandFilter(pub);
+}
+
+function renderDynamicFilter(listId, items){
+  const el = document.getElementById(listId);
+  if(!el) return;
+  if(!items.length){ el.innerHTML='<a style="color:var(--ink3);cursor:default;font-size:12px">（暫無）</a>'; return; }
+  el.innerHTML = items.map(v=>
+    `<a onclick="setSubFilter('${v.replace(/'/g,"&#39;")}')">${v}</a>`
+  ).join('');
+  el.querySelectorAll('a').forEach(a=>
+    a.classList.toggle('act', a.textContent.trim()===subFilter)
+  );
 }
 function setFilter(f,el){
   filter=f;subFilter='';
@@ -1613,11 +1614,11 @@ function renderShop(){
         <div class="pprice">${(()=>{
           const r=getPriceRange(p);
           if(r.min!==r.max) return `<b class="pprice-range">NT$ ${r.min.toLocaleString()} – ${r.max.toLocaleString()}</b>`;
-          return `<b style="color:var(--red);font-weight:700">NT$ ${r.min.toLocaleString()}</b> <span>起</span>`;
+          return `<b style="color:var(--red);font-weight:700">NT$ ${r.min.toLocaleString()}</b>`;
         })()}</div>
         <div class="pinfo">
           <div class="pir"><span>每人限購：${p.limit||'無限制'}</span><span>${p.cnt} 人已預購</span></div>
-          ${p.deadline?`<div class="pir"><span class="pdeadline">結單：${p.deadline}</span><span style="color:var(--ink3)">到貨：${p.arrival}</span></div>`:''}
+          ${p.deadline?`<div class="pir"><span class="pdeadline">結單日期：${p.deadline}</span><span style="color:var(--ink3)">到貨：${p.arrival}</span></div>`:''}
         </div>
         <button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'加入購物車'}</button>
       </div>
@@ -1670,7 +1671,7 @@ function openDetail(id){
   const _pr=getPriceRange(p);
   document.getElementById('dPrice').innerHTML=_pr.min!==_pr.max
     ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} – ${_pr.max.toLocaleString()}</b>`
-    : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b> <span>起</span>`;
+    : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b>`;
   // show deposit per product
   const _dep = getProductDeposit(p);
   const _ddep=document.getElementById('dDeposit');
@@ -1697,7 +1698,7 @@ function openDetail(id){
   const _deadlinePassed = p.type==='預購' && isDeadlinePassed(p.deadline);
   document.getElementById('dMeta').innerHTML=`
     ${p.cnt>0?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:'<div class="dmeta-row"><span>0 人已預購</span></div>'}
-    ${p.deadline?`<div class="dmeta-row"><span>截止：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
+    ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
     ${p.arrival?`<div class="dmeta-row"><span>預計到貨：${p.arrival}</span></div>`:''}
   `;
 
