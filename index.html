@@ -603,6 +603,37 @@ textarea.fi{min-height:64px;resize:vertical}
 /* Deadline bold red */
 .pdeadline{color:var(--red);font-weight:700}
 
+
+/* ─── 賣貨便腳本 Modal ───────────────────────────────── */
+.script-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;display:flex;align-items:center;justify-content:center}
+.script-modal{background:var(--white);border-radius:12px;width:560px;max-width:94vw;max-height:88vh;overflow-y:auto;padding:24px}
+.script-modal h3{font-size:17px;font-weight:700;margin-bottom:6px}
+.script-modal p{font-size:13px;color:var(--ink3);margin-bottom:14px;line-height:1.6}
+.script-box{background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:12px;line-height:1.6;padding:14px 16px;border-radius:8px;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow-y:auto;margin-bottom:14px;cursor:text}
+.script-steps{background:var(--bg);border-radius:8px;padding:12px 16px;font-size:12px;color:var(--ink2);line-height:2;margin-bottom:16px}
+.script-steps b{color:var(--ink)}
+.script-btns{display:flex;gap:10px}
+.script-copy{flex:1;height:42px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s}
+.script-copy:hover{background:#333}
+.script-copy.copied{background:#2e7d32}
+.script-close{height:42px;padding:0 16px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--ink2);cursor:pointer;background:var(--white)}
+
+
+/* ─── MYSHIP MODAL ──────────────────────────────────────── */
+.ms-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;display:flex;align-items:center;justify-content:center}
+.ms-modal{background:var(--white);border-radius:12px;width:600px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:28px 28px 20px}
+.ms-title{font-size:17px;font-weight:700;margin-bottom:6px}
+.ms-sub{font-size:13px;color:var(--ink3);margin-bottom:20px;line-height:1.6}
+.ms-step{background:var(--bg);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;font-size:13px}
+.ms-step b{color:var(--ink);font-size:13px}
+.ms-code{background:#1e1e1e;color:#d4d4d4;border-radius:8px;padding:14px 16px;font-family:monospace;font-size:12px;line-height:1.7;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:10px 0;max-height:300px;overflow-y:auto}
+.ms-copy-btn{width:100%;height:40px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:background .15s}
+.ms-copy-btn:hover{background:#333}
+.ms-copy-btn.copied{background:#2e7d32}
+.ms-close-btn{width:100%;height:36px;border:1px solid var(--border);background:var(--white);color:var(--ink2);border-radius:var(--r);font-size:13px;cursor:pointer}
+.aoc-btn-ship7{border-color:#f4b942;background:#fff8e6;color:#9a6900}
+.aoc-btn-ship7:hover{background:#f4b942;color:#fff}
+
 </style>
 </head>
 <body>
@@ -2279,7 +2310,13 @@ _sb.auth.onAuthStateChange((event, session) => {
     persist();
     closeAuth();
     renderAuth();
-    if(event==='SIGNED_IN') showToast(`👋 歡迎，${user.name.split(' ')[0]}！`);
+    if(event==='SIGNED_IN'){
+      showToast(`👋 歡迎，${user.name.split(' ')[0]}！`);
+      // 清除 Supabase 登入後留下的 # fragment
+      if(window.location.hash){
+        history.replaceState(null, '', window.location.pathname);
+      }
+    }
   } else {
     user = null;
     userProfile = { name:'', phone:'' }; // 登出時清空 profile
@@ -2785,6 +2822,7 @@ function _aoRenderCards(){
         ${canPart  ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
         ${canShip  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
         ${canCancel?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
+        <button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>
       </div>
     </div>`;
   }).join('');
@@ -2879,6 +2917,279 @@ async function sendStatusEmail(o, newStatus){
 // keep old name for compat
 async function markShipped(id){ await aoUpdateStatus(id,'shipped'); }
 
+// ─── MYSHIP 賣貨便賣場腳本產生 ───────────────────────────
+function openMyshipModal(orderId){
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  if(!o){ showToast('找不到訂單'); return; }
+
+  let items=[];
+  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+  if(!Array.isArray(items)||!items.length){
+    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
+  }
+
+  const total   = items.reduce((s,i)=>s+(i.price||0),0);
+  const dep     = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const tail    = total - dep; // 尾款 = 顧客需在賣場付的金額
+  const custName= o.customer_name||'顧客';
+  const shopName= `${custName} 訂單#${o.id}`;
+
+  // 商品名稱（合併所有品項）
+  const prodName = items.map(i=>`${i.product_name||''}${i.variant?' ('+i.variant+')':''}×${i.qty||1}`).join('、').slice(0,60);
+  const totalQty = items.reduce((s,i)=>s+(i.qty||1),0);
+
+  // 產生賣貨便 console 腳本
+  const script = `// ===== Geto玩具屋 賣貨便自動填寫腳本 =====
+// 訂單 #${o.id}｜${custName}｜尾款 NT$${tail.toLocaleString()}
+// 請在 https://seller.7-11.com.tw/cgdm/add 頁面的 Console 貼上此腳本
+
+(function(){
+  // 設定賣場名稱
+  var nameEl = document.getElementById('Cgdm_Name');
+  if(nameEl){ nameEl.value = ${JSON.stringify(shopName)}; nameEl.dispatchEvent(new Event('input')); }
+
+  // 選擇「限時」或「永久」→ 選永久
+  var rdoDuring = document.getElementById('rdoDuring_0');
+  if(rdoDuring){ rdoDuring.click(); }
+
+  // 設為私密賣場（只傳連結給顧客）
+  var isPrivate = document.getElementById('isPrivate');
+  if(isPrivate){ isPrivate.click(); }
+
+  // 商品名稱
+  var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');
+  if(prodNameEl){ prodNameEl.value = ${JSON.stringify(prodName)}; prodNameEl.dispatchEvent(new Event('input')); }
+
+  // 規格（留空，用預設）
+  // var specEl = document.querySelector('[name="specification.Cgds_Spec[1]"]');
+
+  // 價格（尾款）
+  var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');
+  if(priceEl){ priceEl.value = '${tail}'; priceEl.dispatchEvent(new Event('change')); }
+
+  // 庫存數量（等於訂單數量）
+  var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');
+  if(invEl){ invEl.value = '${totalQty}'; invEl.dispatchEvent(new Event('change')); }
+
+  // 每人限購（等於訂單數量）
+  var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');
+  if(maxEl){ maxEl.value = '${totalQty}'; maxEl.dispatchEvent(new Event('change')); }
+
+  // 最低下單（1件）
+  var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');
+  if(minEl){ minEl.value = '1'; minEl.dispatchEvent(new Event('change')); }
+
+  // 確認上架狀態
+  var normalEl = document.getElementById('normal_1');
+  if(normalEl){ normalEl.click(); }
+
+  console.log('✅ 賣貨便賣場已自動填寫！');
+  console.log('賣場名稱：' + ${JSON.stringify(shopName)});
+  console.log('商品：' + ${JSON.stringify(prodName)});
+  console.log('尾款金額：NT$${tail.toLocaleString()}');
+  console.log('數量：${totalQty}件');
+  alert('✅ 填寫完成！\n\n賣場名稱：${shopName}\n金額：NT$${tail.toLocaleString()}\n數量：${totalQty}件\n\n請確認後按下儲存賣場！');
+})();`;
+
+  // 建立 modal
+  const overlay = document.createElement('div');
+  overlay.className='ms-overlay';
+  // Build modal HTML using DOM to avoid template literal nesting issues
+  const modalDiv = document.createElement('div');
+  modalDiv.className='ms-modal';
+  modalDiv.innerHTML=
+    '<div class="ms-title">📦 建立賣貨便賣場</div>'+
+    '<div class="ms-sub">訂單 #'+o.id+'｜'+custName+'｜尾款 NT$'+tail.toLocaleString()+'</div>'+
+    '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
+    '<a href="https://seller.7-11.com.tw/cgdm/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
+    '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
+    '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
+    '<div class="ms-code" id="msCode"></div>'+
+    '<button class="ms-copy-btn" id="msCopyBtn" onclick="copyMyshipScript()">📋 複製腳本</button>'+
+    '<button class="ms-close-btn" onclick="this.closest(\'.ms-overlay\').remove()">關閉</button>';
+  // Set script content as text (safe, no XSS)
+  modalDiv.querySelector('#msCode').textContent = script;
+  overlay.appendChild(modalDiv);
+    overlay._script = script;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+
+function copyMyshipScript(){
+  const overlay = document.querySelector('.ms-overlay');
+  if(!overlay) return;
+  navigator.clipboard.writeText(overlay._script).then(()=>{
+    const btn = document.getElementById('msCopyBtn');
+    if(btn){ btn.textContent='✅ 已複製！'; btn.classList.add('copied'); }
+    setTimeout(()=>{ if(btn){ btn.textContent='📋 複製腳本'; btn.classList.remove('copied'); } },2000);
+  }).catch(()=>{
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = overlay._script;
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('msCopyBtn');
+    if(btn){ btn.textContent='✅ 已複製！'; btn.classList.add('copied'); }
+    setTimeout(()=>{ if(btn){ btn.textContent='📋 複製腳本'; btn.classList.remove('copied'); } },2000);
+  });
+}
+
+// ─── 7-11 賣貨便賣場腳本產生器 ────────────────────────────
+function gen711Script(orderId){
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  if(!o){ showToast('找不到訂單'); return; }
+
+  let items = [];
+  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+  if(!Array.isArray(items)||!items.length){
+    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
+  }
+
+  const totalAmt   = items.reduce((s,i)=>s+(i.price||0),0);
+  const depositAmt = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
+  const tailAmt    = totalAmt - depositAmt;
+  const price      = tailAmt > 0 ? tailAmt : totalAmt;
+
+  const storeName   = (o.customer_name || '顧客').replace(/'/g,"\\'");
+  const productName = (items[0].product_name||'').slice(0,60).replace(/'/g,"\\'");
+  const spec        = (items[0].variant || '單一規格').replace(/'/g,"\\'");
+  const ordNum      = String(o.id);
+
+  // 直接用 fetch POST 建立賣場，不用手動填表單
+  const script =
+`// ======= Geto玩具屋 賣貨便建單腳本 =======
+// 訂單 #${ordNum} | 顧客：${storeName}
+// 在 myship.7-11.com.tw 任意頁面貼上即可
+
+(async () => {
+  const t0 = Date.now();
+
+  // 先取得 CSRF token
+  const page = await fetch('https://myship.7-11.com.tw/fast/add', {
+    credentials: 'include', redirect: 'follow'
+  });
+  const html = await page.text();
+  const tokenMatch = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/);
+  const token = tokenMatch ? tokenMatch[1] : '';
+  if(!token){ console.error('❌ 無法取得 CSRF token，請確認是否已登入 myship'); return; }
+
+  // 組 FormData
+  const fd = new FormData();
+  fd.append('__RequestVerificationToken', token);
+  fd.append('Cgdm_Name', '${storeName}');
+  fd.append('showFlag', 'isPrivate');
+  fd.append('rdoDuring', '0');
+  fd.append('product.Cgdd_Product_Name[1]', '${productName}');
+  fd.append('specification.Cgds_Spec[1]', '${spec}');
+  fd.append('specification.Cgds_Price[1]', '${price}');
+  fd.append('specification.Cgds_Inventory[1]', '1');
+  fd.append('specification.Cgds_InventoryDef[1]', '1');
+  fd.append('product.Cgdd_Product_MaxOrder[1]', '1');
+  fd.append('product.Cgdd_Product_MinOrder[1]', '1');
+  fd.append('product.SellingStatus[1]', 'normal');
+  fd.append('product.ProductStatus[1]', 'new');
+  fd.append('product.Ordering[1]', '1');
+  fd.append('conveyance.IsChecked', '1');
+  fd.append('conveyance.FixFee.1', '0');
+  fd.append('payment.IsChecked', '1');
+  fd.append('ProductCount', '1');
+
+  const res = await fetch('https://myship.7-11.com.tw/fast/add', {
+    method: 'POST',
+    body: fd,
+    credentials: 'include',
+    redirect: 'follow'
+  });
+
+  const resText = await res.text();
+
+  // 嘗試從回應頁面抓購買連結
+  const urlMatch = resText.match(/href="(https:\/\/myship\.7-11\.com\.tw\/cart\/confirm\/[^"]+)"/);
+  const buyUrl   = urlMatch ? urlMatch[1] : res.url;
+
+  const elapsed = Date.now() - t0;
+  console.log('');
+  console.log('✅ 賣場建立完成！耗時：' + elapsed + 'ms');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('顧客：${storeName}');
+  console.log('商品：${productName}');
+  console.log('規格：${spec}');
+  console.log('應付：NT$ ${price}');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📎 購買連結（傳給顧客）：');
+  console.log(buyUrl);
+  console.log('');
+
+  // 自動複製連結到剪貼簿
+  try{
+    await navigator.clipboard.writeText(buyUrl);
+    console.log('✅ 連結已自動複製到剪貼簿！');
+  } catch(e) {}
+})();`;
+
+  // 顯示 Modal
+  const existing = document.getElementById('scriptOverlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'script-overlay';
+  overlay.id = 'scriptOverlay';
+  overlay.innerHTML = `
+    <div class="script-modal">
+      <h3>📦 賣貨便建單腳本</h3>
+      <p>
+        <b>顧客：${o.customer_name||'—'}</b>　訂單 #${ordNum}<br>
+        商品：${(items[0].product_name||'').slice(0,30)}　規格：${items[0].variant||'—'}<br>
+        應付金額：<b style="color:var(--red)">NT$ ${price.toLocaleString()}</b>
+        ${tailAmt>0?' <span style="color:var(--ink3);font-size:12px">（尾款）</span>':''}
+      </p>
+      <!-- 書籤設定（第一次使用） -->
+      <div style="background:#fffbea;border:1px solid #f0b429;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:#7a5200">
+        <b>📌 第一次使用：先新增書籤小工具（之後免打 allow pasting）</b><br>
+        拖曳下方按鈕到書籤列，或右鍵 → 加入書籤列：<br>
+        <a href="javascript:(function(){var d=document,o=d.createElement('div');o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';o.innerHTML='<div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="margin:0;font-size:15px;font-weight:700">📦 Geto玩具屋 建單腳本</h3><button id="gc" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888">✕</button></div><p style="margin:0 0 10px;font-size:12px;color:#666">從後台複製腳本後，貼到下方並點執行</p><textarea id="gt" style="width:100%;height:110px;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;font-family:monospace;resize:vertical;outline:none" placeholder="在這裡貼上腳本..."></textarea><div style="display:flex;gap:8px;margin-top:12px"><button id="gr" style="flex:1;height:42px;background:#1B3A5C;color:#C9A84C;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer">▶ 執行</button><button id="gx" style="height:42px;padding:0 16px;border:1px solid #ddd;border-radius:6px;font-size:13px;color:#555;cursor:pointer;background:#fff">關閉</button></div></div>';d.body.appendChild(o);var cl=function(){d.body.removeChild(o)};o.querySelector('#gc').onclick=cl;o.querySelector('#gx').onclick=cl;o.querySelector('#gr').onclick=function(){var s=o.querySelector('#gt').value.trim();if(!s){alert('請先貼上腳本！');return;}cl();try{eval(s);}catch(e){console.error('腳本執行錯誤：',e);}};setTimeout(function(){o.querySelector('#gt').focus();},100);})();" style="display:inline-block;margin-top:8px;background:#1B3A5C;color:#C9A84C;padding:6px 14px;border-radius:6px;font-weight:700;font-size:13px;text-decoration:none">📦 Geto賣貨便建單</a>
+        <span style="color:#999;margin-left:8px">← 拖到書籤列</span>
+      </div>
+      <div class="script-steps">
+        <b>設定好後每次流程：</b><br>
+        1. 先登入 <a href="https://myship.7-11.com.tw" target="_blank" style="color:var(--red)">myship.7-11.com.tw</a><br>
+        2. 點下方「📋 複製腳本」<br>
+        3. 點書籤列的 <b>「📦 Geto賣貨便建單」</b><br>
+        4. 貼上腳本 → 點執行<br>
+        5. Console 會顯示購買連結，傳給顧客！
+      </div>
+      <div class="script-box" id="scriptContent">${script.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div class="script-btns">
+        <button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>
+        <button class="script-close" onclick="document.getElementById('scriptOverlay').remove()">關閉</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  overlay._scriptText = script;
+}
+
+function copyScript(){
+  const overlay = document.getElementById('scriptOverlay');
+  if(!overlay) return;
+  navigator.clipboard.writeText(overlay._scriptText).then(()=>{
+    const btn = document.getElementById('scriptCopyBtn');
+    if(btn){ btn.textContent='✅ 已複製！'; btn.className='script-copy copied'; }
+    setTimeout(()=>{
+      if(btn){ btn.textContent='📋 複製腳本'; btn.className='script-copy'; }
+    }, 2500);
+  }).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value = overlay._scriptText;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ 已複製腳本');
+  });
+}
+
 // ─── TOAST ────────────────────────────────────────────────
 let _t;
 function showToast(m){
@@ -2915,6 +3226,10 @@ setInterval(()=>{
   } else {
     user = null;
     userProfile = { name:'', phone:'' };
+  }
+  // 清除 URL hash（Supabase OAuth 會留下 #）
+  if(window.location.hash){
+    history.replaceState(null, '', window.location.pathname);
   }
   renderAuth(); // 確定狀態後才渲染
   updBadge();
