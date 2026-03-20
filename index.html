@@ -1840,7 +1840,7 @@ function renderCheckoutPage(){
   if(submitBtn){ submitBtn.disabled = missing; submitBtn.style.opacity = missing?'0.5':'1'; }
 
   const dep = calcCartDeposit();
-  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+p.price*ci.qty:s; },0);
+  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
 
   // items detail
   document.getElementById('checkoutItemsDetail').innerHTML = cart.map(ci=>{
@@ -1878,7 +1878,7 @@ async function submitCheckoutOrder(){
   btn.disabled=true; btn.textContent='送出中...';
 
   const dep = calcCartDeposit();
-  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+p.price*ci.qty:s; },0);
+  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
   const orderNum = genOrderNum();
   const items = cart.map(ci=>{
     const p=products.find(x=>String(x.id)===String(ci.id));
@@ -2075,7 +2075,7 @@ function clearCart(){ if(!cart.length)return; if(!confirm('確定清空購物車
 
 function renderCartPage(){
   const wrap = document.getElementById('cartItemsWrap');
-  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+p.price*ci.qty:s; },0);
+  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
   const dep = calcCartDeposit();
   document.getElementById('cartViewCount').textContent = `(${cart.length})`;
   document.getElementById('cartSummaryRows').innerHTML = `
@@ -2149,7 +2149,7 @@ async function loginWithGoogle(){
     const {error} = await _sb.auth.signInWithOAuth({
       provider:'google',
       options:{
-        redirectTo: window.location.origin + window.location.pathname,
+        redirectTo: 'https://geto-toystore.vercel.app',
         skipBrowserRedirect: false,
         queryParams: { prompt: 'select_account' }
       }
