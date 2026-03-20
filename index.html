@@ -1800,12 +1800,16 @@ function addDetailToCart(){
   const v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
   const maxQty = parseLimit(p.limit);
   // 每個規格分別限購（例如限購2，每個規格都最多2件）
-  const variantQtyInCart = cart.filter(x=>String(x.id)===String(currentProductId&&(x.variant||''))===(v||'')).reduce((s,x)=>s+x.qty,0);
+  // 找同商品同規格在購物車的總數量
+  const variantQtyInCart = cart
+    .filter(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''))
+    .reduce((s,x)=>s+x.qty,0);
   if(variantQtyInCart + detailQty > maxQty){
-    showToast(`⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}`);
+    showToast(`⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}，您已有 ${variantQtyInCart} 件`);
     return;
   }
-  const existing = cart.find(x=>String(x.id)===String(currentProductId && (x.variant||''))===(v||''));
+  // 合併到現有項目，不重複新增
+  const existing = cart.find(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''));
   if(existing){ existing.qty+=detailQty; }
   else { cart.push({id:String(currentProductId), qty:detailQty, variant:v}); }
   persist(); updBadge();
@@ -2164,7 +2168,7 @@ function cartChg(id,d){
     const p=products.find(x=>String(x.id)===String(id));
     const maxQty = parseLimit(p?.limit);
     // 同規格限購
-    const varQty = cart.filter(x=>String(x.id)===String(id&&(x.variant||''))===(it.variant||'')).reduce((s,x)=>s+x.qty,0);
+    const varQty = cart.filter(x=>String(x.id)===String(id) && (x.variant||'')===(it.variant||'')).reduce((s,x)=>s+x.qty,0);
     if(varQty >= maxQty){
       showToast(`⚠️ ${it.variant?'【'+it.variant+'】':'此商品'} 每人限購 ${p?.limit}`);
       return;
