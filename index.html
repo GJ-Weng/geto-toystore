@@ -1041,11 +1041,18 @@ let currentProductId=null, selectedVariant=null, detailQty=1;
 // ─── 店家設定 ────────────────────────────────────────────
 // ─── EMAIL 設定 ──────────────────────────────────────────
 // 填入你的 EmailJS 資訊（見後台「匯款設定」）
-let emailjsConfig = JSON.parse(localStorage.getItem('tf_ejs') || JSON.stringify({
-  publicKey: '',
-  serviceId: '',
-  templateId: '',
-}));
+// ── EmailJS 預設值（直接寫入，不依賴 localStorage）──────
+const _EJS_DEFAULTS = {
+  publicKey:  'MDOLmuUdaFTZc2KvJ',
+  serviceId:  'geto_service',
+  templateId: 'template_89xij6q',
+};
+const _ejsSaved = JSON.parse(localStorage.getItem('tf_ejs') || '{}');
+let emailjsConfig = {
+  publicKey:  _ejsSaved.publicKey  || _EJS_DEFAULTS.publicKey,
+  serviceId:  _ejsSaved.serviceId  || _EJS_DEFAULTS.serviceId,
+  templateId: _ejsSaved.templateId || _EJS_DEFAULTS.templateId,
+};
 
 function initEmailJS(){
   // 從 localStorage 讀最新設定
