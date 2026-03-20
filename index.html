@@ -1142,7 +1142,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
 
   try {
     // 每次都重新 init 確保 key 正確
-    emailjs.init({ publicKey: emailjsConfig.publicKey });
+    if(emailjsConfig.publicKey) emailjs.init({ publicKey: emailjsConfig.publicKey });
     const result = await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, params);
     console.log('✅ 訂單確認信已寄出', result);
   } catch(err){
@@ -1896,7 +1896,9 @@ async function submitCheckoutOrder(){
   const _orderedIds = [...new Set(cart.map(ci=>ci.id))];
   _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
 
-  // 寄訂單確認信
+  cart=[];
+
+  // 寄訂單確認信（在 cart 清空後，用已快照的 items）
   if(user?.email){
     sendOrderEmail({
       customerName: customerName||user.name||user.email,
@@ -1909,10 +1911,8 @@ async function submitCheckoutOrder(){
       delivery: selectedDelivery,
       phone: phone||'',
       settings: shopSettings,
-    });
+    }).catch(e=>console.warn('寄信失敗',e));
   }
-
-  cart=[];
   persist(); updBadge();
 
   showConfirmPage(orderNum, dep);
@@ -2130,11 +2130,21 @@ function openAuth(){document.getElementById('authModal').classList.add('open');}
 function closeAuth(){document.getElementById('authModal').classList.remove('open');}
 
 async function loginWithGoogle(){
-  const {error} = await _sb.auth.signInWithOAuth({
-    provider:'google',
-    options:{redirectTo: window.location.href}
-  });
-  if(error) showToast('登入失敗：'+error.message);
+  try {
+    // 先試 popup（不跳頁，體驗更好）
+    const {error} = await _sb.auth.signInWithOAuth({
+      provider:'google',
+      options:{
+        redirectTo: window.location.origin + window.location.pathname,
+        skipBrowserRedirect: false,
+        queryParams: { prompt: 'select_account' }
+      }
+    });
+    if(error) showToast('登入失敗：'+error.message);
+  } catch(e) {
+    showToast('登入失敗，請重新整理後再試');
+    console.error('login error:', e);
+  }
 }
 
 function isAdmin(){
@@ -2180,10 +2190,7 @@ _sb.auth.onAuthStateChange((event, session) => {
       email: u.email,
       photo: u.user_metadata?.avatar_url || null,
     };
-    // 第一次登入時從 Google 帶入姓名
-    if(!userProfile.name && u.user_metadata?.full_name){
-      userProfile.name = u.user_metadata.full_name;
-    }
+    // 不自動帶入 Google 姓名，讓使用者自行填寫
     persist();
     closeAuth();
     renderAuth();
