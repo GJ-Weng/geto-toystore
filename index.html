@@ -793,13 +793,9 @@ textarea.fi{min-height:64px;resize:vertical}
         <button class="btn-preorder" id="btnPreorder" onclick="addDetailToCart()">立即預購</button>
       </div>
       <!-- 管理員快速操作列 -->
-      <div id="adminDetailBar" style="display:none;margin-top:12px;padding:10px 14px;background:#f0f4ff;border:1px solid #c7d7f9;border-radius:8px;display:none">
-        <div style="font-size:11px;font-weight:700;color:#4a6fa5;margin-bottom:8px;letter-spacing:.5px">⚙️ 管理員</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="adminQuickEdit()" style="height:32px;padding:0 14px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✏️ 編輯此商品</button>
-          <button id="adminDetailCloseBtn" onclick="adminQuickForceClose()" style="height:32px;padding:0 14px;background:#fff;color:#e67300;border:1px solid #e67300;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⏹ 提早結單</button>
-          <button onclick="adminQuickToggleStatus()" id="adminDetailStatusBtn" style="height:32px;padding:0 14px;background:#fff;color:var(--ink2);border:1px solid var(--border2);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">上/下架</button>
-        </div>
+      <div id="adminDetailBar" style="display:none;margin-top:12px;padding:12px 14px;background:#f0f4ff;border:1px solid #c7d7f9;border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:#4a6fa5;margin-bottom:10px;letter-spacing:.5px">⚙️ 管理員快速操作</div>
+        <div id="adminDetailBtns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
     </div>
   </div>
@@ -1091,6 +1087,19 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- 日期操作 Modal -->
+<div id="deadlineModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;align-items:center;justify-content:center">
+  <div style="background:var(--white);border-radius:14px;width:320px;max-width:92vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px" id="deadlineModalTitle">設定結單日期</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:16px" id="deadlineModalSub"></div>
+    <input type="date" id="deadlineModalInput" style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;font-size:14px;outline:none;font-family:var(--font);margin-bottom:16px">
+    <div style="display:flex;gap:10px">
+      <button onclick="confirmDeadlineModal()" style="flex:1;height:40px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認</button>
+      <button onclick="closeDeadlineModal()" style="height:40px;padding:0 16px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
+    </div>
   </div>
 </div>
 
@@ -1908,15 +1917,10 @@ function openDetail(id){
 
   // 管理員快速操作列
   const _bar = document.getElementById('adminDetailBar');
-  const _closeBtn = document.getElementById('adminDetailCloseBtn');
-  const _statusBtn = document.getElementById('adminDetailStatusBtn');
   if(_bar){
     if(isAdmin()){
       _bar.style.display='block';
-      // 提早結單按鈕：只對未結單的預購商品顯示
-      if(_closeBtn) _closeBtn.style.display = (p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)) ? '' : 'none';
-      // 上下架按鈕文字
-      if(_statusBtn) _statusBtn.textContent = p.status==='published' ? '⬇ 下架' : '⬆ 上架';
+      _refreshAdminDetailBar(p);
     } else {
       _bar.style.display='none';
     }
@@ -2031,29 +2035,53 @@ function addDetailToCart(){
 }
 
 // ─── 管理員詳細頁快速操作 ───────────────────────────────────
+function _refreshAdminDetailBar(p){
+  const btns = document.getElementById('adminDetailBtns');
+  if(!btns) return;
+  const pid = String(p.id);
+  const isPre = p.type==='預購';
+  const passed = isPre && p.deadline && isDeadlinePassed(p.deadline);
+  const notPassed = isPre && p.deadline && !isDeadlinePassed(p.deadline);
+  const statusLabel = p.status==='published' ? '⬇ 下架' : '⬆ 上架';
+
+  btns.innerHTML = `
+    <button onclick="adminQuickEdit()" style="height:32px;padding:0 12px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✏️ 編輯</button>
+    ${notPassed ? `
+      <button onclick="openDeadlineModal('${pid}','extend')" style="height:32px;padding:0 12px;background:#e8f0fc;color:#1a56c4;border:1px solid #aac4f0;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📅 延長結單</button>
+      <button onclick="adminQuickForceClose('${pid}')" style="height:32px;padding:0 12px;background:#fff8f0;color:#e67300;border:1px solid #e67300;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⏹ 提早結單</button>
+    ` : ''}
+    ${passed ? `
+      <button onclick="openDeadlineModal('${pid}','restore')" style="height:32px;padding:0 12px;background:#eef7f1;color:#2e7d32;border:1px solid #a5d6b0;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🔄 恢復結單</button>
+    ` : ''}
+    <button onclick="adminQuickToggleStatus()" style="height:32px;padding:0 12px;background:#fff;color:var(--ink2);border:1px solid var(--border2);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">${statusLabel}</button>
+  `;
+}
+
 function adminQuickEdit(){
   if(!isAdmin()) return;
   openAdmin();
   editP(currentProductId);
 }
 
-async function adminQuickForceClose(){
+async function adminQuickForceClose(id){
   if(!isAdmin()) return;
-  await forceCloseDeadline(currentProductId);
-  // 更新詳細頁顯示
-  const p = products.find(x=>String(x.id)===String(currentProductId));
-  if(p) updateDetailBuyBtn(p);
-  const _closeBtn = document.getElementById('adminDetailCloseBtn');
-  if(_closeBtn) _closeBtn.style.display='none';
+  const pid = id || currentProductId;
+  await forceCloseDeadline(pid);
+  const p = products.find(x=>String(x.id)===String(pid));
+  if(p){
+    updateDetailBuyBtn(p);
+    _refreshAdminDetailBar(p);
+  }
 }
 
 async function adminQuickToggleStatus(){
   if(!isAdmin()) return;
   await togStatus(currentProductId);
   const p = products.find(x=>String(x.id)===String(currentProductId));
-  const _statusBtn = document.getElementById('adminDetailStatusBtn');
-  if(_statusBtn && p) _statusBtn.textContent = p.status==='published' ? '⬇ 下架' : '⬆ 上架';
-  if(p) updateDetailBuyBtn(p);
+  if(p){
+    updateDetailBuyBtn(p);
+    _refreshAdminDetailBar(p);
+  }
 }
 
 function updateDetailFavBtn(){
@@ -2976,11 +3004,17 @@ function renderAdminList(){
         <div class="aimeta" style="margin-top:2px;color:${_isToday?'#b45309':'var(--ink3)'};font-weight:${_isToday?'600':'400'}">${p.deadline?'結單：'+p.deadline+' ':''}${p.arrival?'到貨：'+p.arrival:''}</div>
       </div>
       <div class="aiac">
-        <button class="ab abe" onclick="editP('${p.id}')">編輯</button>
+        <button class="ab abe" onclick="editP('${p.id}')">✏️ 編輯</button>
         <button class="ab abt ${p.status==='published'?'on':'off'}" onclick="togStatus('${p.id}')">
           ${p.status==='published'?'✓ 上架中':'✕ 已下架'}
         </button>
-        ${p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)?`<button class="ab" style="border-color:#e67300;color:#e67300;background:#fff8f0" onclick="forceCloseDeadline('${p.id}')">⏹ 提早結單</button>`:''}
+        ${p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)?`
+          <button class="ab" style="border-color:#1a56c4;color:#1a56c4;background:#e8f0fc" onclick="openDeadlineModal('${p.id}','extend')">📅 延長結單</button>
+          <button class="ab" style="border-color:#e67300;color:#e67300;background:#fff8f0" onclick="forceCloseDeadline('${p.id}')">⏹ 提早結單</button>
+        `:''}
+        ${p.type==='預購'&&p.deadline&&isDeadlinePassed(p.deadline)?`
+          <button class="ab" style="border-color:#2e7d32;color:#2e7d32;background:#eef7f1" onclick="openDeadlineModal('${p.id}','restore')">🔄 恢復結單</button>
+        `:''}
         <button class="ab abd" onclick="delP('${p.id}')">刪除</button>
       </div>
     </div>`;
@@ -2988,6 +3022,85 @@ function renderAdminList(){
 
   document.getElementById('adminList').innerHTML = html;
 }
+// ─── 結單日期 Modal ──────────────────────────────────────────
+let _deadlineModalId   = null;
+let _deadlineModalMode = 'extend'; // 'extend' | 'restore'
+
+function openDeadlineModal(id, mode){
+  const p = products.find(x=>String(x.id)===String(id));
+  if(!p) return;
+  _deadlineModalId   = id;
+  _deadlineModalMode = mode;
+
+  const modal = document.getElementById('deadlineModal');
+  const input = document.getElementById('deadlineModalInput');
+  const title = document.getElementById('deadlineModalTitle');
+  const sub   = document.getElementById('deadlineModalSub');
+
+  if(mode === 'extend'){
+    title.textContent = '📅 延長結單日期';
+    sub.textContent   = `目前結單日：${p.deadline||'未設定'}`;
+    // 預設為現有日期或今天
+    input.value = p.deadline || new Date().toISOString().split('T')[0];
+    input.min   = new Date().toISOString().split('T')[0]; // 不能選過去
+  } else {
+    title.textContent = '🔄 恢復結單 — 重設截止日';
+    sub.textContent   = '請選擇新的結單日（選好後商品將恢復可購買狀態）';
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate()+1);
+    input.value = tomorrow.toISOString().split('T')[0];
+    input.min   = tomorrow.toISOString().split('T')[0]; // 恢復至少選明天
+  }
+
+  modal.style.display = 'flex';
+  setTimeout(()=> input.focus(), 50);
+}
+
+function closeDeadlineModal(){
+  document.getElementById('deadlineModal').style.display = 'none';
+  _deadlineModalId = null;
+}
+
+async function confirmDeadlineModal(){
+  const input = document.getElementById('deadlineModalInput');
+  const newDate = input.value;
+  if(!newDate){ showToast('⚠️ 請選擇日期'); return; }
+
+  const p = products.find(x=>String(x.id)===String(_deadlineModalId));
+  if(!p){ closeDeadlineModal(); return; }
+
+  const confirmBtn = document.querySelector('#deadlineModal button');
+  if(confirmBtn){ confirmBtn.disabled=true; confirmBtn.textContent='儲存中…'; }
+
+  p.deadline = newDate;
+  persist();
+
+  if(p.id && !String(p.id).startsWith('p')){
+    const {error} = await _sb.from('products').update({deadline: newDate}).eq('id', p.id);
+    if(error){
+      showToast('❌ 儲存失敗：'+error.message);
+      if(confirmBtn){ confirmBtn.disabled=false; confirmBtn.textContent='確認'; }
+      return;
+    }
+  }
+
+  closeDeadlineModal();
+  renderAdminList(); renderShop();
+
+  // 更新詳細頁（若正在看該商品）
+  if(String(currentProductId)===String(_deadlineModalId||p.id)){
+    updateDetailBuyBtn(p);
+    const _bar = document.getElementById('adminDetailBar');
+    if(_bar && isAdmin()) _refreshAdminDetailBar(p);
+  }
+
+  if(_deadlineModalMode === 'extend'){
+    showToast(`✅ 結單日已延長至 ${newDate}`);
+  } else {
+    showToast(`✅ 已恢復結單，截止日：${newDate}`);
+  }
+}
+
 // ─── 手動提早結單 ───────────────────────────────────────────
 async function forceCloseDeadline(id){
   const p = products.find(x=>String(x.id)===String(id));
@@ -3025,6 +3138,19 @@ async function forceCloseDeadline(id){
 async function togStatus(id){
   const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   p.status=p.status==='published'?'unlisted':'published';
+
+  // 下架時：清空購物車裡此商品，並記錄通知
+  if(p.status==='unlisted'){
+    const inCart = cart.some(ci=>String(ci.id)===String(id));
+    if(inCart){
+      cart = cart.filter(ci=>String(ci.id)!==String(id));
+      persist(); updBadge();
+      const existing = JSON.parse(sessionStorage.getItem('tf_cart_removed')||'[]');
+      if(!existing.includes(p.name)) existing.push(p.name);
+      sessionStorage.setItem('tf_cart_removed', JSON.stringify(existing));
+    }
+  }
+
   persist();renderAdminList();renderShop();
   showToast(p.status==='published'?`✓ 已上架：${p.name.slice(0,14)}…`:`已下架：${p.name.slice(0,14)}…`);
   if(p.id && !String(p.id).startsWith('p')){
