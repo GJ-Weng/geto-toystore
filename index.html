@@ -2847,26 +2847,41 @@ function renderArrivalTracker(){
 
   const now = new Date();
   const thisYear  = now.getFullYear();
-  const thisMonth = now.getMonth()+1; // 1-12
+  const thisMonth = now.getMonth()+1;
   const fmtMonth = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
+  const thisMonthStr = fmtMonth(thisYear, thisMonth);
 
-  // 產生未來 6 個月的月份選項（含本月）
-  const months = [];
-  for(let i=0;i<6;i++){
-    let m = thisMonth + i;
-    let y = thisYear;
-    if(m>12){ m-=12; y++; }
-    months.push(fmtMonth(y,m));
+  // ── 從商品資料抓出所有「有 arrival 且為未來或本月」的月份 ──────────────
+  const monthSet = new Set();
+  products.forEach(p=>{
+    if(!p.arrival) return;
+    // arrival 格式：YYYY-MM 或 YYYY-MM-DD，取前7碼
+    const m = p.arrival.slice(0,7);
+    if(m >= thisMonthStr) monthSet.add(m);  // 只顯示本月及以後
+  });
+
+  // 排序月份
+  const months = [...monthSet].sort();
+
+  // 若沒有任何到貨資料，顯示空狀態
+  if(months.length === 0){
+    wrap.innerHTML = `<div style="text-align:center;padding:64px;color:var(--ink3)">
+      <div style="font-size:36px;margin-bottom:10px">📭</div>
+      <div style="font-size:13px">目前沒有設定到貨月份的商品</div>
+    </div>`;
+    return;
   }
 
-  // 讀取目前選擇的月份（預設本月）
+  // 讀取目前選擇的月份
   const selEl = document.getElementById('arrivalMonthSel');
-  const selectedMonth = selEl ? selEl.value : fmtMonth(thisYear, thisMonth);
+  let selectedMonth = selEl ? selEl.value : '';
+  // 若目前選的月份不在清單裡（例如切換後商品被刪），fallback 到第一個
+  if(!selectedMonth || !months.includes(selectedMonth)) selectedMonth = months[0];
 
-  // 篩選該月到貨的預購商品（arrival 格式：YYYY-MM 或 YYYY-MM-DD）
+  // 篩選該月到貨的商品
   const arrivals = products.filter(p=>{
     if(!p.arrival) return false;
-    return p.arrival.startsWith(selectedMonth);
+    return p.arrival.slice(0,7) === selectedMonth;
   }).sort((a,b)=>(a.arrival||'').localeCompare(b.arrival||''));
 
   const monthLabel = selectedMonth.replace('-','年')+'月';
@@ -2875,46 +2890,38 @@ function renderArrivalTracker(){
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div style="font-size:14px;font-weight:700">📦 到貨追蹤</div>
       <select id="arrivalMonthSel" class="fi" style="width:auto;height:32px;font-size:13px" onchange="renderArrivalTracker()">
-        ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月</option>`).join('')}
+        ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月（${products.filter(p=>p.arrival&&p.arrival.slice(0,7)===m).length}件）</option>`).join('')}
       </select>
       <span style="font-size:12px;color:var(--ink3)">${monthLabel}共 <b style="color:var(--ink)">${arrivals.length}</b> 件商品預計到貨</span>
     </div>
 
-    ${arrivals.length===0
-      ? `<div style="text-align:center;padding:48px;color:var(--ink3)">
-           <div style="font-size:36px;margin-bottom:10px">📭</div>
-           <div style="font-size:13px">${monthLabel}沒有預計到貨的商品</div>
-         </div>`
-      : `<div style="display:flex;flex-direction:column;gap:10px">
-          ${arrivals.map(p=>{
-            const _thumb = p.imageUrl||(Array.isArray(p.imageUrls)&&p.imageUrls[0])||PLACEHOLDER_IMG;
-            const _deadlinePassed = p.deadline && isDeadlinePassed(p.deadline);
-            const _statusColor = _deadlinePassed ? '#2e7d32' : '#1a56c4';
-            const _statusBg    = _deadlinePassed ? '#eef7f1' : '#e8f0fc';
-            const _statusLabel = _deadlinePassed ? '已結單' : '預購中';
-            return `
-            <div class="ai" style="align-items:flex-start">
-              <div class="aim" style="flex-shrink:0">
-                <img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG">
-              </div>
-              <div class="ain" style="flex:1">
-                <div class="ainame" style="margin-bottom:4px">${p.name}</div>
-                <div class="aimeta">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}</div>
-                ${p.variants?.length?`<div class="aimeta" style="margin-top:2px">規格：${p.variants.join(' / ')}</div>`:''}
-                <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;align-items:center">
-                  <span style="font-size:11px;background:${_statusBg};color:${_statusColor};padding:2px 8px;border-radius:10px;font-weight:600">${_statusLabel}</span>
-                  ${p.deadline?`<span style="font-size:11px;color:var(--ink3)">結單：${p.deadline}</span>`:''}
-                  <span style="font-size:11px;color:var(--red);font-weight:600">📅 到貨：${p.arrival}</span>
-                  ${p.cnt>0?`<span style="font-size:11px;color:var(--ink3)">${p.cnt} 人已預購</span>`:''}
-                </div>
-              </div>
-              <div class="aiac" style="flex-shrink:0">
-                <button class="ab abe" onclick="editP('${p.id}')">編輯</button>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>`
-    }
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${arrivals.map(p=>{
+        const _thumb = p.imageUrl||(Array.isArray(p.imageUrls)&&p.imageUrls[0])||PLACEHOLDER_IMG;
+        const _deadlinePassed = p.deadline && isDeadlinePassed(p.deadline);
+        const _statusColor = _deadlinePassed ? '#2e7d32' : '#1a56c4';
+        const _statusBg    = _deadlinePassed ? '#eef7f1' : '#e8f0fc';
+        const _statusLabel = _deadlinePassed ? '已結單' : '預購中';
+        return `
+        <div class="ai" style="align-items:flex-start;gap:12px">
+          <div class="aim" style="flex-shrink:0;width:56px;height:56px">
+            <img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG">
+          </div>
+          <div style="flex:1;min-width:0;overflow:hidden">
+            <div style="font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}${p.cnt>0?' · '+p.cnt+'人已預購':''}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:11px;background:${_statusBg};color:${_statusColor};padding:2px 8px;border-radius:10px;font-weight:600">${_statusLabel}</span>
+              ${p.deadline?`<span style="font-size:11px;color:var(--ink3)">結單：${p.deadline}</span>`:''}
+              <span style="font-size:11px;color:var(--red);font-weight:600">📅 到貨：${p.arrival}</span>
+            </div>
+          </div>
+          <div style="flex-shrink:0">
+            <button class="ab abe" onclick="editP('${p.id}')">編輯</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
   `;
 }
 
