@@ -1429,7 +1429,7 @@ function renderOrdersList(){
     const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="order-card" onclick="openOrderDetail(${o.id})">
       <div class="order-card-head">
-        <span style="font-size:12px;color:var(--ink3)">訂單編號：<b style="color:var(--ink)">${o.id}</b></span>
+        <span style="font-size:12px;color:var(--ink3)">訂單編號：<b style="color:var(--ink);font-family:monospace;letter-spacing:1px">${o.order_code||o.id}</b></span>
         <span class="order-card-status ${si.cls}">${si.label}</span>
       </div>
       <div class="order-card-items">
@@ -1522,7 +1522,7 @@ function openOrderDetail(orderId){
 
     <div class="od-section">費用明細</div>
     <div class="od-rows" style="margin-bottom:16px">
-      <div class="od-row"><span class="od-row-lbl">訂單編號</span><span class="od-row-val" style="font-family:monospace">${o.id}</span></div>
+      <div class="od-row"><span class="od-row-lbl">訂單編號</span><span class="od-row-val" style="font-family:monospace;letter-spacing:1px">${o.order_code||o.id}</span></div>
       <div class="od-row"><span class="od-row-lbl">日期</span><span class="od-row-val">${dateStr}</span></div>
       <div class="od-row"><span class="od-row-lbl">配送方式</span><span class="od-row-val">${o.store||'—'}</span></div>
       <div class="od-row"><span class="od-row-lbl">商品合計</span><span class="od-row-val">NT$ ${total.toLocaleString()}</span></div>
@@ -1992,12 +1992,15 @@ async function submitCheckoutOrder(){
     note: JSON.stringify(items),
     user_email: user?.email||'',
     status: 'new',
+    order_code: orderNum,  // 顧客看到的編號（如 MQ1C2YBO）
   };
 
   const {data,error} = await _sb.from('orders').insert([record]).select().single();
   btn.disabled=false; btn.textContent='確認預購';
 
   if(error){ showToast('❌ 送出失敗：'+error.message); return; }
+  // 以存進 DB 的 order_code 為主（確保一致）
+  const confirmedOrderNum = data?.order_code || orderNum;
 
   // increment preorder count (per person, not per qty)
   const _orderedIds = [...new Set(cart.map(ci=>ci.id))];
@@ -2018,7 +2021,7 @@ async function submitCheckoutOrder(){
     sendOrderEmail({
       customerName: customerName||user.name||user.email,
       customerEmail: user.email,
-      orderNum,
+      orderNum: confirmedOrderNum,
       items,
       total,
       dep,
@@ -2030,7 +2033,7 @@ async function submitCheckoutOrder(){
   }
   persist(); updBadge();
 
-  showConfirmPage(orderNum, dep);
+  showConfirmPage(confirmedOrderNum, dep);
 }
 
 function showConfirmPage(orderNum, dep){
@@ -2807,6 +2810,7 @@ function _aoRenderCards(){
     return `<div class="aoc">
       <div class="aoc-head">
         <span class="aoc-id">#${o.id}</span>
+        <span style="font-size:11px;font-family:monospace;color:#888;margin-left:4px">${o.order_code||''}</span>
         <span class="aoc-time">${dateStr} · ${o.store||''}</span>
         <span class="aoc-status" style="background:${si.bg};color:${si.color}">${si.label}</span>
       </div>
@@ -2830,19 +2834,24 @@ function _aoRenderCards(){
           <span>📧 ${o.user_email||''}</span>
           ${o.store?`<span>🚚 ${o.store}</span>`:''}
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          ${(()=>{
-            let _items=[];
-            try{_items=JSON.parse(o.note||'[]');}catch(e){}
-            if(!Array.isArray(_items)||!_items.length) _items=[{price:o.price,deposit:0}];
-            const _total = _items.reduce((s,i)=>s+(i.price||0),0);
-            const _dep   = _items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
-            const _tail  = _total - _dep;
-            return `<div style="font-size:11px;color:var(--ink3)">商品金額 NT$${_total.toLocaleString()}</div>
-                    <div style="font-size:11px;color:#e67300">訂金 NT$${_dep.toLocaleString()}</div>
-                    ${_tail>0?`<div style="font-size:11px;color:var(--ink3)">尾款 NT$${_tail.toLocaleString()}</div>`:''}`;
-          })()}
-        </div>
+        <div style="font-size:12px;color:var(--ink3)">訂金 NT$${(o.price||0).toLocaleString()}</div>
+      </div>
+      <div style="padding:8px 16px;border-top:1px solid var(--border);background:var(--bg)">
+        ${(()=>{
+          let _it=[];
+          try{_it=JSON.parse(o.note||'[]');}catch(e){}
+          if(!Array.isArray(_it)||!_it.length) _it=[{price:o.price,deposit:0}];
+          const _tot = _it.reduce((s,i)=>s+(i.price||0),0);
+          const _dep = _it.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+          const _tail= _tot-_dep;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div style="display:flex;gap:16px;font-size:12px">
+              <span style="color:var(--ink3)">訂金 <b style="color:#e67300">NT$${_dep.toLocaleString()}</b></span>
+              ${_tail>0?`<span style="color:var(--ink3)">尾款 <b>NT$${_tail.toLocaleString()}</b></span>`:''}
+            </div>
+            <div style="font-size:16px;font-weight:700;color:var(--ink)">訂單金額 NT$${_tot.toLocaleString()}</div>
+          </div>`;
+        })()}
       </div>
       <div class="aoc-actions">
         ${canPay   ?`<button class="aoc-btn aoc-btn-pay"  onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
@@ -2850,6 +2859,7 @@ function _aoRenderCards(){
         ${canShip  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
         ${canCancel?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
         <button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>
+        <button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>
       </div>
     </div>`;
   }).join('');
@@ -2943,6 +2953,95 @@ async function sendStatusEmail(o, newStatus){
 
 // keep old name for compat
 async function markShipped(id){ await aoUpdateStatus(id,'shipped'); }
+
+// ─── 寄賣場連結給顧客 ─────────────────────────────────────
+function sendShipEmail(orderId){
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  if(!o){ showToast('找不到訂單'); return; }
+  if(!o.user_email){ showToast('⚠️ 此訂單沒有顧客 Email'); return; }
+
+  // 彈出輸入視窗，讓店家貼入剛建立的賣場連結
+  const existing = document.getElementById('shipEmailOverlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'script-overlay';
+  overlay.id = 'shipEmailOverlay';
+  overlay.innerHTML = `
+    <div class="script-modal" style="max-width:440px">
+      <h3>📧 寄賣場連結給顧客</h3>
+      <p>
+        <b>${o.customer_name||'顧客'}</b>　${o.user_email}<br>
+        訂單 #${o.id}
+      </p>
+      <div class="co-field" style="margin-bottom:14px">
+        <div class="co-lbl" style="margin-bottom:6px">貼上賣貨便賣場連結</div>
+        <input id="shipUrlInput" class="co-inp" placeholder="https://myship.7-11.com.tw/cart/confirm/GM..." style="width:100%">
+      </div>
+      <div class="script-steps">
+        執行腳本後，從 Console 複製連結貼到上方，<br>再點「寄送」，顧客會收到一封含連結的通知信。
+      </div>
+      <div class="script-btns" style="margin-top:14px">
+        <button class="script-copy" onclick="doSendShipEmail(${o.id})">📧 寄送連結</button>
+        <button class="script-close" onclick="document.getElementById('shipEmailOverlay').remove()">取消</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('shipUrlInput')?.focus(), 100);
+}
+
+async function doSendShipEmail(orderId){
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  const url = document.getElementById('shipUrlInput')?.value.trim();
+  if(!url || !url.startsWith('http')){ showToast('⚠️ 請貼入正確的連結'); return; }
+  if(!emailjsConfig.publicKey){ showToast('⚠️ EmailJS 未設定'); return; }
+
+  let items=[];
+  try{items=JSON.parse(o.note||'[]');}catch(e){}
+  if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
+  const totalAmt = items.reduce((s,i)=>s+(i.price||0),0);
+  const dep      = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const tail     = totalAmt - dep;
+
+  const btn = document.querySelector('#shipEmailOverlay .script-copy');
+  if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
+
+  try{
+    emailjs.init({ publicKey: emailjsConfig.publicKey });
+    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+      to_name:        o.customer_name||'顧客',
+      to_email:       o.user_email,
+      order_num:      String(o.id),
+      subject_status: '賣場已建立，請前往付款',
+      header_title:   '🛒 您的專屬賣場已建立！',
+      header_sub:     `${o.customer_name||'您'} 您好！您的訂單尾款賣場已建立，請點連結完成付款。`,
+      items_html:     `<table style="width:100%;border-collapse:collapse">
+        ${items.map(it=>`<tr><td style="padding:8px;border-bottom:1px solid #eee">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(it.price||0).toLocaleString()}</td></tr>`).join('')}
+      </table>`,
+      amount_html:    `<div style="background:#e8f0fc;border-radius:8px;padding:14px 16px;margin:12px 0">
+        <div style="font-size:13px;color:#666;margin-bottom:6px">訂單金額 NT$${totalAmt.toLocaleString()}　已付訂金 NT$${dep.toLocaleString()}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:16px;font-weight:700;color:#1a56c4">應付尾款</span>
+          <span style="font-size:20px;font-weight:700;color:#c0392b">NT$${tail.toLocaleString()}</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin:16px 0">
+        <a href="${url}" style="display:inline-block;background:#ee7700;color:#fff;padding:12px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none">前往付款 →</a>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:center">連結：${url}</div>`,
+      bank_html:      '',
+      reminder_html:  `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;font-size:12px;color:#856404">⚠️ 請儘快完成付款，連結有效期限請參考賣貨便說明。</div>`,
+      delivery:       o.store||'',
+      phone:          o.phone||'',
+    });
+    document.getElementById('shipEmailOverlay')?.remove();
+    showToast('✅ 已寄送賣場連結給 ' + o.user_email);
+  } catch(err){
+    if(btn){ btn.disabled=false; btn.textContent='📧 寄送連結'; }
+    showToast('❌ 寄信失敗：'+(err?.text||err?.message||'請確認 EmailJS 設定'));
+  }
+}
 
 // ─── MYSHIP 賣貨便賣場腳本產生 ───────────────────────────
 function openMyshipModal(orderId){
@@ -3078,7 +3177,7 @@ function gen711Script(orderId){
   const tailAmt    = totalAmt - depositAmt;
   const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
-  const storeName = o.customer_name || '顧客';
+  const storeName = (o.customer_name||'顧客') + ' 預購#' + ordNum;
   const ordNum    = String(o.id);
 
   // 單一商品：總尾款金額，庫存1，顧客只付一次
