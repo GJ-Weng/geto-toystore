@@ -3212,7 +3212,8 @@ function gen711Script(orderId){
   const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
   const ordNum    = String(o.id);
-  const storeName = (o.customer_name||'顧客') + ' 預購#' + ordNum;
+  const orderCode = o.order_code || ordNum;
+  const storeName = (o.customer_name||'顧客') + ' 預購#' + orderCode;
 
   // 單一商品：總尾款金額，庫存1，顧客只付一次
   // 商品名稱組合所有品項
