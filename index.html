@@ -3051,90 +3051,76 @@ function gen711Script(orderId){
   const tailAmt    = totalAmt - depositAmt;
   const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
-  const storeName  = o.customer_name || '顧客';
-  const ordNum     = String(o.id);
+  const storeName = o.customer_name || '顧客';
+  const ordNum    = String(o.id);
 
-  // 組成商品陣列（每個規格各一筆）
+  // 商品清單
   const productsArr = items.map(it => ({
-    name:  ((it.product_name||'') + (it.variant ? ' '+it.variant : '')).slice(0,60),
-    qty:   it.qty||1,
-    price: it.deposit>0 ? (it.price - it.deposit) : it.price  // 尾款
+    name:  ((it.product_name||'') + (it.variant ? ' ' + it.variant : '')).slice(0, 60),
+    qty:   it.qty || 1,
+    price: tailAmt > 0 ? (it.price - (it.deposit||0)) : it.price
   }));
 
-  // 產生腳本（跟 ToyChain 一樣的結構）
-  const storesJson = JSON.stringify([{
-    name: storeName,
-    products: productsArr
-  }], null, 2);
+  // === 腳本內容（在 myship 頁面執行）===
+  // 注意：這段腳本裡不能有任何模板字串 ${} 以外的反引號
+  const storesData = JSON.stringify([{ name: storeName, products: productsArr }], null, 2);
 
-  const script =
-`// ======= Geto玩具屋 賣貨便建單腳本 =======
-// 訂單 #${ordNum} | 顧客：${storeName}
-// 請在 myship.7-11.com.tw/fast/add 頁面貼上
-
-const stores = ${storesJson};
-
-const form = document.querySelector('form');
-const buildFD = (store) => {
-  const fd = new FormData(form);
-  fd.set('Cgdm_Name', store.name);
-  fd.set('Cgdm_Id', '');
-  fd.set('conveyance.IsChecked', '1');
-  fd.set('payment.IsChecked', '1');
-  store.products.forEach((p, i) => {
-    const idx = i + 1;
-    fd.append('slim[]', '');
-    fd.set('AddSlimImg', String(idx));
-    fd.set('product.Ordering[' + idx + ']', String(idx));
-    fd.set('product.Cgdd_Product_Name[' + idx + ']', p.name);
-    fd.set('specification.Cgds_Id[' + idx + ']', '');
-    fd.set('specification.Cgds_Spec[' + idx + ']', '');
-    fd.set('specification.Cgds_Inventory[' + idx + ']', String(p.qty));
-    fd.set('specification.Cgds_Price[' + idx + ']', String(p.price));
-    fd.set('specification.Cgds_InventoryDef[' + idx + ']', String(p.qty));
-    fd.set('product.SellingStatus[' + idx + ']', '1');
-    fd.set('product.ProductStatus[' + idx + ']', '1');
-    fd.set('product.Cgdd_Product_MaxOrder[' + idx + ']', '0');
-    fd.set('product.Cgdd_Product_MinOrder[' + idx + ']', '0');
-  });
-  return fd;
-};
-
-const t0 = Date.now();
-window.__loopResults = null;
-
-(async () => {
-  const results = [];
-  for (const store of stores) {
-    const resp = await fetch('https://myship.7-11.com.tw/fast/add', {
-      method: 'POST',
-      body: buildFD(store),
-      redirect: 'follow',
-      credentials: 'include'
-    });
-    const text = await resp.text();
-    // 優先從回應 URL 或 HTML 中抓購買連結
-    let id = 'check-list';
-    // 方法1：從最終 URL 抓（redirect 後的網址）
-    const urlId = resp.url.match(/cart\/confirm\/([A-Z0-9]{8,})/)?.[1];
-    if(urlId) { id = urlId; }
-    else {
-      // 方法2：從回應 HTML 抓 cart/confirm/ 後的 ID
-      const htmlId = text.match(/cart\/confirm\/([A-Z0-9]{8,})/)?.[1];
-      if(htmlId) { id = htmlId; }
-      else {
-        // 方法3：找 GM 開頭的訂單編號（myship 格式）
-        const gmId = text.match(/GM\d{10,}/)?.[0];
-        if(gmId) { id = gmId; }
-      }
-    }
-    results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });
-  }
-  window.__loopResults = { results, total: Date.now() - t0 };
-  console.log('\\n' + results.map(r =>
-    r.store + '\\nhttps://myship.7-11.com.tw/cart/confirm/' + r.id
-  ).join('\\n\\n') + '\\n\\n共 ' + results.length + ' 筆，耗時 ' + (Date.now() - t0) + 'ms');
-})();`;
+  const scriptLines = [
+    '// ======= Geto玩具屋 賣貨便建單腳本 =======',
+    '// 訂單 #' + ordNum + ' | 顧客：' + storeName,
+    '// 請在 https://myship.7-11.com.tw/fast/add 頁面執行',
+    '',
+    'const stores = ' + storesData + ';',
+    '',
+    'const form = document.querySelector("form");',
+    'const buildFD = (store) => {',
+    '  const fd = new FormData(form);',
+    '  fd.set("Cgdm_Name", store.name);',
+    '  fd.set("Cgdm_Id", "");',
+    '  fd.set("conveyance.IsChecked", "1");',
+    '  fd.set("payment.IsChecked", "1");',
+    '  store.products.forEach((p, i) => {',
+    '    const idx = i + 1;',
+    '    fd.append("slim[]", "");',
+    '    fd.set("AddSlimImg", String(idx));',
+    '    fd.set("product.Ordering[" + idx + "]", String(idx));',
+    '    fd.set("product.Cgdd_Product_Name[" + idx + "]", p.name);',
+    '    fd.set("specification.Cgds_Id[" + idx + "]", "");',
+    '    fd.set("specification.Cgds_Spec[" + idx + "]", "");',
+    '    fd.set("specification.Cgds_Inventory[" + idx + "]", String(p.qty));',
+    '    fd.set("specification.Cgds_Price[" + idx + "]", String(p.price));',
+    '    fd.set("specification.Cgds_InventoryDef[" + idx + "]", String(p.qty));',
+    '    fd.set("product.SellingStatus[" + idx + "]", "1");',
+    '    fd.set("product.ProductStatus[" + idx + "]", "1");',
+    '    fd.set("product.Cgdd_Product_MaxOrder[" + idx + "]", "0");',
+    '    fd.set("product.Cgdd_Product_MinOrder[" + idx + "]", "0");',
+    '  });',
+    '  return fd;',
+    '};',
+    '',
+    'const t0 = Date.now();',
+    'window.__loopResults = null;',
+    '',
+    '(async () => {',
+    '  const results = [];',
+    '  for (const store of stores) {',
+    '    const resp = await fetch("https://myship.7-11.com.tw/fast/add", {',
+    '      method: "POST",',
+    '      body: buildFD(store),',
+    '      redirect: "follow",',
+    '      credentials: "include"',
+    '    });',
+    '    // 從 redirect 後的最終 URL 取得賣場 ID（最後一段路徑）',
+    '    const id = resp.url.split("/").pop() || "check-list";',
+    '    results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });',
+    '  }',
+    '  window.__loopResults = { results, total: Date.now() - t0 };',
+    '  console.log("\n" + results.map(r =>',
+    '    r.store + "\nhttps://myship.7-11.com.tw/cart/confirm/" + r.id',
+    '  ).join("\n\n") + "\n\n共 " + results.length + " 筆，耗時 " + (Date.now() - t0) + "ms");',
+    '})();'
+  ];
+  const script = scriptLines.join('\n');
 
   // 顯示 Modal
   const existing = document.getElementById('scriptOverlay');
@@ -3143,28 +3129,24 @@ window.__loopResults = null;
   const overlay = document.createElement('div');
   overlay.className = 'script-overlay';
   overlay.id = 'scriptOverlay';
-  overlay.innerHTML = `
-    <div class="script-modal">
-      <h3>📦 賣貨便建單腳本</h3>
-      <p>
-        <b>顧客：${o.customer_name||'—'}</b>　訂單 #${ordNum}<br>
-        商品：${(items[0].product_name||'').slice(0,30)}　規格：${items[0].variant||'—'}<br>
-        應付尾款：<b style="color:var(--red)">NT$ ${payAmt.toLocaleString()}</b>
-      </p>
-      <div class="script-steps">
-        <b>步驟：</b><br>
-        1. 先登入 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a>（直接開這頁）<br>
-        2. 點下方「📋 複製腳本」<br>
-        3. 按 F12 → Console → 打 <b>allow pasting</b> → Enter<br>
-        4. 貼上腳本 → Enter 執行<br>
-        5. Console 出現購買連結 → 傳給顧客！
-      </div>
-      <div class="script-box" id="scriptContent">${script.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-      <div class="script-btns">
-        <button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>
-        <button class="script-close" onclick="document.getElementById('scriptOverlay').remove()">關閉</button>
-      </div>
-    </div>`;
+  overlay.innerHTML = '<div class="script-modal">'
+    + '<h3>📦 賣貨便建單腳本</h3>'
+    + '<p><b>顧客：' + (o.customer_name||'—') + '</b>　訂單 #' + ordNum + '<br>'
+    + '商品：' + (items[0].product_name||'').slice(0,30) + '　規格：' + (items[0].variant||'—') + '<br>'
+    + '應付：<b style="color:var(--red)">NT$ ' + payAmt.toLocaleString() + '</b></p>'
+    + '<div class="script-steps">'
+    + '<b>步驟：</b><br>'
+    + '1. 先登入並開啟 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a><br>'
+    + '2. 點下方「📋 複製腳本」<br>'
+    + '3. F12 → Console → 打 allow pasting → Enter<br>'
+    + '4. 貼上腳本 → Enter<br>'
+    + '5. Console 出現購買連結 → 傳給顧客！'
+    + '</div>'
+    + '<div class="script-box" id="scriptContent">' + script.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
+    + '<div class="script-btns">'
+    + '<button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>'
+    + '<button class="script-close" onclick="document.getElementById(\'scriptOverlay\').remove()">關閉</button>'
+    + '</div></div>';
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
   overlay._scriptText = script;
