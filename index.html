@@ -3043,89 +3043,83 @@ function gen711Script(orderId){
   let items = [];
   try{ items=JSON.parse(o.note||'[]'); }catch(e){}
   if(!Array.isArray(items)||!items.length){
-    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
+    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:0}];
   }
 
   const totalAmt   = items.reduce((s,i)=>s+(i.price||0),0);
   const depositAmt = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
   const tailAmt    = totalAmt - depositAmt;
-  const price      = tailAmt > 0 ? tailAmt : totalAmt;
+  const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
-  const storeName   = (o.customer_name || '顧客').replace(/'/g,"\\'");
-  const productName = (items[0].product_name||'').slice(0,60).replace(/'/g,"\\'");
-  const spec        = (items[0].variant || '單一規格').replace(/'/g,"\\'");
-  const ordNum      = String(o.id);
+  const storeName  = o.customer_name || '顧客';
+  const ordNum     = String(o.id);
 
-  // 直接用 fetch POST 建立賣場，不用手動填表單
+  // 組成商品陣列（每個規格各一筆）
+  const productsArr = items.map(it => ({
+    name:  ((it.product_name||'') + (it.variant ? ' '+it.variant : '')).slice(0,60),
+    qty:   it.qty||1,
+    price: it.deposit>0 ? (it.price - it.deposit) : it.price  // 尾款
+  }));
+
+  // 產生腳本（跟 ToyChain 一樣的結構）
+  const storesJson = JSON.stringify([{
+    name: storeName,
+    products: productsArr
+  }], null, 2);
+
   const script =
 `// ======= Geto玩具屋 賣貨便建單腳本 =======
 // 訂單 #${ordNum} | 顧客：${storeName}
-// 在 myship.7-11.com.tw 任意頁面貼上即可
+// 請在 myship.7-11.com.tw/fast/add 頁面貼上
+
+const stores = ${storesJson};
+
+const form = document.querySelector('form');
+const buildFD = (store) => {
+  const fd = new FormData(form);
+  fd.set('Cgdm_Name', store.name);
+  fd.set('Cgdm_Id', '');
+  fd.set('conveyance.IsChecked', '1');
+  fd.set('payment.IsChecked', '1');
+  store.products.forEach((p, i) => {
+    const idx = i + 1;
+    fd.append('slim[]', '');
+    fd.set('AddSlimImg', String(idx));
+    fd.set('product.Ordering[' + idx + ']', String(idx));
+    fd.set('product.Cgdd_Product_Name[' + idx + ']', p.name);
+    fd.set('specification.Cgds_Id[' + idx + ']', '');
+    fd.set('specification.Cgds_Spec[' + idx + ']', '');
+    fd.set('specification.Cgds_Inventory[' + idx + ']', String(p.qty));
+    fd.set('specification.Cgds_Price[' + idx + ']', String(p.price));
+    fd.set('specification.Cgds_InventoryDef[' + idx + ']', String(p.qty));
+    fd.set('product.SellingStatus[' + idx + ']', '1');
+    fd.set('product.ProductStatus[' + idx + ']', '1');
+    fd.set('product.Cgdd_Product_MaxOrder[' + idx + ']', '0');
+    fd.set('product.Cgdd_Product_MinOrder[' + idx + ']', '0');
+  });
+  return fd;
+};
+
+const t0 = Date.now();
+window.__loopResults = null;
 
 (async () => {
-  const t0 = Date.now();
-
-  // 先取得 CSRF token
-  const page = await fetch('https://myship.7-11.com.tw/fast/add', {
-    credentials: 'include', redirect: 'follow'
-  });
-  const html = await page.text();
-  const tokenMatch = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/);
-  const token = tokenMatch ? tokenMatch[1] : '';
-  if(!token){ console.error('❌ 無法取得 CSRF token，請確認是否已登入 myship'); return; }
-
-  // 組 FormData
-  const fd = new FormData();
-  fd.append('__RequestVerificationToken', token);
-  fd.append('Cgdm_Name', '${storeName}');
-  fd.append('showFlag', 'isPrivate');
-  fd.append('rdoDuring', '0');
-  fd.append('product.Cgdd_Product_Name[1]', '${productName}');
-  fd.append('specification.Cgds_Spec[1]', '${spec}');
-  fd.append('specification.Cgds_Price[1]', '${price}');
-  fd.append('specification.Cgds_Inventory[1]', '1');
-  fd.append('specification.Cgds_InventoryDef[1]', '1');
-  fd.append('product.Cgdd_Product_MaxOrder[1]', '1');
-  fd.append('product.Cgdd_Product_MinOrder[1]', '1');
-  fd.append('product.SellingStatus[1]', 'normal');
-  fd.append('product.ProductStatus[1]', 'new');
-  fd.append('product.Ordering[1]', '1');
-  fd.append('conveyance.IsChecked', '1');
-  fd.append('conveyance.FixFee.1', '0');
-  fd.append('payment.IsChecked', '1');
-  fd.append('ProductCount', '1');
-
-  const res = await fetch('https://myship.7-11.com.tw/fast/add', {
-    method: 'POST',
-    body: fd,
-    credentials: 'include',
-    redirect: 'follow'
-  });
-
-  const resText = await res.text();
-
-  // 嘗試從回應頁面抓購買連結
-  const urlMatch = resText.match(/href="(https:\/\/myship\.7-11\.com\.tw\/cart\/confirm\/[^"]+)"/);
-  const buyUrl   = urlMatch ? urlMatch[1] : res.url;
-
-  const elapsed = Date.now() - t0;
-  console.log('');
-  console.log('✅ 賣場建立完成！耗時：' + elapsed + 'ms');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('顧客：${storeName}');
-  console.log('商品：${productName}');
-  console.log('規格：${spec}');
-  console.log('應付：NT$ ${price}');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📎 購買連結（傳給顧客）：');
-  console.log(buyUrl);
-  console.log('');
-
-  // 自動複製連結到剪貼簿
-  try{
-    await navigator.clipboard.writeText(buyUrl);
-    console.log('✅ 連結已自動複製到剪貼簿！');
-  } catch(e) {}
+  const results = [];
+  for (const store of stores) {
+    const resp = await fetch('https://myship.7-11.com.tw/fast/add', {
+      method: 'POST',
+      body: buildFD(store),
+      redirect: 'follow',
+      credentials: 'include'
+    });
+    const text = await resp.text();
+    const id = text.match(/[\\uA-Za-z0-9]{7}/)?.[ 0] || 'check-list';
+    results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });
+  }
+  window.__loopResults = { results, total: Date.now() - t0 };
+  console.log('\\n' + results.map(r =>
+    r.store + '\\nhttps://myship.7-11.com.tw/cart/confirm/' + r.id
+  ).join('\\n\\n') + '\\n\\n共 ' + results.length + ' 筆，耗時 ' + (Date.now() - t0) + 'ms');
 })();`;
 
   // 顯示 Modal
@@ -3141,23 +3135,15 @@ function gen711Script(orderId){
       <p>
         <b>顧客：${o.customer_name||'—'}</b>　訂單 #${ordNum}<br>
         商品：${(items[0].product_name||'').slice(0,30)}　規格：${items[0].variant||'—'}<br>
-        應付金額：<b style="color:var(--red)">NT$ ${price.toLocaleString()}</b>
-        ${tailAmt>0?' <span style="color:var(--ink3);font-size:12px">（尾款）</span>':''}
+        應付尾款：<b style="color:var(--red)">NT$ ${payAmt.toLocaleString()}</b>
       </p>
-      <!-- 書籤設定（第一次使用） -->
-      <div style="background:#fffbea;border:1px solid #f0b429;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:#7a5200">
-        <b>📌 第一次使用：先新增書籤小工具（之後免打 allow pasting）</b><br>
-        拖曳下方按鈕到書籤列，或右鍵 → 加入書籤列：<br>
-        <a href="javascript:(function(){var d=document,o=d.createElement('div');o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif';o.innerHTML='<div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="margin:0;font-size:15px;font-weight:700">📦 Geto玩具屋 建單腳本</h3><button id="gc" style="border:none;background:none;font-size:20px;cursor:pointer;color:#888">✕</button></div><p style="margin:0 0 10px;font-size:12px;color:#666">從後台複製腳本後，貼到下方並點執行</p><textarea id="gt" style="width:100%;height:110px;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;font-family:monospace;resize:vertical;outline:none" placeholder="在這裡貼上腳本..."></textarea><div style="display:flex;gap:8px;margin-top:12px"><button id="gr" style="flex:1;height:42px;background:#1B3A5C;color:#C9A84C;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer">▶ 執行</button><button id="gx" style="height:42px;padding:0 16px;border:1px solid #ddd;border-radius:6px;font-size:13px;color:#555;cursor:pointer;background:#fff">關閉</button></div></div>';d.body.appendChild(o);var cl=function(){d.body.removeChild(o)};o.querySelector('#gc').onclick=cl;o.querySelector('#gx').onclick=cl;o.querySelector('#gr').onclick=function(){var s=o.querySelector('#gt').value.trim();if(!s){alert('請先貼上腳本！');return;}cl();try{eval(s);}catch(e){console.error('腳本執行錯誤：',e);}};setTimeout(function(){o.querySelector('#gt').focus();},100);})();" style="display:inline-block;margin-top:8px;background:#1B3A5C;color:#C9A84C;padding:6px 14px;border-radius:6px;font-weight:700;font-size:13px;text-decoration:none">📦 Geto賣貨便建單</a>
-        <span style="color:#999;margin-left:8px">← 拖到書籤列</span>
-      </div>
       <div class="script-steps">
-        <b>設定好後每次流程：</b><br>
-        1. 先登入 <a href="https://myship.7-11.com.tw" target="_blank" style="color:var(--red)">myship.7-11.com.tw</a><br>
+        <b>步驟：</b><br>
+        1. 先登入 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a>（直接開這頁）<br>
         2. 點下方「📋 複製腳本」<br>
-        3. 點書籤列的 <b>「📦 Geto賣貨便建單」</b><br>
-        4. 貼上腳本 → 點執行<br>
-        5. Console 會顯示購買連結，傳給顧客！
+        3. 按 F12 → Console → 打 <b>allow pasting</b> → Enter<br>
+        4. 貼上腳本 → Enter 執行<br>
+        5. Console 出現購買連結 → 傳給顧客！
       </div>
       <div class="script-box" id="scriptContent">${script.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
       <div class="script-btns">
@@ -3169,6 +3155,7 @@ function gen711Script(orderId){
   document.body.appendChild(overlay);
   overlay._scriptText = script;
 }
+
 
 function copyScript(){
   const overlay = document.getElementById('scriptOverlay');
