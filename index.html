@@ -289,6 +289,9 @@ textarea.fi{min-height:64px;resize:vertical}
   .aoc-actions{flex-wrap:wrap;gap:4px}
 }
 
+/* PULSE ANIMATION */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
 /* TOAST */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:rgba(26,26,26,.92);color:#fff;font-size:13px;padding:10px 20px;border-radius:30px;opacity:0;transition:all .25s;z-index:700;pointer-events:none;white-space:nowrap;backdrop-filter:blur(8px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -960,6 +963,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <button class="atab" id="t2" onclick="swTab(2)">商品列表</button>
       <button class="atab" id="t3" onclick="swTab(3)">訂單管理</button>
       <button class="atab" id="t4" onclick="swTab(4)">匯款設定</button>
+      <button class="atab" id="t5" onclick="swTab(5)">📦 到貨追蹤</button>
       <button onclick="closeAdmin()" style="margin-left:8px;width:30px;height:30px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
     </div>
   </div>
@@ -1032,6 +1036,11 @@ textarea.fi{min-height:64px;resize:vertical}
 
     <!-- TAB 2: 商品列表 -->
     <div id="tab2" style="display:none"><div class="al" id="adminList"></div></div>
+
+    <!-- TAB 5: 到貨追蹤 -->
+    <div id="tab5" style="display:none">
+      <div id="arrivalTrackerWrap"></div>
+    </div>
 
     <!-- TAB 3: 訂單管理 -->
     <div id="tab3" style="display:none">
@@ -2474,13 +2483,14 @@ function openAdmin(){
 }
 function closeAdmin(){document.getElementById('ap').classList.remove('open');}
 function swTab(n){
-  [1,2,3,4].forEach(i=>{
+  [1,2,3,4,5].forEach(i=>{
     const t=document.getElementById('t'+i); if(t) t.classList.toggle('act',i===n);
     const tb=document.getElementById('tab'+i); if(tb) tb.style.display=i===n?'':'none';
   });
   if(n===2) renderAdminList();
   if(n===3) renderOrderList();
   if(n===4) loadSettings();
+  if(n===5) renderArrivalTracker();
 }
 function loadSettings(){
   document.getElementById('sBankName').value = shopSettings.bankName||'';
@@ -2743,17 +2753,133 @@ function buildEmojiGrid(){
 }
 function pickE(e){selEmoji=e;buildEmojiGrid();}
 
+// ─── 到貨追蹤 ────────────────────────────────────────────────
+function renderArrivalTracker(){
+  const wrap = document.getElementById('arrivalTrackerWrap');
+  if(!wrap) return;
+
+  const now = new Date();
+  const thisYear  = now.getFullYear();
+  const thisMonth = now.getMonth()+1; // 1-12
+  const fmtMonth = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
+
+  // 產生未來 6 個月的月份選項（含本月）
+  const months = [];
+  for(let i=0;i<6;i++){
+    let m = thisMonth + i;
+    let y = thisYear;
+    if(m>12){ m-=12; y++; }
+    months.push(fmtMonth(y,m));
+  }
+
+  // 讀取目前選擇的月份（預設本月）
+  const selEl = document.getElementById('arrivalMonthSel');
+  const selectedMonth = selEl ? selEl.value : fmtMonth(thisYear, thisMonth);
+
+  // 篩選該月到貨的預購商品（arrival 格式：YYYY-MM 或 YYYY-MM-DD）
+  const arrivals = products.filter(p=>{
+    if(!p.arrival) return false;
+    return p.arrival.startsWith(selectedMonth);
+  }).sort((a,b)=>(a.arrival||'').localeCompare(b.arrival||''));
+
+  const monthLabel = selectedMonth.replace('-','年')+'月';
+
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="font-size:14px;font-weight:700">📦 到貨追蹤</div>
+      <select id="arrivalMonthSel" class="fi" style="width:auto;height:32px;font-size:13px" onchange="renderArrivalTracker()">
+        ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--ink3)">${monthLabel}共 <b style="color:var(--ink)">${arrivals.length}</b> 件商品預計到貨</span>
+    </div>
+
+    ${arrivals.length===0
+      ? `<div style="text-align:center;padding:48px;color:var(--ink3)">
+           <div style="font-size:36px;margin-bottom:10px">📭</div>
+           <div style="font-size:13px">${monthLabel}沒有預計到貨的商品</div>
+         </div>`
+      : `<div style="display:flex;flex-direction:column;gap:10px">
+          ${arrivals.map(p=>{
+            const _thumb = p.imageUrl||(Array.isArray(p.imageUrls)&&p.imageUrls[0])||PLACEHOLDER_IMG;
+            const _deadlinePassed = p.deadline && isDeadlinePassed(p.deadline);
+            const _statusColor = _deadlinePassed ? '#2e7d32' : '#1a56c4';
+            const _statusBg    = _deadlinePassed ? '#eef7f1' : '#e8f0fc';
+            const _statusLabel = _deadlinePassed ? '已結單' : '預購中';
+            return `
+            <div class="ai" style="align-items:flex-start">
+              <div class="aim" style="flex-shrink:0">
+                <img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG">
+              </div>
+              <div class="ain" style="flex:1">
+                <div class="ainame" style="margin-bottom:4px">${p.name}</div>
+                <div class="aimeta">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}</div>
+                ${p.variants?.length?`<div class="aimeta" style="margin-top:2px">規格：${p.variants.join(' / ')}</div>`:''}
+                <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;align-items:center">
+                  <span style="font-size:11px;background:${_statusBg};color:${_statusColor};padding:2px 8px;border-radius:10px;font-weight:600">${_statusLabel}</span>
+                  ${p.deadline?`<span style="font-size:11px;color:var(--ink3)">結單：${p.deadline}</span>`:''}
+                  <span style="font-size:11px;color:var(--red);font-weight:600">📅 到貨：${p.arrival}</span>
+                  ${p.cnt>0?`<span style="font-size:11px;color:var(--ink3)">${p.cnt} 人已預購</span>`:''}
+                </div>
+              </div>
+              <div class="aiac" style="flex-shrink:0">
+                <button class="ab abe" onclick="editP('${p.id}');swTab(1)">編輯</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`
+    }
+  `;
+}
+
 function renderAdminList(){
-  document.getElementById('adminList').innerHTML=products.map(p=>{
+  const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // 判斷是否今日結單
+  function _isTodayDeadline(p){
+    return p.type==='預購' && p.deadline && p.deadline===todayStr && p.status==='published';
+  }
+
+  // 排序：今日結單 → 其他（保持原順序）
+  const sorted = [...products].sort((a,b)=>{
+    const aT = _isTodayDeadline(a)?0:1;
+    const bT = _isTodayDeadline(b)?0:1;
+    return aT - bT;
+  });
+
+  // 今日結單數量
+  const todayCount = sorted.filter(_isTodayDeadline).length;
+
+  let html = '';
+
+  // 今日結單提示橫幅
+  if(todayCount>0){
+    html += `<div style="display:flex;align-items:center;gap:10px;background:#fff4e5;border:1px solid #f9b84b;border-radius:8px;padding:10px 16px;margin-bottom:10px">
+      <span style="font-size:18px">⏰</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#b45309">今日結單提醒</div>
+        <div style="font-size:12px;color:#92400e">共 ${todayCount} 件商品今天（${todayStr}）截止，請確認訂單是否完整！</div>
+      </div>
+    </div>`;
+  }
+
+  html += sorted.map(p=>{
     const _thumb = p.imageUrl || (Array.isArray(p.imageUrls)&&p.imageUrls[0]) || PLACEHOLDER_IMG;
-    const _aimInner = `<img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG">`;
+    const _isToday = _isTodayDeadline(p);
+    const _expired = p.type==='預購' && isDeadlinePassed(p.deadline);
+    const _borderStyle = _isToday ? 'border:1.5px solid #f9b84b;background:#fffbf0' : '';
+
+    // 狀態標籤
+    let _statusBadge = '';
+    if(_isToday) _statusBadge = '<span style="font-size:10px;color:#fff;background:#e67300;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:700;animation:pulse 1.2s infinite">今日結單</span>';
+    else if(_expired) _statusBadge = '<span style="font-size:10px;color:#e67300;background:#fff4e5;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:400">已結單</span>';
+
     return `
-    <div class="ai">
-      <div class="aim">${_aimInner}</div>
+    <div class="ai" style="${_borderStyle}">
+      <div class="aim"><img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG"></div>
       <div class="ain">
-        <div class="ainame">${p.name}${p.type==='預購'&&isDeadlinePassed(p.deadline)?'<span style="font-size:10px;color:#e67300;background:#fff4e5;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:400">已結單</span>':''}</div>
+        <div class="ainame">${p.name}${_statusBadge}</div>
         <div class="aimeta">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}</div>
-        <div class="aimeta" style="margin-top:2px">${p.deadline?'結單：'+p.deadline+' ':''}${p.arrival?'到貨：'+p.arrival:''}</div>
+        <div class="aimeta" style="margin-top:2px;color:${_isToday?'#b45309':'var(--ink3)'};font-weight:${_isToday?'600':'400'}">${p.deadline?'結單：'+p.deadline+' ':''}${p.arrival?'到貨：'+p.arrival:''}</div>
       </div>
       <div class="aiac">
         <button class="ab abe" onclick="editP('${p.id}')">編輯</button>
@@ -2764,6 +2890,8 @@ function renderAdminList(){
       </div>
     </div>`;
   }).join('');
+
+  document.getElementById('adminList').innerHTML = html;
 }
 async function togStatus(id){
   const p=products.find(x=>String(x.id)===String(id));if(!p)return;
