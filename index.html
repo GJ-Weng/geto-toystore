@@ -262,7 +262,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .aim{width:48px;height:48px;border-radius:var(--r);background:var(--bg);font-size:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden}
 .ain{flex:1;min-width:0}
 .ainame{font-size:13px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aimeta{font-size:11px;color:var(--ink3)}
+.aimeta{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aiac{display:flex;gap:6px;flex-shrink:0}
 .ab{height:28px;padding:0 11px;border-radius:var(--r);font-size:12px;font-weight:500;border:1px solid;transition:all .15s;cursor:pointer;background:var(--white)}
 .abt.on{border-color:#c3e8ce;background:#eef7f1;color:#2e7d32}
@@ -2889,7 +2889,7 @@ function renderArrivalTracker(){
   wrap.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div style="font-size:14px;font-weight:700">📦 到貨追蹤</div>
-      <select id="arrivalMonthSel" class="fi" style="width:auto;height:32px;font-size:13px" onchange="renderArrivalTracker()">
+      <select id="arrivalMonthSel" style="height:32px;font-size:13px;border:1px solid var(--border2);border-radius:var(--r);padding:4px 10px;background:var(--white);color:var(--ink);outline:none;cursor:pointer;max-width:200px" onchange="renderArrivalTracker()">
         ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月（${products.filter(p=>p.arrival&&p.arrival.slice(0,7)===m).length}件）</option>`).join('')}
       </select>
       <span style="font-size:12px;color:var(--ink3)">${monthLabel}共 <b style="color:var(--ink)">${arrivals.length}</b> 件商品預計到貨</span>
@@ -2909,7 +2909,7 @@ function renderArrivalTracker(){
           </div>
           <div style="flex:1;min-width:0;overflow:hidden">
             <div style="font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-            <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}${p.cnt>0?' · '+p.cnt+'人已預購':''}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}${p.cnt>0?' · '+p.cnt+'人已預購':''}</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <span style="font-size:11px;background:${_statusBg};color:${_statusColor};padding:2px 8px;border-radius:10px;font-weight:600">${_statusLabel}</span>
               ${p.deadline?`<span style="font-size:11px;color:var(--ink3)">結單：${p.deadline}</span>`:''}
