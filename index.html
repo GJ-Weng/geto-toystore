@@ -489,7 +489,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .ao-tab.act{background:var(--ink);color:#fff;border-color:var(--ink)}
 .ao-search{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;height:34px}
 .ao-search input{border:none;background:transparent;padding:0 12px;font-size:13px;outline:none;width:200px;font-family:var(--font)}
-.ao-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.ao-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
 .ao-stat{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;text-align:center}
 .ao-stat-n{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:2px}
 .ao-stat-l{font-size:11px;color:var(--ink3)}
@@ -2735,13 +2735,28 @@ async function renderOrderList(){
 function _aoRenderStats(){
   const counts={all:0,new:0,paid:0,partial:0,shipped:0,cancelled:0};
   _allAdminOrders.forEach(o=>{counts.all++;if(counts[o.status]!==undefined)counts[o.status]++;});
-  const totalAmt = _allAdminOrders.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+(o.price||0),0);
+
+  // 訂金收入：已收到的訂金（paid + partial + shipped）
+  const depositAmt = _allAdminOrders
+    .filter(o=>['paid','partial','shipped'].includes(o.status))
+    .reduce((s,o)=>s+(o.price||0),0);
+
+  // 總收入：已完成訂單的商品總金額（items 裡的 price 加總）
+  const completedOrders = _allAdminOrders.filter(o=>o.status==='shipped');
+  const totalRevenue = completedOrders.reduce((s,o)=>{
+    let items=[];
+    try{items=JSON.parse(o.note||'[]');}catch(e){}
+    if(!Array.isArray(items)||!items.length) return s+(o.price||0);
+    return s+items.reduce((ss,i)=>ss+(i.price||0),0);
+  },0);
+
   document.getElementById('aoStats').innerHTML=`
     <div class="ao-stat"><div class="ao-stat-n">${counts.all}</div><div class="ao-stat-l">全部訂單</div></div>
     <div class="ao-stat pending"><div class="ao-stat-n">${counts.new}</div><div class="ao-stat-l">待付款</div></div>
     <div class="ao-stat confirmed"><div class="ao-stat-n">${counts.paid+counts.partial}</div><div class="ao-stat-l">進行中</div></div>
     <div class="ao-stat shipped"><div class="ao-stat-n">${counts.shipped}</div><div class="ao-stat-l">已完成</div></div>
-    <div class="ao-stat"><div class="ao-stat-n" style="font-size:16px">NT$${totalAmt.toLocaleString()}</div><div class="ao-stat-l">總訂金收入</div></div>`;
+    <div class="ao-stat"><div class="ao-stat-n" style="font-size:15px;color:#e67300">NT$${depositAmt.toLocaleString()}</div><div class="ao-stat-l">已收訂金</div></div>
+    <div class="ao-stat"><div class="ao-stat-n" style="font-size:15px;color:#2e7d32">NT$${totalRevenue.toLocaleString()}</div><div class="ao-stat-l">完成總收入</div></div>`;
 }
 
 function _aoRenderTabs(){
@@ -2815,7 +2830,19 @@ function _aoRenderCards(){
           <span>📧 ${o.user_email||''}</span>
           ${o.store?`<span>🚚 ${o.store}</span>`:''}
         </div>
-        <div class="aoc-total">訂金 NT$${(o.price||0).toLocaleString()}</div>
+        <div style="text-align:right;flex-shrink:0">
+          ${(()=>{
+            let _items=[];
+            try{_items=JSON.parse(o.note||'[]');}catch(e){}
+            if(!Array.isArray(_items)||!_items.length) _items=[{price:o.price,deposit:0}];
+            const _total = _items.reduce((s,i)=>s+(i.price||0),0);
+            const _dep   = _items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
+            const _tail  = _total - _dep;
+            return `<div style="font-size:11px;color:var(--ink3)">商品金額 NT$${_total.toLocaleString()}</div>
+                    <div style="font-size:11px;color:#e67300">訂金 NT$${_dep.toLocaleString()}</div>
+                    ${_tail>0?`<div style="font-size:11px;color:var(--ink3)">尾款 NT$${_tail.toLocaleString()}</div>`:''}`;
+          })()}
+        </div>
       </div>
       <div class="aoc-actions">
         ${canPay   ?`<button class="aoc-btn aoc-btn-pay"  onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
