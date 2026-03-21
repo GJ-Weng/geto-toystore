@@ -3113,7 +3113,21 @@ window.__loopResults = null;
       credentials: 'include'
     });
     const text = await resp.text();
-    const id = text.match(/[\\uA-Za-z0-9]{7}/)?.[ 0] || 'check-list';
+    // 優先從回應 URL 或 HTML 中抓購買連結
+    let id = 'check-list';
+    // 方法1：從最終 URL 抓（redirect 後的網址）
+    const urlId = resp.url.match(/cart\/confirm\/([A-Z0-9]{8,})/)?.[1];
+    if(urlId) { id = urlId; }
+    else {
+      // 方法2：從回應 HTML 抓 cart/confirm/ 後的 ID
+      const htmlId = text.match(/cart\/confirm\/([A-Z0-9]{8,})/)?.[1];
+      if(htmlId) { id = htmlId; }
+      else {
+        // 方法3：找 GM 開頭的訂單編號（myship 格式）
+        const gmId = text.match(/GM\d{10,}/)?.[0];
+        if(gmId) { id = gmId; }
+      }
+    }
     results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });
   }
   window.__loopResults = { results, total: Date.now() - t0 };
