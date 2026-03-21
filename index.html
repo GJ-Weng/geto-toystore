@@ -792,6 +792,15 @@ textarea.fi{min-height:64px;resize:vertical}
         <button class="btn-collect" id="btnCollect" onclick="toggleDetailFav()">♡ 收藏</button>
         <button class="btn-preorder" id="btnPreorder" onclick="addDetailToCart()">立即預購</button>
       </div>
+      <!-- 管理員快速操作列 -->
+      <div id="adminDetailBar" style="display:none;margin-top:12px;padding:10px 14px;background:#f0f4ff;border:1px solid #c7d7f9;border-radius:8px;display:none">
+        <div style="font-size:11px;font-weight:700;color:#4a6fa5;margin-bottom:8px;letter-spacing:.5px">⚙️ 管理員</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="adminQuickEdit()" style="height:32px;padding:0 14px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✏️ 編輯此商品</button>
+          <button id="adminDetailCloseBtn" onclick="adminQuickForceClose()" style="height:32px;padding:0 14px;background:#fff;color:#e67300;border:1px solid #e67300;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⏹ 提早結單</button>
+          <button onclick="adminQuickToggleStatus()" id="adminDetailStatusBtn" style="height:32px;padding:0 14px;background:#fff;color:var(--ink2);border:1px solid var(--border2);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">上/下架</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -804,7 +813,11 @@ textarea.fi{min-height:64px;resize:vertical}
     <button class="fv-back" onclick="clearCart()">清空</button>
   </div>
   <div class="cart-2col">
-    <div id="cartItemsWrap"></div>
+    <div>
+      <!-- 結單移除通知 -->
+      <div id="cartRemovedNotice" style="display:none;background:#fff8e6;border:1px solid #f9b84b;border-radius:10px;padding:14px 16px;margin-bottom:14px"></div>
+      <div id="cartItemsWrap"></div>
+    </div>
     <div class="summary-box">
       <div class="sb-ttl">訂單摘要</div>
       <div id="cartSummaryRows"></div>
@@ -1107,12 +1120,14 @@ function parseLimit(limitStr){
   return Math.max(...nums.map(Number));
 }
 
-// 判斷是否已過結單日（以台灣時間當天結束為基準）
+// 判斷是否已過結單日（結單當天 23:59:59 仍可購買，隔天起才關閉）
 function isDeadlinePassed(deadline){
   if(!deadline) return false;
-  const today = new Date();
-  today.setHours(23,59,59,999); // 當天結束前都算有效
-  return new Date(deadline) < today;
+  // deadline = 'YYYY-MM-DD'，轉成當天台灣時間結束（23:59:59）
+  const [y,m,d] = deadline.split('-').map(Number);
+  // 用當地時間建立「結單當天 23:59:59」
+  const cutoff = new Date(y, m-1, d, 23, 59, 59, 999);
+  return new Date() > cutoff;
 }
 
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
@@ -1891,6 +1906,22 @@ function openDetail(id){
   updateDetailFavBtn();
   updateDetailBuyBtn(p);
 
+  // 管理員快速操作列
+  const _bar = document.getElementById('adminDetailBar');
+  const _closeBtn = document.getElementById('adminDetailCloseBtn');
+  const _statusBtn = document.getElementById('adminDetailStatusBtn');
+  if(_bar){
+    if(isAdmin()){
+      _bar.style.display='block';
+      // 提早結單按鈕：只對未結單的預購商品顯示
+      if(_closeBtn) _closeBtn.style.display = (p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)) ? '' : 'none';
+      // 上下架按鈕文字
+      if(_statusBtn) _statusBtn.textContent = p.status==='published' ? '⬇ 下架' : '⬆ 上架';
+    } else {
+      _bar.style.display='none';
+    }
+  }
+
   showDetail();
 }
 
@@ -1997,6 +2028,32 @@ function addDetailToCart(){
   persist(); updBadge();
   updateDetailBuyBtn(p);
   showToast(`✓ 已加入購物車：${p.name.slice(0,16)}…`);
+}
+
+// ─── 管理員詳細頁快速操作 ───────────────────────────────────
+function adminQuickEdit(){
+  if(!isAdmin()) return;
+  openAdmin();
+  editP(currentProductId);
+}
+
+async function adminQuickForceClose(){
+  if(!isAdmin()) return;
+  await forceCloseDeadline(currentProductId);
+  // 更新詳細頁顯示
+  const p = products.find(x=>String(x.id)===String(currentProductId));
+  if(p) updateDetailBuyBtn(p);
+  const _closeBtn = document.getElementById('adminDetailCloseBtn');
+  if(_closeBtn) _closeBtn.style.display='none';
+}
+
+async function adminQuickToggleStatus(){
+  if(!isAdmin()) return;
+  await togStatus(currentProductId);
+  const p = products.find(x=>String(x.id)===String(currentProductId));
+  const _statusBtn = document.getElementById('adminDetailStatusBtn');
+  if(_statusBtn && p) _statusBtn.textContent = p.status==='published' ? '⬇ 下架' : '⬆ 上架';
+  if(p) updateDetailBuyBtn(p);
 }
 
 function updateDetailFavBtn(){
@@ -2321,6 +2378,30 @@ function clearCart(){ if(!cart.length)return; if(!confirm('確定清空購物車
 
 function renderCartPage(){
   const wrap = document.getElementById('cartItemsWrap');
+
+  // ── 結單移除通知 ──────────────────────────────────────────
+  const _removed = JSON.parse(sessionStorage.getItem('tf_cart_removed')||'[]');
+  const _noticeEl = document.getElementById('cartRemovedNotice');
+  if(_noticeEl){
+    if(_removed.length){
+      _noticeEl.style.display='';
+      _noticeEl.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:20px;flex-shrink:0">⚠️</span>
+          <div style="flex:1">
+            <div style="font-weight:700;margin-bottom:4px;color:#92400e">以下商品已結單，已自動從購物車移除</div>
+            <ul style="margin:0;padding-left:16px;font-size:13px;color:#92400e">
+              ${_removed.map(n=>`<li>${n}</li>`).join('')}
+            </ul>
+          </div>
+          <button onclick="dismissCartNotice()" style="background:none;border:none;cursor:pointer;color:#b45309;font-size:18px;line-height:1;padding:0 2px;flex-shrink:0">✕</button>
+        </div>`;
+    } else {
+      _noticeEl.style.display='none';
+    }
+  }
+  // ─────────────────────────────────────────────────────────
+
   const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
   const dep = calcCartDeposit();
   document.getElementById('cartViewCount').textContent = `(${cart.length})`;
@@ -2365,6 +2446,12 @@ function renderCartPage(){
     </div>`;
   };
   wrap.innerHTML = renderGroup(preorder,'預購商品') + renderGroup(instock,'現貨商品');
+}
+
+function dismissCartNotice(){
+  sessionStorage.removeItem('tf_cart_removed');
+  const el = document.getElementById('cartRemovedNotice');
+  if(el) el.style.display='none';
 }
 
 function cartChg(id,d){
@@ -2822,7 +2909,7 @@ function renderArrivalTracker(){
                 </div>
               </div>
               <div class="aiac" style="flex-shrink:0">
-                <button class="ab abe" onclick="editP('${p.id}');swTab(1)">編輯</button>
+                <button class="ab abe" onclick="editP('${p.id}')">編輯</button>
               </div>
             </div>`;
           }).join('')}
@@ -2886,6 +2973,7 @@ function renderAdminList(){
         <button class="ab abt ${p.status==='published'?'on':'off'}" onclick="togStatus('${p.id}')">
           ${p.status==='published'?'✓ 上架中':'✕ 已下架'}
         </button>
+        ${p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)?`<button class="ab" style="border-color:#e67300;color:#e67300;background:#fff8f0" onclick="forceCloseDeadline('${p.id}')">⏹ 提早結單</button>`:''}
         <button class="ab abd" onclick="delP('${p.id}')">刪除</button>
       </div>
     </div>`;
@@ -2893,6 +2981,40 @@ function renderAdminList(){
 
   document.getElementById('adminList').innerHTML = html;
 }
+// ─── 手動提早結單 ───────────────────────────────────────────
+async function forceCloseDeadline(id){
+  const p = products.find(x=>String(x.id)===String(id));
+  if(!p){ showToast('找不到商品'); return; }
+  if(!confirm(`確定要提早結單「${p.name.slice(0,20)}」？\n\n結單後購物車中的此商品將自動移除，顧客無法再下單。`)) return;
+
+  // 把 deadline 改成昨天（確保 isDeadlinePassed 立刻生效）
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const newDeadline = yesterday.toISOString().split('T')[0];
+
+  p.deadline = newDeadline;
+  persist();
+
+  // 同步 Supabase
+  if(p.id && !String(p.id).startsWith('p')){
+    const {error} = await _sb.from('products').update({deadline: newDeadline}).eq('id', p.id);
+    if(error){ showToast('❌ 結單失敗：'+error.message); return; }
+  }
+
+  // 清空購物車裡此商品，記錄被移除
+  const _removedFromCart = cart.filter(ci=>String(ci.id)===String(id));
+  cart = cart.filter(ci=>String(ci.id)!==String(id));
+  if(_removedFromCart.length){
+    persist(); updBadge();
+    const existing = JSON.parse(sessionStorage.getItem('tf_cart_removed')||'[]');
+    if(!existing.includes(p.name)) existing.push(p.name);
+    sessionStorage.setItem('tf_cart_removed', JSON.stringify(existing));
+  }
+
+  renderAdminList(); renderShop();
+  showToast(`✅ 已提早結單：${p.name.slice(0,16)}…`);
+}
+
 async function togStatus(id){
   const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   p.status=p.status==='published'?'unlisted':'published';
@@ -3620,10 +3742,32 @@ syncProductsFromSupabase(); // 背景同步最新商品
 
 // 每小時重新整理商品顯示（結單自動下架）
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
-// 每分鐘輕量檢查（精確到分鐘）
+// 每分鐘輕量檢查（精確到分鐘）— 結單後自動清購物車
 setInterval(()=>{
-  const expired = products.filter(p=>p.type==='預購'&&p.status==='published'&&isDeadlinePassed(p.deadline));
-  if(expired.length) renderShop();
+  const expiredIds = new Set(
+    products
+      .filter(p=>p.type==='預購' && isDeadlinePassed(p.deadline))
+      .map(p=>String(p.id))
+  );
+  if(!expiredIds.size) return;
+  // 移除購物車裡已結單商品，記錄被移除的商品名稱
+  const removedNames = [];
+  cart.forEach(ci=>{
+    if(expiredIds.has(String(ci.id))){
+      const p = products.find(x=>String(x.id)===String(ci.id));
+      if(p) removedNames.push(p.name);
+    }
+  });
+  const before = cart.length;
+  cart = cart.filter(ci=>!expiredIds.has(String(ci.id)));
+  if(cart.length < before){
+    persist(); updBadge();
+    // 存入 sessionStorage，讓購物車打開時顯示
+    const existing = JSON.parse(sessionStorage.getItem('tf_cart_removed')||'[]');
+    removedNames.forEach(n=>{ if(!existing.includes(n)) existing.push(n); });
+    sessionStorage.setItem('tf_cart_removed', JSON.stringify(existing));
+  }
+  renderShop();
 }, 60 * 1000);
 
 // 頁面載入：先讓 Supabase 確認登入狀態，再 renderAuth
