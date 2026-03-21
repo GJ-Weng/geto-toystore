@@ -3115,9 +3115,13 @@ function gen711Script(orderId){
     '    results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });',
     '  }',
     '  window.__loopResults = { results, total: Date.now() - t0 };',
-    '  console.log("\n" + results.map(r =>',
-    '    r.store + "\nhttps://myship.7-11.com.tw/cart/confirm/" + r.id',
-    '  ).join("\n\n") + "\n\n共 " + results.length + " 筆，耗時 " + (Date.now() - t0) + "ms");',
+    '  console.log("===== 賣場建立完成 =====");',
+    '  results.forEach(r => {',
+    '    console.log("顧客：" + r.store);',
+    '    console.log("購買連結：https://myship.7-11.com.tw/cart/confirm/" + r.id);',
+    '    console.log("耗時：" + r.ms + "ms");',
+    '    console.log("========================");',
+    '  });',
     '})();'
   ];
   const script = scriptLines.join('\n');
