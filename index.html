@@ -1069,7 +1069,19 @@ let orders   = JSON.parse(localStorage.getItem('tf_o')||'[]');
 let filter='全部', subFilter='', editingId=null, selEmoji=EMOJIS[0], searchQ='';
 let currentProductId=null, selectedVariant=null, detailQty=1;
 // 已成立訂單的商品（防止重複下單）
-let orderedProductIds = JSON.parse(localStorage.getItem('tf_ordered')||'[]');
+// 已下單紀錄：{productId: {variant: qty}} 
+let orderedQtyMap = JSON.parse(localStorage.getItem('tf_ordered_v2')||'{}');
+
+function getOrderedQty(productId, variant){
+  const v = variant||'';
+  return (orderedQtyMap[String(productId)]?.[v] || 0);
+}
+
+function getTotalOrderedQty(productId){
+  const map = orderedQtyMap[String(productId)];
+  if(!map) return 0;
+  return Object.values(map).reduce((s,n)=>s+n, 0);
+}
 
 // ─── 店家設定 ────────────────────────────────────────────
 // ─── EMAIL 設定 ──────────────────────────────────────────
@@ -1325,10 +1337,7 @@ function p_cardClick(id, e){
     showToast('⚠️ 此商品已結單，無法預購');
     return;
   }
-  if(orderedProductIds.includes(String(id))){
-    showToast('⚠️ 您已下訂此商品');
-    return;
-  }
+
   if(p.type==='現貨'){
     // 現貨：直接加購物車
     if(!user){openAuth();return;}
@@ -1830,9 +1839,13 @@ function updateDetailBuyBtn(p){
     btn.textContent='已結單'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='';
     return;
   }
-  // 已成立過訂單（同商品不重複下單）
-  if(orderedProductIds.includes(String(p.id))){
-    btn.textContent='已下訂單'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888';
+  // 計算：已下單數量 + 購物車數量 是否達到限購上限
+  const _v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
+  const _orderedQty  = getOrderedQty(p.id, _v);
+  const _cartQty     = cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===(  _v||'')).reduce((s,x)=>s+x.qty,0);
+  const _usedQty     = _orderedQty + _cartQty;
+  if(maxQty !== Infinity && _usedQty >= maxQty && !needVariant){
+    btn.textContent='已達購買上限'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888';
     return;
   }
   if(needVariant && !selectedVariant){
@@ -1858,11 +1871,16 @@ function addDetailToCart(){
   const maxQty = parseLimit(p.limit);
   // 每個規格分別限購（例如限購2，每個規格都最多2件）
   // 找同商品同規格在購物車的總數量
-  const variantQtyInCart = cart
+  const variantQtyInCart   = cart
     .filter(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''))
     .reduce((s,x)=>s+x.qty,0);
-  if(variantQtyInCart + detailQty > maxQty){
-    showToast(`⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}，您已有 ${variantQtyInCart} 件`);
+  const variantQtyOrdered  = getOrderedQty(currentProductId, v);
+  const variantQtyTotal    = variantQtyInCart + variantQtyOrdered;
+  if(variantQtyTotal + detailQty > maxQty){
+    const msg = variantQtyOrdered > 0
+      ? `⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}（已下單 ${variantQtyOrdered} 件，購物車 ${variantQtyInCart} 件）`
+      : `⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}，您已有 ${variantQtyInCart} 件`;
+    showToast(msg);
     return;
   }
   // 合併到現有項目，不重複新增
@@ -2006,8 +2024,14 @@ async function submitCheckoutOrder(){
   const _orderedIds = [...new Set(cart.map(ci=>ci.id))];
   _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
   // 記錄已下單商品，防止重複
-  orderedProductIds = [...new Set([...orderedProductIds, ..._orderedIds.map(String)])];
-  localStorage.setItem('tf_ordered', JSON.stringify(orderedProductIds));
+  // 記錄各商品各規格已下單數量
+  cart_snapshot.forEach(ci => {
+    const pid = String(ci.id);
+    const v   = ci.variant||'';
+    if(!orderedQtyMap[pid]) orderedQtyMap[pid]={};
+    orderedQtyMap[pid][v] = (orderedQtyMap[pid][v]||0) + ci.qty;
+  });
+  localStorage.setItem('tf_ordered_v2', JSON.stringify(orderedQtyMap));
 
   cart=[];
 
@@ -2232,7 +2256,8 @@ function cartChg(id,d){
     const maxQty = parseLimit(p?.limit);
     // 同規格限購
     const varQty = cart.filter(x=>String(x.id)===String(id) && (x.variant||'')===(it.variant||'')).reduce((s,x)=>s+x.qty,0);
-    if(varQty >= maxQty){
+    const ordQty = getOrderedQty(id, it.variant);
+    if(varQty + ordQty >= maxQty){
       showToast(`⚠️ ${it.variant?'【'+it.variant+'】':'此商品'} 每人限購 ${p?.limit}`);
       return;
     }
@@ -2324,8 +2349,8 @@ _sb.auth.onAuthStateChange((event, session) => {
     user = null;
     userProfile = { name:'', phone:'' }; // 登出時清空 profile
     cart = []; // 登出時清空購物車，避免混用
-    orderedProductIds = []; // 登出時清除已下單記錄
-    localStorage.removeItem('tf_ordered');
+    orderedQtyMap = {}; // 登出時清除已下單記錄
+    localStorage.removeItem('tf_ordered_v2');
     persist();
     renderAuth();
     updBadge();
