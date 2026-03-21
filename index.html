@@ -109,7 +109,7 @@ input,select,textarea{font-family:var(--font)}
 .dimgs{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .dmain{height:460px;display:flex;align-items:center;justify-content:center;font-size:160px;background:#f8f8f6}
 .dthumbs{display:flex;border-top:1px solid var(--border)}
-.dthumb{flex:1;height:76px;display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;background:#fafaf8;border-right:1px solid var(--border);transition:background .15s}
+.dthumb{flex:1;height:76px;display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;background:#fafaf8;border-right:1px solid var(--border);transition:background .15s;background-size:cover;background-position:center;background-repeat:no-repeat}
 .dthumb:last-child{border-right:none}
 .dthumb:hover,.dthumb.act{background:var(--red-light)}
 .dinfo{padding:4px 0}
@@ -309,14 +309,30 @@ textarea.fi{min-height:64px;resize:vertical}
 .ship-btn:disabled{opacity:.5;cursor:default}
 
 @media(max-width:800px){.dgrid{grid-template-columns:1fr;gap:24px}.dmain{height:280px;font-size:100px}}
-@media(max-width:880px){.pgrid{grid-template-columns:repeat(2,1fr)}.sb{position:fixed;left:0;bottom:-100%;width:100%;max-height:85vh;z-index:501;border-radius:16px 16px 0 0;overflow-y:auto;overflow-x:hidden;transition:bottom .3s ease;box-shadow:0 -4px 20px rgba(0,0,0,.18);padding-bottom:env(safe-area-inset-bottom,20px);display:flex;flex-direction:column}.sb.sb-open{bottom:0}.filter-btn{display:flex}}
+@media(max-width:880px){
+  .pgrid{grid-template-columns:repeat(2,1fr)}
+  .sb{
+    position:fixed;left:0;bottom:0;width:100%;
+    max-height:88vh;
+    z-index:501;
+    border-radius:16px 16px 0 0;
+    overflow:hidden;
+    transition:transform .35s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 -4px 24px rgba(0,0,0,.22);
+    display:flex;flex-direction:column;
+    transform:translateY(110%);
+  }
+  .sb.sb-open{transform:translateY(0)}
+  .sb-inner{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,24px)}
+  .filter-btn{display:flex}
+}
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
 .sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500}
 .sb-backdrop.sb-open{display:block}
 .filter-btn{display:none;align-items:center;gap:5px;padding:5px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:20px;font-size:13px;cursor:pointer;color:var(--ink2);white-space:nowrap;flex-shrink:0}
 #sbCloseRow{display:none}
-@media(max-width:880px){#sbCloseRow{display:flex}}
-.sb-handle{display:none;width:40px;height:4px;background:var(--border2);border-radius:2px;margin:10px auto 12px;flex-shrink:0}
+@media(max-width:880px){#sbCloseRow{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}}
+.sb-handle{display:none;width:40px;height:4px;background:var(--border2);border-radius:2px;margin:10px auto 8px;flex-shrink:0}
 @media(max-width:880px){.sb-handle{display:block}}
 
 /* ─── CART / CHECKOUT / CONFIRM FULL VIEWS ─────────────── */
@@ -689,32 +705,34 @@ textarea.fi{min-height:64px;resize:vertical}
 <div class="shopview" id="shopView">
   <div class="lay">
     <!-- SIDEBAR BACKDROP -->
-    <div class="sb-backdrop" id="sbBackdrop" onclick="toggleSidebar()"></div>
+    <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
     <!-- SIDEBAR -->
     <div class="sb" id="sbPanel">
       <div class="sb-handle"></div>
-      <div id="sbCloseRow" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);margin-bottom:4px;position:sticky;top:0;background:var(--white);z-index:10">
+      <div id="sbCloseRow">
         <span style="font-size:14px;font-weight:700;color:var(--ink)">分類篩選</span>
-        <button onclick="toggleSidebar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 8px;border-radius:6px">✕</button>
+        <button onclick="closeSidebar()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 10px;border-radius:8px;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
-      <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
-      <div class="si" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
-      <div class="ssep"></div>
-      <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
-      <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
-      <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
-      <div class="ssep"></div>
-      <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><span>IP主題</span><span class="ar">▾</span></div>
-      <div class="ssub" id="ipSub"><div id="ipList"></div></div>
-      <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><span>商品類型</span><span class="ar">▾</span></div>
-      <div class="ssub" id="typeSub"><div id="typeList"></div></div>
-      <div class="ssep"></div>
-      <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><span>廠牌</span><span class="ar">▾</span></div>
-      <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
-        <div id="brandList"></div>
+      <div class="sb-inner">
+        <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
+        <div class="si" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
+        <div class="ssep"></div>
+        <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
+        <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
+        <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
+        <div class="ssep"></div>
+        <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><span>IP主題</span><span class="ar">▾</span></div>
+        <div class="ssub" id="ipSub"><div id="ipList"></div></div>
+        <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><span>商品類型</span><span class="ar">▾</span></div>
+        <div class="ssub" id="typeSub"><div id="typeList"></div></div>
+        <div class="ssep"></div>
+        <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><span>廠牌</span><span class="ar">▾</span></div>
+        <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
+          <div id="brandList"></div>
+        </div>
+        <div class="ssep"></div>
+        <div class="si" onclick="setFilter('未分類',this)"><span>未分類</span><span class="sn" id="sbOther">0</span></div>
       </div>
-      <div class="ssep"></div>
-      <div class="si" onclick="setFilter('未分類',this)"><span>未分類</span><span class="sn" id="sbOther">0</span></div>
     </div>
     <!-- MAIN -->
     <div class="main">
@@ -991,19 +1009,15 @@ textarea.fi{min-height:64px;resize:vertical}
           </div>
         </div></div>
         <div class="fr c1"><div class="fg"><label class="fl">上架狀態</label><select class="fi" id="fStatus"><option value="published">上架</option><option value="unlisted">下架</option></select></div></div>
-        <div class="fr c1"><div class="fg"><label class="fl">商品圖片</label>
+        <div class="fr c1"><div class="fg"><label class="fl">商品圖片（可多張）</label>
           <div class="img-upload-wrap">
             <div class="img-upload-row">
-              <input class="fi" id="fImgUrl" placeholder="貼上圖片網址 https://...jpg" oninput="onImgUrlInput()">
+              <input class="fi" id="fImgUrl" placeholder="貼上圖片網址 https://...jpg，按 Enter 新增" onkeydown="onImgUrlKeydown(event)">
               <button type="button" class="img-upload-btn" onclick="document.getElementById('fImgFile').click()">📁 從電腦上傳</button>
-              <input type="file" id="fImgFile" accept="image/*" style="display:none" onchange="onImgFileChange(this)">
+              <input type="file" id="fImgFile" accept="image/*" multiple style="display:none" onchange="onImgFileChange(this)">
             </div>
-            <div class="img-preview-wrap" id="imgPreviewWrap">
-              <img class="img-preview" id="imgPreviewEl" src="" alt="">
-              <span class="img-preview-name" id="imgPreviewName"></span>
-              <button type="button" class="img-preview-rm" onclick="clearImgField()" title="移除圖片">✕</button>
-            </div>
-            <div class="img-hint">可貼網址或從電腦上傳（上傳後轉成 base64 存入）</div>
+            <div class="img-hint">可貼網址按 Enter、或從電腦選取多張圖（第一張為主圖）</div>
+            <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
           </div>
         </div></div>
         <div class="fg" style="margin-bottom:12px"><label class="fl">商品圖示（無圖片時顯示）</label><div class="eg" id="eg"></div></div>
@@ -1320,9 +1334,18 @@ function toggleSidebar(){
   const sb = document.getElementById('sbPanel');
   const bd = document.getElementById('sbBackdrop');
   if(!sb||!bd) return;
-  sb.classList.toggle('sb-open');
-  bd.classList.toggle('sb-open');
-  document.body.style.overflow = sb.classList.contains('sb-open') ? 'hidden' : '';
+  const opening = !sb.classList.contains('sb-open');
+  sb.classList.toggle('sb-open', opening);
+  bd.classList.toggle('sb-open', opening);
+  document.body.style.overflow = opening ? 'hidden' : '';
+}
+function closeSidebar(){
+  const sb = document.getElementById('sbPanel');
+  const bd = document.getElementById('sbBackdrop');
+  if(!sb||!bd) return;
+  sb.classList.remove('sb-open');
+  bd.classList.remove('sb-open');
+  document.body.style.overflow = '';
 }
 
 function goProfile(){
@@ -1644,7 +1667,7 @@ function updCounts(){
   );
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   set('sbAll',   pub.length);
-  set('sbFav',   favs.filter(id=>pub.find(p=>p.id===id)).length);
+  set('sbFav',   favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length);
   set('sbNew',   pub.filter(p=>p.isNew).length);
   set('sbStock', pub.filter(p=>p.type==='現貨').length);
   set('sbPre',   pub.filter(p=>p.type==='預購').length);
@@ -1672,7 +1695,7 @@ function setFilter(f,el){
   document.querySelectorAll('.ssub a').forEach(x=>x.classList.remove('act'));
   if(el) el.classList.add('act');
   renderShop();
-  if(window.innerWidth<=880){ const sb=document.getElementById('sbPanel');const bd=document.getElementById('sbBackdrop');if(sb&&sb.classList.contains('sb-open')){sb.classList.remove('sb-open');bd.classList.remove('sb-open');document.body.style.overflow='';} }
+  if(window.innerWidth<=880) closeSidebar();
 }
 function setSubFilter(f){
   subFilter=f;
@@ -1782,19 +1805,27 @@ function openDetail(id){
     <span class="bc-link" onclick="setSubFilter('${p.form}');goHome()">${p.form||p.brand}</span>
   `;
 
-  // Image
-  if(p.imageUrl){
-    document.getElementById('dMainImg').innerHTML=`<img src="${p.imageUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  // Image（使用 imageUrls 陣列，第一張為主圖）
+  const _imgs = (Array.isArray(p.imageUrls)&&p.imageUrls.length) ? p.imageUrls : (p.imageUrl ? [p.imageUrl] : []);
+  const _mainImg = _imgs[0] || null;
+  const dMainEl = document.getElementById('dMainImg');
+  if(_mainImg){
+    dMainEl.innerHTML=`<img src="${_mainImg}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
   } else {
-    document.getElementById('dMainImg').textContent=p.emoji;
+    dMainEl.textContent=p.emoji;
   }
 
-  // Thumbnails (show emoji copies as placeholder thumbs)
-  const tCount=Math.min(p.variants.length||1,4);
-  document.getElementById('dThumbs').innerHTML=
-    Array.from({length:tCount},(_,i)=>
-      `<div class="dthumb${i===0?' act':''}" onclick="selThumb(this,${i})">${p.emoji}</div>`
+  // Thumbnails：有幾張圖顯示幾張，沒圖就不顯示縮圖
+  const dThumbs = document.getElementById('dThumbs');
+  if(_imgs.length > 1){
+    dThumbs.innerHTML = _imgs.map((src,i)=>
+      `<div class="dthumb${i===0?' act':''}" onclick="selDetailImg(this,'${src.replace(/'/g,"\'")}')" style="background-size:cover;background-position:center;background-image:url('${src.replace(/'/g,"\'")}')"></div>`
     ).join('');
+    dThumbs.style.display='';
+  } else {
+    dThumbs.innerHTML='';
+    dThumbs.style.display='none';
+  }
 
   // Info
   document.getElementById('dCat').textContent=p.brand;
@@ -1844,11 +1875,21 @@ function selThumb(el){
   document.querySelectorAll('.dthumb').forEach(x=>x.classList.remove('act'));
   el.classList.add('act');
 }
+function selDetailImg(el, src){
+  document.querySelectorAll('.dthumb').forEach(x=>x.classList.remove('act'));
+  el.classList.add('act');
+  const dMainEl = document.getElementById('dMainImg');
+  dMainEl.innerHTML=`<img src="${src}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
+}
 function selVariant(el,v){
   document.querySelectorAll('.vchip').forEach(x=>x.classList.remove('sel'));
   el.classList.add('sel');
   selectedVariant=v;
   const p=products.find(x=>String(x.id)===String(currentProductId));
+  // 依規格更新顯示價格
+  const vPrice=(p.variantPrices&&p.variantPrices[v])?p.variantPrices[v]:p.price;
+  const priceEl=document.getElementById('dPrice');
+  if(priceEl) priceEl.innerHTML=`<b style="color:var(--red)">NT$ ${vPrice.toLocaleString()}</b>`;
   updateDetailBuyBtn(p);
 }
 function chgDQty(d){
@@ -2178,6 +2219,7 @@ async function syncProductsFromSupabase(){
         variants:  p.variants||[],
         emoji:     p.emoji||'🧸',
         imageUrl:    p.image_url||'',
+        imageUrls:   Array.isArray(p.image_urls)&&p.image_urls.length ? p.image_urls : (p.image_url ? [p.image_url] : []),
         variantPrices: p.variant_prices||{},
         status:    p.status||'published',
         isNew:     p.is_new||false,
@@ -2206,6 +2248,7 @@ async function saveProductToSupabase(productData, existingId){
     variants:    productData.variants||[],
     emoji:       productData.emoji||'🧸',
     image_url:     productData.imageUrl||'',
+    image_urls:    productData.imageUrls||[],
     variant_prices: productData.variantPrices||{},
     status:      productData.status||'published',
     is_new:      productData.isNew||false,
@@ -2311,10 +2354,10 @@ function cartChg(id,d){
     }
   }
   it.qty=Math.max(0,it.qty+d);
-  if(!it.qty) cart=cart.filter(x=>x.id!==id);
+  if(!it.qty) cart=cart.filter(x=>String(x.id)!==String(id));
   persist();updBadge();renderCartPage();
 }
-function cartRm(id){ cart=cart.filter(x=>x.id!==id); persist();updBadge();renderCartPage(); }
+function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); persist();updBadge();renderCartPage(); }
 
 // ─── AUTH (Supabase) ──────────────────────────────────────
 function openAuth(){document.getElementById('authModal').classList.add('open');}
@@ -2495,50 +2538,60 @@ async function testEmail(){
     alert(`❌ 寄信失敗！\n\n錯誤：${msg}\n\n請確認：\n1. Service ID 是否正確\n2. Template ID 是否正確\n3. Gmail 是否已授權\n4. EmailJS 帳號是否已驗證信箱`);
   }
 }
-// ─── IMAGE UPLOAD HELPERS ────────────────────────────────
-function onImgUrlInput(){
+// ─── IMAGE UPLOAD HELPERS (多張圖片) ─────────────────────
+// 暫存圖片陣列 ['url1', 'base64...', ...]
+let _adminImgs = [];
+
+function renderAdminImgPreviews(){
+  const list = document.getElementById('imgPreviewList');
+  if(!list) return;
+  if(!_adminImgs.length){ list.innerHTML=''; return; }
+  list.innerHTML = _adminImgs.map((src,i)=>`
+    <div style="position:relative;flex-shrink:0">
+      <img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:${i===0?'2px solid var(--ink)':'1px solid var(--border)'}">
+      ${i===0?'<span style="position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">主圖</span>':''}
+      <button type="button" onclick="removeAdminImg(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>`).join('');
+}
+
+function removeAdminImg(i){
+  _adminImgs.splice(i,1);
+  renderAdminImgPreviews();
+}
+
+function onImgUrlKeydown(e){
+  if(e.key!=='Enter') return;
+  e.preventDefault();
   const url = document.getElementById('fImgUrl').value.trim();
-  if(url){ showImgPreview(url, url.split('/').pop().slice(0,30)); }
-  else { hideImgPreview(); }
+  if(!url) return;
+  if(!url.startsWith('http')&&!url.startsWith('data:')){ showToast('⚠️ 請貼入正確的圖片網址'); return; }
+  _adminImgs.push(url);
+  document.getElementById('fImgUrl').value='';
+  renderAdminImgPreviews();
 }
 
 function onImgFileChange(input){
-  const file = input.files[0];
-  if(!file) return;
-  // 限制 1MB（base64 後約增加 33%，控制在合理範圍）
-  if(file.size > 1*1024*1024){
-    showToast('⚠️ 圖片請壓縮至 1MB 以內再上傳');
-    input.value='';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const dataUrl = e.target.result;
-    document.getElementById('fImgUrl').value = dataUrl;
-    showImgPreview(dataUrl, file.name);
-  };
-  reader.readAsDataURL(file);
-}
-
-function showImgPreview(src, name){
-  const wrap = document.getElementById('imgPreviewWrap');
-  const img  = document.getElementById('imgPreviewEl');
-  const nm   = document.getElementById('imgPreviewName');
-  if(!wrap||!img) return;
-  img.src = src;
-  nm.textContent = name||'';
-  wrap.classList.add('show');
-}
-
-function hideImgPreview(){
-  const wrap = document.getElementById('imgPreviewWrap');
-  if(wrap) wrap.classList.remove('show');
+  const files = Array.from(input.files||[]);
+  if(!files.length) return;
+  let loaded=0;
+  files.forEach(file=>{
+    if(file.size > 1.5*1024*1024){ showToast('⚠️ 圖片請壓縮至 1.5MB 以內：'+file.name); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      _adminImgs.push(e.target.result);
+      loaded++;
+      if(loaded===files.length) renderAdminImgPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value='';
 }
 
 function clearImgField(){
-  document.getElementById('fImgUrl').value = '';
-  document.getElementById('fImgFile').value = '';
-  hideImgPreview();
+  _adminImgs=[];
+  document.getElementById('fImgUrl').value='';
+  document.getElementById('fImgFile').value='';
+  renderAdminImgPreviews();
   const vpg=document.getElementById('variantPriceGrid');if(vpg){vpg.innerHTML='';vpg.style.display='none';}
 }
 
@@ -2719,12 +2772,11 @@ function editP(id){
   document.getElementById('fIP').value=p.ip||'';
   document.getElementById('fForm').value=p.form||'';
   document.getElementById('fVariants').value=(p.variants||[]).join(',');
+  // 載入圖片陣列
+  _adminImgs = Array.isArray(p.imageUrls)&&p.imageUrls.length ? [...p.imageUrls] : (p.imageUrl ? [p.imageUrl] : []);
+  renderAdminImgPreviews();
   const fImg=document.getElementById('fImgUrl');
-  if(fImg){
-    fImg.value=p.imageUrl||'';
-    if(p.imageUrl){ showImgPreview(p.imageUrl, '目前圖片'); }
-    else { hideImgPreview(); }
-  }
+  if(fImg) fImg.value='';
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
   restoreVariantPrices(p.variantPrices||{});
   document.getElementById('fStatus').value=p.status;
@@ -2743,11 +2795,11 @@ async function saveProduct(){
   if(!name||!brand||!price){showToast('⚠️ 請填寫名稱、品牌及售價');return;}
   const varStr=document.getElementById('fVariants').value.trim();
   const variants=varStr?varStr.split(',').map(x=>x.trim()).filter(Boolean):[];
-  const imgUrl=document.getElementById('fImgUrl')?.value.trim()||'';
+  const imgUrl=_adminImgs[0]||'';  // 第一張為主圖（imageUrl 欄位向下相容）
   const depositVal = document.getElementById('fDeposit')?.value.trim();
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
   const variantPrices = getVariantPrices();
-  const data={imageUrl:imgUrl,name,brand,price,deposit,variantPrices,
+  const data={imageUrl:imgUrl,imageUrls:[..._adminImgs],name,brand,price,deposit,variantPrices,
     limit:document.getElementById('fLimit').value.trim(),
     type:document.getElementById('fType').value,
     deadline:document.getElementById('fDeadline').value,
@@ -2785,9 +2837,10 @@ async function saveProduct(){
 }
 function resetForm(){
   editingId=null;
+  _adminImgs=[];
+  renderAdminImgPreviews();
   ['fName','fBrand','fLimit','fDeadline','fArrival','fVariants','fImgUrl','fDeposit'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
-  hideImgPreview();
   document.getElementById('fPrice').value='';
   document.getElementById('fType').value='預購';
   document.getElementById('fIP').value='';document.getElementById('fForm').value='';
