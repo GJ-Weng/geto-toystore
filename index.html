@@ -274,6 +274,13 @@ textarea.fi{min-height:64px;resize:vertical}
 .abd{border-color:var(--border);color:var(--ink3)}
 .abd:hover{border-color:#e74c3c;color:#e74c3c;background:#fdf0ef}
 
+/* ADMIN LIST FILTER TABS */
+.admin-ftab{height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--border2);font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer;background:var(--white);transition:all .15s;white-space:nowrap}
+.admin-ftab:hover{border-color:var(--ink)}
+.admin-ftab.act{background:var(--ink);color:#fff;border-color:var(--ink)}
+.admin-ftab span{font-size:11px;opacity:.75;margin-left:3px}
+.admin-ftab.act span{opacity:1}
+
 /* ADMIN MOBILE */
 @media(max-width:600px){
   .anav{padding:0 8px;gap:4px}
@@ -736,6 +743,15 @@ textarea.fi{min-height:64px;resize:vertical}
         </div>
         <div class="ssep"></div>
         <div class="si" onclick="setFilter('未分類',this)"><span>未分類</span><span class="sn" id="sbOther">0</span></div>
+        <!-- 管理員限定：已結單 -->
+        <div class="ssep" id="sbAdminSep" style="display:none"></div>
+        <div class="si" id="sbClosedRow" style="display:none" onclick="setFilter('已結單',this)">
+          <span style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;background:#e67300;color:#fff;padding:1px 5px;border-radius:4px;font-weight:700">管</span>
+            已結單未下架
+          </span>
+          <span class="sn" id="sbClosed">0</span>
+        </div>
       </div>
     </div>
     <!-- MAIN -->
@@ -1044,7 +1060,24 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
 
     <!-- TAB 2: 商品列表 -->
-    <div id="tab2" style="display:none"><div class="al" id="adminList"></div></div>
+    <div id="tab2" style="display:none">
+      <!-- 搜尋 + 篩選列 -->
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;flex:1;min-width:200px;background:var(--white);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;height:36px">
+          <span style="padding:0 10px;color:var(--ink3);font-size:14px">🔍</span>
+          <input id="adminSearchInput" placeholder="搜尋商品名稱、品牌…" oninput="renderAdminList()"
+            style="flex:1;border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font);color:var(--ink)">
+          <button id="adminSearchClear" onclick="clearAdminSearch()" style="display:none;padding:0 10px;background:none;border:none;cursor:pointer;color:var(--ink3);font-size:14px">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="admin-ftab act" id="aft-all"      onclick="setAdminFilter('all',this)">全部 <span id="aftAll">0</span></button>
+          <button class="admin-ftab"     id="aft-active"   onclick="setAdminFilter('active',this)">上架中 <span id="aftActive">0</span></button>
+          <button class="admin-ftab"     id="aft-unlisted" onclick="setAdminFilter('unlisted',this)">已下架 <span id="aftUnlisted">0</span></button>
+          <button class="admin-ftab"     id="aft-closed"   onclick="setAdminFilter('closed',this)">已結單 <span id="aftClosed">0</span></button>
+        </div>
+      </div>
+      <div class="al" id="adminList"></div>
+    </div>
 
     <!-- TAB 5: 到貨追蹤 -->
     <div id="tab5" style="display:none">
@@ -1674,13 +1707,19 @@ async function doCancelOrder(orderId, btn){
 
 // ─── FILTER / SHOP ───────────────────────────────────────
 function getVis(){
-  // 已過結單日的預購商品視同下架
+  // 已過結單日的預購商品視同下架（「已結單」filter 除外）
   const pub=products.filter(p=>
     p.status==='published' &&
     !(p.type==='預購' && isDeadlinePassed(p.deadline))
   );
+  // 管理員才能看到的「已結單未下架」清單
+  const closed=products.filter(p=>
+    p.status==='published' &&
+    p.type==='預購' && isDeadlinePassed(p.deadline)
+  );
   let list;
   if(filter==='全部') list=[...pub];
+  else if(filter==='已結單') list=[...closed];
   else if(filter==='我的收藏') list=pub.filter(p=>favs.map(String).includes(String(p.id)));
   else if(filter==='新上架') list=pub.filter(p=>p.isNew);
   else if(filter==='現貨') list=pub.filter(p=>p.type==='現貨');
@@ -1700,6 +1739,10 @@ function updCounts(){
     p.status==='published' &&
     !(p.type==='預購' && isDeadlinePassed(p.deadline))
   );
+  const closed=products.filter(p=>
+    p.status==='published' &&
+    p.type==='預購' && isDeadlinePassed(p.deadline)
+  );
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   set('sbAll',   pub.length);
   set('sbFav',   favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length);
@@ -1707,6 +1750,13 @@ function updCounts(){
   set('sbStock', pub.filter(p=>p.type==='現貨').length);
   set('sbPre',   pub.filter(p=>p.type==='預購').length);
   set('sbOther', pub.filter(p=>!p.ip&&!p.form).length);
+  set('sbClosed', closed.length);
+  // 管理員才顯示「已結單」分頁
+  const _admin = isAdmin();
+  const _closedRow = document.getElementById('sbClosedRow');
+  const _closedSep = document.getElementById('sbAdminSep');
+  if(_closedRow) _closedRow.style.display = _admin ? '' : 'none';
+  if(_closedSep) _closedSep.style.display  = _admin ? '' : 'none';
   // 動態更新 IP / 商品類型 / 廠牌
   renderDynamicFilter('ipList',   [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort());
   renderDynamicFilter('typeList', [...new Set(pub.map(p=>p.form).filter(Boolean))].sort());
@@ -2868,6 +2918,24 @@ function buildEmojiGrid(){
 }
 function pickE(e){selEmoji=e;buildEmojiGrid();}
 
+// ─── 後台商品列表搜尋/篩選 ───────────────────────────────────
+let _adminFilter = 'all'; // 'all' | 'active' | 'unlisted' | 'closed'
+
+function setAdminFilter(f, el){
+  _adminFilter = f;
+  document.querySelectorAll('.admin-ftab').forEach(b=>b.classList.remove('act'));
+  if(el) el.classList.add('act');
+  renderAdminList();
+}
+
+function clearAdminSearch(){
+  const inp = document.getElementById('adminSearchInput');
+  if(inp) inp.value = '';
+  const clr = document.getElementById('adminSearchClear');
+  if(clr) clr.style.display = 'none';
+  renderAdminList();
+}
+
 // ─── 到貨追蹤 ────────────────────────────────────────────────
 function renderArrivalTracker(){
   const wrap = document.getElementById('arrivalTrackerWrap');
@@ -2954,21 +3022,52 @@ function renderArrivalTracker(){
 }
 
 function renderAdminList(){
-  const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // 搜尋關鍵字
+  const searchInp = document.getElementById('adminSearchInput');
+  const q = (searchInp ? searchInp.value.trim() : '').toLowerCase();
+  // 顯示/隱藏清除按鈕
+  const clrBtn = document.getElementById('adminSearchClear');
+  if(clrBtn) clrBtn.style.display = q ? '' : 'none';
+
+  // 各類別計數
+  const _all      = products.length;
+  const _active   = products.filter(p=>p.status==='published' && !(p.type==='預購'&&isDeadlinePassed(p.deadline))).length;
+  const _unlisted = products.filter(p=>p.status==='unlisted').length;
+  const _closed   = products.filter(p=>p.status==='published'&&p.type==='預購'&&isDeadlinePassed(p.deadline)).length;
+  const setN = (id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  setN('aftAll',_all); setN('aftActive',_active); setN('aftUnlisted',_unlisted); setN('aftClosed',_closed);
+
+  // 篩選
+  let filtered = products.filter(p=>{
+    if(_adminFilter==='active')   return p.status==='published' && !(p.type==='預購'&&isDeadlinePassed(p.deadline));
+    if(_adminFilter==='unlisted') return p.status==='unlisted';
+    if(_adminFilter==='closed')   return p.status==='published' && p.type==='預購' && isDeadlinePassed(p.deadline);
+    return true; // 'all'
+  });
+
+  // 搜尋
+  if(q) filtered = filtered.filter(p=>
+    p.name.toLowerCase().includes(q) ||
+    (p.brand||'').toLowerCase().includes(q) ||
+    (p.ip||'').toLowerCase().includes(q) ||
+    (p.form||'').toLowerCase().includes(q)
+  );
 
   // 判斷是否今日結單
   function _isTodayDeadline(p){
     return p.type==='預購' && p.deadline && p.deadline===todayStr && p.status==='published';
   }
 
-  // 排序：今日結單 → 其他（保持原順序）
-  const sorted = [...products].sort((a,b)=>{
+  // 排序：今日結單 → 其他
+  const sorted = [...filtered].sort((a,b)=>{
     const aT = _isTodayDeadline(a)?0:1;
     const bT = _isTodayDeadline(b)?0:1;
     return aT - bT;
   });
 
-  // 今日結單數量
+  // 今日結單數量（在已篩選的清單裡）
   const todayCount = sorted.filter(_isTodayDeadline).length;
 
   let html = '';
@@ -3020,6 +3119,12 @@ function renderAdminList(){
     </div>`;
   }).join('');
 
+  if(!sorted.length && !todayCount){
+    html += `<div style="text-align:center;padding:48px;color:var(--ink3)">
+      <div style="font-size:32px;margin-bottom:10px">🔍</div>
+      <div style="font-size:13px">${q ? '找不到「'+q+'」相關商品' : '此分類沒有商品'}</div>
+    </div>`;
+  }
   document.getElementById('adminList').innerHTML = html;
 }
 // ─── 結單日期 Modal ──────────────────────────────────────────
