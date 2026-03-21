@@ -228,11 +228,11 @@ textarea.omi{min-height:64px;resize:vertical}
 .usep{border:none;border-top:1px solid var(--border)}
 
 /* ADMIN */
-.ap{position:fixed;inset:0;z-index:600;background:var(--bg);overflow-y:auto;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1)}
+.ap{position:fixed;inset:0;z-index:600;background:var(--bg);overflow-y:auto;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);-webkit-overflow-scrolling:touch}
 .ap.open{transform:none}
-.anav{height:54px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:10}
+.anav{min-height:54px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px 0 16px;gap:8px;position:sticky;top:0;z-index:10;flex-wrap:wrap}
 .anav h1{font-size:15px;font-weight:700;flex:1}
-.atabs{display:flex;gap:3px}
+.atabs{display:flex;gap:3px;flex-wrap:wrap}
 .atab{height:30px;padding:0 13px;border-radius:var(--r);font-size:13px;color:var(--ink2);transition:all .15s}
 .atab:hover{background:var(--bg)}
 .atab.act{background:var(--ink);color:#fff}
@@ -274,6 +274,21 @@ textarea.fi{min-height:64px;resize:vertical}
 .abd{border-color:var(--border);color:var(--ink3)}
 .abd:hover{border-color:#e74c3c;color:#e74c3c;background:#fdf0ef}
 
+/* ADMIN MOBILE */
+@media(max-width:600px){
+  .anav{padding:0 8px;gap:4px}
+  .anav>div:first-child span{font-size:12px}
+  .atab{height:28px;padding:0 10px;font-size:12px}
+  .aw{padding:12px}
+  .fc{padding:14px}
+  .fr{grid-template-columns:1fr!important}
+  .fr.c3{grid-template-columns:1fr!important}
+  .ao-stats{grid-template-columns:repeat(3,1fr)}
+  .ao-search input{width:140px}
+  .aiac{flex-wrap:wrap;gap:4px}
+  .aoc-actions{flex-wrap:wrap;gap:4px}
+}
+
 /* TOAST */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:rgba(26,26,26,.92);color:#fff;font-size:13px;padding:10px 20px;border-radius:30px;opacity:0;transition:all .25s;z-index:700;pointer-events:none;white-space:nowrap;backdrop-filter:blur(8px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -294,7 +309,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .ship-btn:disabled{opacity:.5;cursor:default}
 
 @media(max-width:800px){.dgrid{grid-template-columns:1fr;gap:24px}.dmain{height:280px;font-size:100px}}
-@media(max-width:880px){.pgrid{grid-template-columns:repeat(2,1fr)}.sb{position:fixed;left:0;bottom:-100%;width:100%;max-height:80vh;z-index:501;border-radius:16px 16px 0 0;overflow-y:auto;transition:bottom .3s ease;box-shadow:0 -4px 20px rgba(0,0,0,.18);padding-bottom:20px}.sb.sb-open{bottom:0}.filter-btn{display:flex}}
+@media(max-width:880px){.pgrid{grid-template-columns:repeat(2,1fr)}.sb{position:fixed;left:0;bottom:-100%;width:100%;max-height:85vh;z-index:501;border-radius:16px 16px 0 0;overflow-y:auto;overflow-x:hidden;transition:bottom .3s ease;box-shadow:0 -4px 20px rgba(0,0,0,.18);padding-bottom:env(safe-area-inset-bottom,20px);display:flex;flex-direction:column}.sb.sb-open{bottom:0}.filter-btn{display:flex}}
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
 .sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500}
 .sb-backdrop.sb-open{display:block}
@@ -678,9 +693,9 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- SIDEBAR -->
     <div class="sb" id="sbPanel">
       <div class="sb-handle"></div>
-      <div id="sbCloseRow" style="display:flex;justify-content:space-between;align-items:center;padding:0 14px 10px;border-bottom:1px solid var(--border);margin-bottom:4px">
+      <div id="sbCloseRow" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);margin-bottom:4px;position:sticky;top:0;background:var(--white);z-index:10">
         <span style="font-size:14px;font-weight:700;color:var(--ink)">分類篩選</span>
-        <button onclick="toggleSidebar()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);line-height:1;padding:0 4px">✕</button>
+        <button onclick="toggleSidebar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 8px;border-radius:6px">✕</button>
       </div>
       <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
       <div class="si" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
@@ -2196,7 +2211,7 @@ async function saveProductToSupabase(productData, existingId){
     is_new:      productData.isNew||false,
     order_count: productData.cnt||0,
   };
-  if(existingId && !existingId.startsWith('p')){ // numeric Supabase id
+  if(existingId && !String(existingId).startsWith('p')){ // numeric Supabase id
     const {error} = await _sb.from('products').update(record).eq('id', existingId);
     return error;
   } else {
@@ -2490,9 +2505,9 @@ function onImgUrlInput(){
 function onImgFileChange(input){
   const file = input.files[0];
   if(!file) return;
-  // 限制 2MB
-  if(file.size > 2*1024*1024){
-    showToast('⚠️ 圖片不能超過 2MB');
+  // 限制 1MB（base64 後約增加 33%，控制在合理範圍）
+  if(file.size > 1*1024*1024){
+    showToast('⚠️ 圖片請壓縮至 1MB 以內再上傳');
     input.value='';
     return;
   }
@@ -2685,9 +2700,10 @@ async function togStatus(id){
 }
 async function delP(id){
   const p=products.find(x=>String(x.id)===String(id));
-  if(!confirm(`確定刪除「${p?.name.slice(0,20)}…」？`))return;
+  if(!p){showToast('找不到商品');return;}
+  if(!confirm(`確定刪除「${p.name.slice(0,20)}」？`))return;
   await deleteProductFromSupabase(id);
-  products=products.filter(x=>x.id!==id);
+  products=products.filter(x=>String(x.id)!==String(id));
   persist();renderAdminList();renderShop();showToast('已刪除商品');
 }
 function editP(id){
@@ -2716,7 +2732,9 @@ function editP(id){
   document.getElementById('editBadge').style.display='';
   document.getElementById('formTitle').textContent='編輯商品';
   swTab(1);
-  document.querySelector('.anav').scrollIntoView();
+  // 滾動到後台頂部
+  const ap = document.getElementById('ap');
+  if(ap) ap.scrollTo({top:0, behavior:'smooth'});
 }
 async function saveProduct(){
   const name=document.getElementById('fName').value.trim();
@@ -2741,14 +2759,25 @@ async function saveProduct(){
     emoji:selEmoji,isNew:true,cnt:0};
   const btn = document.querySelector('.fsave');
   if(btn){btn.disabled=true;btn.textContent='儲存中...';}
-  const err = await saveProductToSupabase({...data, cnt: editingId ? (products.find(x=>String(x.id)===String(editingId))?.cnt||0) : 0}, editingId);
+  let err;
+  try {
+    err = await saveProductToSupabase({...data, cnt: editingId ? (products.find(x=>String(x.id)===String(editingId))?.cnt||0) : 0}, editingId);
+  } catch(e) {
+    if(btn){btn.disabled=false;btn.textContent='儲存商品';}
+    showToast('❌ 儲存失敗：'+e.message);
+    return;
+  }
   if(btn){btn.disabled=false;btn.textContent='儲存商品';}
   if(err && !err.newId){
     showToast('❌ 儲存失敗：'+(err.message||'請確認 Supabase products 表格是否存在'));
     return;
   }
   // sync back
-  await syncProductsFromSupabase();
+  try {
+    await syncProductsFromSupabase();
+  } catch(syncErr) {
+    console.warn('sync error after save:', syncErr);
+  }
   if(editingId){ showToast('✓ 已更新商品'); }
   else{ showToast('✓ 已新增商品'); }
   acRememberProduct();
