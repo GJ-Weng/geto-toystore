@@ -881,7 +881,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <div class="co-val" id="coEmailVal" style="font-size:14px;color:var(--red)">—</div>
       </div>
       <div class="co-profile-warn" id="coProfileWarn">
-        ⚠️ 請先至 <span class="co-profile-link" onclick="goProfile()">個人資料</span> 填寫姓名及手機號碼，才能完成結帳。
+        ⚠️ 請先至 <span class="co-profile-link" onclick="goProfile('checkout')">個人資料</span> 填寫姓名及手機號碼，才能完成結帳。
       </div>
       <div class="co-sep"></div>
       <div class="co-sec">配送方式</div>
@@ -900,7 +900,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <span class="cod-total-lbl">應付金額</span>
         <span class="cod-total-amt" id="checkoutPayAmt">NT$ 0</span>
       </div>
-      <button class="cod-submit" id="checkoutSubmitBtn" onclick="submitCheckoutOrder()">確認預購</button>
+      <button class="cod-submit" id="checkoutSubmitBtn" onclick="submitCheckoutOrder()">確認訂單</button>
     </div>
   </div>
 </div>
@@ -1583,7 +1583,7 @@ function showCartPage(){ renderCartPage(); showView('cartView'); }
 function showCheckoutPage(){
   // 每次進入結帳頁都重置按鈕狀態
   const btn = document.getElementById('checkoutSubmitBtn');
-  if(btn){ btn.disabled=false; btn.textContent='確認預購'; btn.style.opacity=''; }
+  if(btn){ btn.disabled=false; btn.textContent='確認訂單'; btn.style.opacity=''; }
   renderCheckoutPage();
   showView('checkoutView');
 }
@@ -1606,8 +1606,10 @@ function closeSidebar(){
   document.body.style.overflow = '';
 }
 
-function goProfile(){
+let _profileReturnTo = null; // 記錄從哪裡進入個人資料
+function goProfile(returnTo){
   if(!user){openAuth();return;}
+  _profileReturnTo = returnTo||null;
   renderProfile();
   showView('profileView');
 }
@@ -1641,12 +1643,17 @@ function saveProfile(){
   const name  = document.getElementById('pfName')?.value.trim()||'';
   const phone = document.getElementById('pfPhone')?.value.trim()||'';
   if(!name){ showToast('⚠️ 請填寫姓名'); return; }
-  userProfile = { name, phone };
+  userProfile = { name, phone, trusted: userProfile.trusted||false };
   if(user?.email) saveProfileForUser(user.email, userProfile);
   persist();
   toggleProfileEdit(false);
   renderProfile();
   showToast('✅ 資料已儲存');
+  // 若從結帳頁跳來，儲存後返回
+  if(_profileReturnTo==='checkout'){
+    _profileReturnTo=null;
+    setTimeout(()=>showCheckoutPage(),300);
+  }
 }
 function p_cardClick(id, e){
   const p = products.find(x=>String(x.id)===String(id));
@@ -1677,8 +1684,8 @@ function p_cardClick(id, e){
     }
     if(it) it.qty++;
     else cart.push({id:String(id),qty:1});
-    persist();updBadge();
-    showToast('✓ 已加入購物車：'+p.name.slice(0,15)+'…');
+    persist();updBadge();renderShop();
+    showToast(`✅ 已加入購物車：${p.name.slice(0,15)}…`);
   } else {
     // 預購：進詳細頁選規格
     openDetail(id);
@@ -2091,8 +2098,13 @@ function renderShop(){
         </div>
         ${p.type==='現貨'&&p.stockStatus==='out_of_stock'?'<div style="background:#f5f5f5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#888;font-weight:500">缺貨中</div>':
           p.type==='現貨'&&p.stockStatus==='notify'?'<div style="background:#fff4e5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#e67300;font-weight:500">缺貨 · 到貨通知</div>':
-          `<button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'加入購物車'}</button>`}
-        ${p.type==='現貨'&&p.stock>0?`<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:3px">庫存 ${p.stock} 件</div>`:''}
+          `<button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'🛒 立即購買'}</button>`}
+        ${(()=>{
+          if(p.type!=='現貨'||!p.stock) return '';
+          const _inC = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
+          const _rem = Math.max(0, p.stock - _inC);
+          return `<div style="font-size:11px;color:${_rem<=3?'#e74c3c':'var(--ink3)'};text-align:center;margin-top:3px;font-weight:${_rem<=3?'600':'400'}">${_rem===0?'❌ 已售完':_rem<=3?`⚠️ 僅剩 ${_rem} 件`:`庫存 ${_rem} 件`}</div>`;
+        })()}
       </div>
     </div>`;
   }).join('');
@@ -2172,8 +2184,13 @@ function openDetail(id){
 
   // Meta
   const _deadlinePassed = p.type==='預購' && isDeadlinePassed(p.deadline);
+  // 現貨剩餘庫存（扣掉購物車中的數量）
+  const _inCartQty = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
+  const _remainStock = p.stock>0 ? Math.max(0, p.stock - _inCartQty) : null;
   document.getElementById('dMeta').innerHTML=`
-    ${p.cnt>0?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:'<div class="dmeta-row"><span>0 人已預購</span></div>'}
+    ${p.type==='現貨'&&p.stock>0?`<div class="dmeta-row"><span style="color:${_remainStock===0?'#e74c3c':'#2e7d32'};font-weight:700">📦 剩餘庫存：${_remainStock===0?'已售完':_remainStock+' 件'}</span></div>`:''}
+    ${p.type==='現貨'&&p.stock===0?`<div class="dmeta-row"><span style="color:var(--ink3)">庫存：無限制</span></div>`:''}
+    ${p.cnt>0&&p.type==='預購'?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:''}
     ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
     ${p.arrival?`<div class="dmeta-row"><span>預計到貨：${p.arrival}</span></div>`:''}
   `;
@@ -2264,7 +2281,7 @@ function updateDetailBuyBtn(p){
     const _depAmt = getProductDeposit(p);
     const _btnLabel = p.type==='預購'
       ? (_depAmt>0 ? `加入預購（訂金 NT$${_depAmt}）` : '加入預購')
-      : '加入購物車';
+      : '🛒 立即購買';
     btn.textContent=_btnLabel; btn.disabled=false; btn.style.background=''; btn.style.color='';
   }
 }
@@ -2296,9 +2313,9 @@ function addDetailToCart(){
   const existing = cart.find(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''));
   if(existing){ existing.qty+=detailQty; }
   else { cart.push({id:String(currentProductId), qty:detailQty, variant:v}); }
-  persist(); updBadge();
+  persist(); updBadge(); renderShop();
   updateDetailBuyBtn(p);
-  showToast(`✓ 已加入購物車：${p.name.slice(0,16)}…`);
+  showToast(`✅ 已加入購物車：${p.name.slice(0,16)}…`);
 }
 
 // ─── 管理員詳細頁快速操作 ───────────────────────────────────
@@ -2499,7 +2516,7 @@ async function submitCheckoutOrder(){
   const {data,error} = await _sb.from('orders').insert([record]).select().single();
 
   if(error){
-    btn.disabled=false; btn.textContent='確認預購';
+    btn.disabled=false; btn.textContent='確認訂單';
     showToast('❌ 送出失敗：'+error.message); return;
   }
 
@@ -2555,38 +2572,48 @@ async function submitCheckoutOrder(){
 function showConfirmPage(orderNum, dep){
   const s = shopSettings;
   const hasBank = !!(s.bankAccount);
-  const showBank = hasBank;
+  const isPreorder = dep > 0;
   document.getElementById('confirmContent').innerHTML = `
-    <div class="conf-icon">${dep>0?'📋':'✓'}</div>
-    <div class="conf-h">${dep>0?'預購申請已送出':'訂單已成立！'}</div>
-    <div class="conf-sub">${dep>0?'請完成匯款，訂金到帳後訂單才會正式成立':'感謝您的訂購！'}</div>
-
-    ${dep>0?`<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:20px;text-align:left;font-size:13px;color:#8a4500;line-height:1.7">
-      ⚠️ <b>重要提醒</b><br>
-      請於收到此訊息後 <b>48 小時內</b> 完成匯款。<br>
-      匯款完成後訂單才會正式成立，逾時未付視同取消。
-    </div>`:''}
+    <div class="conf-icon">${isPreorder?'📋':'🎉'}</div>
+    <div class="conf-h">${isPreorder?'預購申請已送出！':'訂單成立！感謝您的購買'}</div>
+    <div class="conf-sub">${isPreorder?'請完成匯款，訂金到帳後訂單才會正式成立':'我們將盡快為您安排出貨'}</div>
 
     <div class="conf-num-row">
       <div><div class="conf-num-lbl">訂單編號</div></div>
       <div class="conf-num-val">${orderNum}</div>
     </div>
 
-    ${dep>0?`
+    ${isPreorder?`
+    <div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:16px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">
+      ⚠️ <b>匯款提醒</b><br>
+      請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>
+      匯款時請備註訂單編號 <b>${orderNum}</b>
+    </div>
     <div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>
     <div class="bank-box">
-      ${showBank?`
+      ${hasBank?`
       <div class="bank-r"><span class="bank-r-lbl">銀行</span><span class="bank-r-val">${s.bankName} ${s.bankCode}</span></div>
       <div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">${s.bankAccount}</span></div>
-      <div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">${s.bankHolder}</span></div>`:''}
-      <div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ ${dep.toLocaleString()}</span></div>
+      <div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">${s.bankHolder}</span></div>
+      <div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ ${dep.toLocaleString()}</span></div>`
+      :`<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>`}
     </div>
     <div class="bank-note" style="margin-top:8px;margin-bottom:4px">${s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！'}</div>
-    `:''}
-    <div style="margin-top:4px"></div>
+    `:`
+    <div style="background:#eef7f1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e7a38;line-height:1.8">
+      ✅ 訂單已成立！我們將於出貨後通知您。
+    </div>`}
+
+    <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--ink3);line-height:1.8;text-align:left">
+      📋 <b style="color:var(--ink2)">注意事項</b><br>
+      • 到貨後將發送通知，請於 <b>7 日內</b>下單取貨，逾期視同棄單<br>
+      • 如有任何問題請透過訊息聯繫我們<br>
+      ${isPreorder?'• 商品正確發貨日無法預測，可能因各種因素延期，敬請見諒':''}
+    </div>
+
     <div class="conf-btns">
       <button class="conf-btn-p" onclick="goOrders()">查看我的訂單</button>
-      <button class="conf-btn-s" onclick="showShop()">回到首頁</button>
+      <button class="conf-btn-s" onclick="showShop()">繼續購物</button>
     </div>`;
   showView('confirmView');
 }
