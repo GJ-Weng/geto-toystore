@@ -127,7 +127,7 @@ input,select,textarea{font-family:var(--font)}
 .skel-line.w80{width:80%}.skel-line.w60{width:60%}.skel-line.w40{width:40%}
 .skel-btn{height:38px;border-radius:6px;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:800px 100%;animation:shimmer 1.4s infinite;margin-top:12px}
 .pbuy.off{background:#e0e0e0;color:#999;cursor:default;pointer-events:none}
-.pstock{font-size:11px;text-align:center;padding:3px 0 6px;color:var(--ink3)}
+.pstock{font-size:11px;text-align:center;padding:2px 0 5px;color:var(--ink3)}
 .pstock.low{color:#e67300;font-weight:600}
 .pstock.zero{color:#e74c3c;font-weight:600}
 .pbadge.sold{background:#888;left:auto;right:10px}
@@ -452,6 +452,9 @@ textarea.fi{min-height:64px;resize:vertical}
 .delivery-opt{height:44px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;background:var(--white);color:var(--ink2);transition:all .15s}
 .delivery-opt:hover{border-color:var(--ink2)}
 .delivery-opt.sel{border-color:var(--red);background:var(--red-light);color:var(--red)}
+.ploc-opt{display:flex;align-items:flex-start;gap:0;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:all .15s;background:var(--white)}
+.ploc-opt:hover{border-color:var(--ink3)}
+.ploc-opt.sel{border-color:var(--red);background:var(--red-light)}
 /* Checkout detail box */
 .co-det-box{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px;position:sticky;top:70px}
 .cod-item{display:flex;gap:8px;margin-bottom:10px;font-size:13px}
@@ -924,8 +927,33 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="co-sep"></div>
       <div class="co-sec">配送方式</div>
       <div class="delivery-row">
-        <button class="delivery-opt sel" id="dopt-ship" onclick="selDelivery('寄送')">寄送</button>
-        <button class="delivery-opt" id="dopt-pickup" onclick="selDelivery('自取')">自取</button>
+        <button class="delivery-opt sel" id="dopt-ship" onclick="selDelivery('寄送')">📦 寄送到府</button>
+        <button class="delivery-opt" id="dopt-pickup" onclick="selDelivery('自取')">🏪 自取</button>
+      </div>
+      <!-- 自取地點選擇（自取時才顯示）-->
+      <div id="pickupLocWrap" style="display:none;margin-top:12px">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:8px;font-weight:600">請選擇自取地點</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label id="ploc-A" class="ploc-opt" onclick="selPickupLoc('七張-頑瘋樂',this)">
+            <input type="radio" name="ploc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 16:30–21:00｜<b>自取須提前告知</b></div>
+              <a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" target="_blank" onclick="event.stopPropagation()"
+                style="font-size:11px;color:#1a56c4;text-decoration:none">📍 Google Maps</a>
+            </div>
+          </label>
+          <label id="ploc-B" class="ploc-opt" onclick="selPickupLoc('林口-7-11亞昕門市',this)">
+            <input type="radio" name="ploc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">林口 — 7-11 亞昕門市</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">自取限<b>週日、週一</b>｜<b>須提前預約</b></div>
+              <a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" target="_blank" onclick="event.stopPropagation()"
+                style="font-size:11px;color:#1a56c4;text-decoration:none">📍 Google Maps</a>
+            </div>
+          </label>
+        </div>
+        <div id="pickupLocWarn" style="display:none;font-size:12px;color:var(--red);margin-top:6px">⚠️ 請選擇自取地點</div>
       </div>
     </div>
     <div class="co-det-box">
@@ -2194,12 +2222,16 @@ function renderShop(){
       +'<div class="pcat">'+p.brand+'</div>'
       +'<div class="pname">'+p.name+'</div>'
       +'<div class="pprice">'+(()=>{const r=getPriceRange(p);if(r.min!==r.max)return'<b class="pprice-range">NT$ '+r.min.toLocaleString()+' – '+r.max.toLocaleString()+'</b>';return'<b style="color:var(--acc);font-weight:700">NT$ '+r.min.toLocaleString()+'</b>';})()+'</div>'
-      +(p.limit||p.deadline?'<div class="pinfo">'
+      +(p.limit||p.deadline||p.cnt>0?'<div class="pinfo">'
         +(p.limit?'<span class="ptag">限購'+p.limit+'</span>':'')
         +(p.deadline?'<span class="ptag dead">'+p.deadline+' 截單</span>':'')
+        +(p.type==='預購'&&p.cnt>0?'<span class="ptag">'+p.cnt+' 人預購</span>':'')
+        +(p.type==='現貨'&&p.cnt>0?'<span class="ptag">'+p.cnt+' 件已售</span>':'')
       +'</div>':'')
+      +'<div style="margin-top:auto;padding-top:8px">'
       +_remHtml
       +_btnHtml
+      +'</div>'
       +'</div></div>';
   }).join('');
   // 比對是否真的有變化（用字串長度+前32字元快速比較）
@@ -2563,10 +2595,26 @@ function agreeTerms(){
   showCheckoutPage();
 }
 
+let selectedPickupLoc = '';
+
 function selDelivery(v){
   selectedDelivery=v;
   document.getElementById('dopt-ship').classList.toggle('sel',v==='寄送');
   document.getElementById('dopt-pickup').classList.toggle('sel',v==='自取');
+  // 自取時顯示地點選擇
+  const locWrap = document.getElementById('pickupLocWrap');
+  if(locWrap) locWrap.style.display = (v==='自取') ? '' : 'none';
+  if(v!=='自取'){ selectedPickupLoc=''; document.querySelectorAll('.ploc-opt').forEach(el=>el.classList.remove('sel')); }
+}
+
+function selPickupLoc(loc, el){
+  selectedPickupLoc = loc;
+  document.querySelectorAll('.ploc-opt').forEach(e=>e.classList.remove('sel'));
+  if(el) el.classList.add('sel');
+  const radio = el?.querySelector('input[type=radio]');
+  if(radio) radio.checked=true;
+  const warn = document.getElementById('pickupLocWarn');
+  if(warn) warn.style.display='none';
 }
 
 function renderCheckoutPage(){
@@ -2657,6 +2705,12 @@ async function submitCheckoutOrder(){
   const phone = userProfile.phone||'';
   const customerName = userProfile.name||user?.name||'';
   if(!phone||!customerName){ showToast('⚠️ 請先至個人資料填寫姓名及手機'); goProfile(); return; }
+  // 自取必須選擇地點
+  if(selectedDelivery==='自取' && !selectedPickupLoc){
+    const warn = document.getElementById('pickupLocWarn');
+    if(warn) warn.style.display='';
+    showToast('⚠️ 請選擇自取地點'); return;
+  }
   const btn = document.getElementById('checkoutSubmitBtn');
   btn.disabled=true; btn.textContent='送出中...';
 
@@ -2687,7 +2741,7 @@ async function submitCheckoutOrder(){
     price: dep,
     customer_name: customerName,
     phone,
-    store: selectedDelivery,
+    store: selectedDelivery==='自取' ? '自取：'+selectedPickupLoc : selectedDelivery,
     store_code: '', store_name: '',
     note: JSON.stringify(items),
     user_email: user?.email||'',
@@ -2763,14 +2817,15 @@ async function submitCheckoutOrder(){
   }
   persist(); updBadge();
 
-  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre});
+  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc});
 }
 
-function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false}={}){
+function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false, delivery='寄送', pickupLoc=''}={}){
   const s = shopSettings;
   const dep = stockDep + preDep;
   const isPreorder = hasPre;
   const isStockOnly = hasStock && !hasPre;
+  const isPickup = (delivery==='自取');
   const isPreOnly   = hasPre && !hasStock;
 
   // ── 標題區 ───────────────────────────────────────────────
@@ -2782,11 +2837,11 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
   } else if(isStockOnly){
     iconHtml  = '🎉';
     titleHtml = '訂單成立！感謝您的購買';
-    subHtml   = '我們將盡快為您安排出貨';
+    subHtml   = isPickup ? '請依通知告知自取時間' : '我們將盡快為您安排出貨';
   } else {
     iconHtml  = '📋';
     titleHtml = '預購申請已送出！';
-    subHtml   = '請完成匯款，訂金到帳後訂單才會正式成立';
+    subHtml   = isPickup ? '請完成匯款，到貨後依通知告知自取時間' : '請完成匯款，訂金到帳後訂單才會正式成立';
   }
 
   // ── 訂單編號區（可能兩張）──────────────────────────────────
@@ -2832,29 +2887,47 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
     payHtml = '<div style="background:#eef7f1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1e7a38">✅ 現貨訂單已成立！我們確認庫存後將盡快安排出貨。</div>';
   }
 
-  // ── 注意事項 ──────────────────────────────────────────────
+  // ── 注意事項依配送方式 ──────────────────────────────────────
+  // 自取地點說明
+  const _pickupInfo = isPickup && pickupLoc ? (() => {
+    if(pickupLoc.includes('頑瘋樂'))
+      return '• 自取地點：<b>七張 — 頑瘋樂</b>（週一〜六 16:30–21:00）<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間，<b>須提前告知</b>';
+    if(pickupLoc.includes('亞昕'))
+      return '• 自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員預約自取，<b>須提前預約</b>';
+    return '• 自取地點：'+pickupLoc+'<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間';
+  })() : '';
+
+  // 各類型基本說明
+  const _stockShipNote = isPickup
+    ? '• 倉管確認庫存後，<b>Email 將發送到貨通知</b>，請於 3 日內告知自取時間<br>'
+      +'• 逾期未聯絡者視同棄單'
+    : '• 倉管確認庫存後，Email 將發送賣貨便下單連結，請於 <b>7 日內</b>完成下單<br>'
+      +'• 商品將於收到下單連結後 <b>7 日內</b>寄出，逾期未完成視同棄單';
+
+  const _preShipNote = isPickup
+    ? '• <b>Email 將發送到貨通知</b>，請於 3 日內回信或私訊 Facebook 社團管理員告知自取時間<br>'
+      +'• 逾期未聯絡者視同棄單，<b>訂金恕不退還</b>'
+    : '• 到貨後 Email 將發送通知，請於 <b>7 日內</b>完成賣貨便下單，倉庫將於 7 日內寄出<br>'
+      +'• 逾期未完成者視同棄單，<b>訂金恕不退還</b>';
+
+  const _preCommon =
+    '• 商品標示到貨月份為日本官方出貨月份，實際到台灣約晚 1〜2 個月，屬正常範圍<br>'
+    +'• 商品正確到貨日無法預測，可能因各種因素延期，敬請見諒';
+
   let noticeLines = '';
+  if(isPickup && _pickupInfo) noticeLines += _pickupInfo + '<br><br>';
+
   if(hasMixed){
-    noticeLines =
+    noticeLines +=
       '<b style="color:#1a56c4">【現貨商品】</b><br>'
-      +'• 倉管確認庫存後，Email 將發送賣貨便下單連結，請於 <b>7 日內</b>完成下單<br>'
-      +'• 商品將於收到下單連結後 <b>7 日內</b>寄出，逾期未完成視同棄單<br><br>'
+      +_stockShipNote+'<br><br>'
       +'<b style="color:#e67300">【預購商品】</b><br>'
-      +'• 商品標示到貨月份為日本官方出貨月份，實際到台灣約晚 1〜2 個月，屬正常範圍<br>'
-      +'• 到貨後 Email 將發送通知，請於 <b>7 日內</b>完成下單，倉庫將於 7 日內寄出<br>'
-      +'• 逾期未完成者視同棄單，<b>訂金恕不退還</b><br>'
-      +'• 商品正確到貨日無法預測，可能因各種因素延期，敬請見諒';
+      +_preCommon+'<br>'
+      +_preShipNote;
   } else if(isStockOnly){
-    noticeLines =
-      '• 倉管確認庫存後，Email 將發送賣貨便下單連結，請於 <b>7 日內</b>完成下單<br>'
-      +'• 商品將於收到下單連結後 <b>7 日內</b>寄出<br>'
-      +'• 逾期未完成下單者視同棄單';
+    noticeLines += _stockShipNote;
   } else {
-    noticeLines =
-      '• 商品標示到貨月份為日本官方出貨月份，實際到台灣約晚 1〜2 個月，屬正常範圍<br>'
-      +'• 到貨後 Email 將發送通知，請於 <b>7 日內</b>完成下單，倉庫將於 7 日內寄出<br>'
-      +'• 逾期未完成者視同棄單，<b>訂金恕不退還</b><br>'
-      +'• 商品正確到貨日無法預測，可能因各種因素延期，敬請見諒';
+    noticeLines += _preCommon+'<br>'+_preShipNote;
   }
 
   document.getElementById('confirmContent').innerHTML =
@@ -2932,7 +3005,7 @@ async function syncProductsFromSupabase(){
 // 根據 URL hash 恢復頁面（在 products 載入後呼叫）
 let _hashRestored = false;
 function _restoreHashPage(){
-  if(_hashRestored) return; // 只恢復一次
+  if(_hashRestored) return;
   const _h = window.location.hash;
   if(!_h || _h==='#'){ _hashRestored=true; return; }
   _hashRestored = true;
@@ -4053,11 +4126,12 @@ let _aoTab = 'all';
 let _aoQuery = '';
 
 const AO_STATUS = {
-  new:       {label:'待付款',   cls:'os-pending',   bg:'#fff4e5',color:'#e67300'},
-  paid:      {label:'已成立',   cls:'os-confirmed', bg:'#e8f0fc',color:'#1a56c4'},
-  partial:   {label:'部分出貨', cls:'os-partship',  bg:'#f3eaff',color:'#6b3fc5'},
-  shipped:   {label:'已完成',   cls:'os-done',      bg:'#eef7f1',color:'#2e7d32'},
-  cancelled: {label:'已取消',   cls:'os-cancelled', bg:'#f5f5f5',color:'#888'},
+  new:          {label:'待付款',   cls:'os-pending',   bg:'#fff4e5',color:'#e67300'},
+  paid:         {label:'已成立',   cls:'os-confirmed', bg:'#e8f0fc',color:'#1a56c4'},
+  partial:      {label:'部分出貨', cls:'os-partship',  bg:'#f3eaff',color:'#6b3fc5'},
+  pickup_ready: {label:'待自取',   cls:'os-pickup',    bg:'#fff4e5',color:'#e67300'},
+  shipped:      {label:'已完成',   cls:'os-done',      bg:'#eef7f1',color:'#2e7d32'},
+  cancelled:    {label:'已取消',   cls:'os-cancelled', bg:'#f5f5f5',color:'#888'},
 };
 
 async function renderOrderList(){
@@ -4072,7 +4146,7 @@ async function renderOrderList(){
 }
 
 function _aoRenderStats(){
-  const counts={all:0,new:0,paid:0,partial:0,shipped:0,cancelled:0};
+  const counts={all:0,new:0,paid:0,partial:0,pickup_ready:0,shipped:0,cancelled:0};
   _allAdminOrders.forEach(o=>{counts.all++;if(counts[o.status]!==undefined)counts[o.status]++;});
 
   // 訂金收入：已收到的訂金（paid + partial + shipped）
@@ -4106,6 +4180,7 @@ function _aoRenderTabs(){
     {key:'new',label:'待付款'},
     {key:'paid',label:'已成立'},
     {key:'partial',label:'部分出貨'},
+    {key:'pickup_ready',label:'待自取'},
     {key:'shipped',label:'已完成'},
     {key:'cancelled',label:'已取消'},
   ];
@@ -4218,10 +4293,13 @@ function _aoRenderCards(){
     }
     const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
     const dateStr=o.created_at?new Date(o.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-    const canPay    = o.status==='new';
-    const canShip   = ['paid','partial'].includes(o.status);
-    const canPart   = o.status==='paid';
-    const canCancel = ['new','paid'].includes(o.status);
+    const _oIsPickup = (o.store||'').startsWith('自取');
+    const canPay       = o.status==='new';
+    const canShip      = ['paid','partial'].includes(o.status);
+    const canPickupReady = _oIsPickup && ['paid','partial'].includes(o.status);
+    const canPickupDone  = _oIsPickup && o.status==='pickup_ready';
+    const canPart      = o.status==='paid' && !_oIsPickup;
+    const canCancel    = ['new','paid'].includes(o.status);
     const _priorityScore = _getPriorityScore(o);
     const _completedCount = _allAdminOrders.filter(x=>x.user_email===o.user_email&&x.status==='shipped').length;
     return `<div class="aoc" style="${_batchMode&&_batchSelected.has(o.id)?'border-color:#e67300;background:#fff8f0':''}">
@@ -4276,10 +4354,12 @@ function _aoRenderCards(){
         })()}
       </div>
       <div class="aoc-actions">
-        ${canPay   ?`<button class="aoc-btn aoc-btn-pay"  onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
-        ${canPart  ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
-        ${canShip  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
-        ${canCancel?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
+        ${canPay         ?`<button class="aoc-btn aoc-btn-pay"  onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
+        ${canPickupReady ?`<button class="aoc-btn" style="border-color:#e67300;background:#fff4e5;color:#e67300;font-weight:700" onclick="aoUpdateStatus(${o.id},'pickup_ready')">🏪 通知自取</button>`:''}
+        ${canPickupDone  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 已完成自取</button>`:''}
+        ${canPart        ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
+        ${canShip&&!_oIsPickup?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
+        ${canCancel      ?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
         <button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>
         <button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>
         <button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>
@@ -4580,11 +4660,18 @@ async function sendStatusEmail(o, newStatus){
   const tail  = total - dep;
 
   // 依狀態決定信件內容
+  const _isPickupOrder = (o.store||'').startsWith('自取');
+  const _pickupLoc = _isPickupOrder ? (o.store||'').replace('自取：','') : '';
   const statusMap = {
-    paid:      { title:'訂單已確認付款！',   sub:'您的訂金已收到，訂單正式成立，我們將為您安排出貨。',  color:'#2e7d32', bg:'#eef7f1', icon:'✅' },
-    partial:   { title:'部分商品已出貨',      sub:'您的部分商品已出貨，請注意查收。',                   color:'#6b3fc5', bg:'#f3eaff', icon:'📦' },
-    shipped:   { title:'全部商品已出貨！',    sub:'您的商品已全數出貨，請注意查收，感謝您的支持！',      color:'#1a56c4', bg:'#e8f0fc', icon:'🎉' },
-    cancelled: { title:'訂單已取消',          sub:'您的訂單已被取消，如有疑問請聯繫我們。',             color:'#888',    bg:'#f5f5f5', icon:'❌' },
+    paid:      _isPickupOrder
+      ? { title:'訂單已確認付款！',   sub:'您的訂金已收到，訂單正式成立，商品到貨後我們將通知您安排自取時間。',  color:'#2e7d32', bg:'#eef7f1', icon:'✅' }
+      : { title:'訂單已確認付款！',   sub:'您的訂金已收到，訂單正式成立，我們將為您安排出貨。',                  color:'#2e7d32', bg:'#eef7f1', icon:'✅' },
+    partial:   { title:'部分商品已出貨',   sub:'您的部分商品已出貨，請注意查收。',                   color:'#6b3fc5', bg:'#f3eaff', icon:'📦' },
+    pickup_ready: { title:'商品已到貨，請安排自取！', sub:'您的商品已到達，請盡快回信或私訊我們安排自取時間。', color:'#e67300', bg:'#fff4e5', icon:'🏪' },
+    shipped:   _isPickupOrder
+      ? { title:'自取完成，感謝支持！', sub:'感謝您的購買與支持，期待下次光臨！',                    color:'#1a56c4', bg:'#e8f0fc', icon:'🎉' }
+      : { title:'全部商品已出貨！',    sub:'您的商品已全數出貨，請注意查收，感謝您的支持！',          color:'#1a56c4', bg:'#e8f0fc', icon:'🎉' },
+    cancelled: { title:'訂單已取消',   sub:'您的訂單已被取消，如有疑問請聯繫我們。',                  color:'#888',    bg:'#f5f5f5', icon:'❌' },
   };
   const st = statusMap[newStatus];
   if(!st) return;
@@ -4611,9 +4698,28 @@ async function sendStatusEmail(o, newStatus){
     ${dep>0&&newStatus==='paid'?`<div style="font-size:12px;color:#888;margin-top:4px">尾款 NT$ ${tail.toLocaleString()} 於取貨時支付</div>`:''}
   </div>`;
 
-  const reminderHtml = `<div style="background:${st.bg};border-radius:6px;padding:10px 14px;margin-top:12px;font-size:13px;color:${st.color};font-weight:500">
-    ${st.icon} ${st.sub}
-  </div>`;
+  // 自取到貨通知：加地點資訊和聯絡說明
+  let reminderHtml = '';
+  if(newStatus === 'pickup_ready'){
+    const _locDetail = _pickupLoc.includes('頑瘋樂')
+      ? '自取地點：<b>七張 — 頑瘋樂</b>（週一〜六 16:30–21:00）<br>地址：<a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" style="color:#1a56c4">Google Maps 導航</a>'
+      : _pickupLoc.includes('亞昕')
+      ? '自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>地址：<a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" style="color:#1a56c4">Google Maps 導航</a>'
+      : '自取地點：' + _pickupLoc;
+    reminderHtml =
+      '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin-top:12px;font-size:13px;line-height:1.9">'
+      +'<div style="font-weight:700;color:#e67300;margin-bottom:8px">🏪 商品已到貨，請安排自取時間</div>'
+      +'<div style="color:#8a4500">'
+      +_locDetail+'<br><br>'
+      +'<b>請於 3 日內</b>完成以下其中一項：<br>'
+      +'&nbsp;&nbsp;① 直接回覆此封 Email<br>'
+      +'&nbsp;&nbsp;② 私訊 Facebook 社團管理員<br>'
+      +'告知您方便的取貨時間，逾期未聯絡視同棄單。'
+      +'</div></div>';
+  } else {
+    reminderHtml = '<div style="background:'+st.bg+';border-radius:6px;padding:10px 14px;margin-top:12px;font-size:13px;color:'+st.color+';font-weight:500">'
+      +st.icon+' '+st.sub+'</div>';
+  }
 
   try {
     emailjs.init({ publicKey: emailjsConfig.publicKey });
@@ -5009,9 +5115,16 @@ function showToast(m){
 initEmailJS();
 updBadge(); buildEmojiGrid();
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
-// 快取新鮮（60秒內）且有資料 → 不立即 sync，背景延遲 sync
+
+// ── Hash 路由恢復：快取有資料時立即執行，不等 sync ────────────────
+if(products.length){
+  // 快取有資料 → 立即嘗試恢復頁面（不等網路）
+  setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
+}
+
+// ── 背景同步 ─────────────────────────────────────────────────────
 if(products.length && _isCacheFresh()){
-  setTimeout(syncProductsFromSupabase, 5000); // 5秒後靜默更新
+  setTimeout(syncProductsFromSupabase, 3000); // 有新鮮快取 → 3秒後靜默更新
 } else {
   syncProductsFromSupabase(); // 無快取或過期 → 立即 sync
 }
