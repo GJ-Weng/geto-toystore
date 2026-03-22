@@ -1559,13 +1559,22 @@ function setTrustedBuyer(email, trusted){
 }
 
 function persist(){
-  localStorage.setItem('tf_p',JSON.stringify(products));
-  localStorage.setItem('tf_c',JSON.stringify(cart));
-  localStorage.setItem('tf_f',JSON.stringify(favs));
-  localStorage.setItem('tf_o',JSON.stringify(orders));
-  localStorage.setItem('tf_cfg',JSON.stringify(shopSettings));
-  localStorage.setItem('tf_ejs',JSON.stringify(emailjsConfig));
-  // profile 依登入帳號分開儲存
+  try{
+    // products 存輕量版本（base64 圖片不存 localStorage，避免 QuotaExceededError）
+    const lightProducts = products.map(p=>{
+      const {imageUrl, imageUrls, ...rest} = p;
+      // 只保留 URL（非 base64）的圖片
+      const _url = imageUrl&&!imageUrl.startsWith('data:') ? imageUrl : '';
+      const _urls = Array.isArray(imageUrls) ? imageUrls.filter(u=>u&&!u.startsWith('data:')) : [];
+      return {...rest, imageUrl:_url, imageUrls:_urls};
+    });
+    localStorage.setItem('tf_p', JSON.stringify(lightProducts));
+  }catch(e){ console.warn('products cache skip:', e.name); }
+  try{ localStorage.setItem('tf_c',JSON.stringify(cart)); }catch(e){}
+  try{ localStorage.setItem('tf_f',JSON.stringify(favs)); }catch(e){}
+  try{ localStorage.setItem('tf_o',JSON.stringify(orders)); }catch(e){}
+  try{ localStorage.setItem('tf_cfg',JSON.stringify(shopSettings)); }catch(e){}
+  try{ localStorage.setItem('tf_ejs',JSON.stringify(emailjsConfig)); }catch(e){}
   if(user?.email) saveProfileForUser(user.email, userProfile);
 }
 
@@ -1664,33 +1673,8 @@ function p_cardClick(id, e){
     return;
   }
 
-  if(p.type==='現貨'){
-    // 現貨：檢查缺貨狀態
-    if(p.stockStatus==='out_of_stock'){
-      showToast('⚠️ 此商品目前缺貨'); return;
-    }
-    if(!user){openAuth();return;}
-    const maxQty = parseLimit(p.limit);
-    // 有庫存數量限制時檢查
-    if(p.stock>0){
-      const inCart=cart.filter(x=>String(x.id)===String(id)).reduce((s,x)=>s+x.qty,0);
-      if(inCart >= p.stock){ showToast(`⚠️ 庫存不足，僅剩 ${p.stock} 件`); return; }
-    }
-    const it=cart.find(x=>String(x.id)===String(id));
-    const curQty = it?it.qty:0;
-    if(curQty >= maxQty){
-      showToast(`⚠️ 此商品每人限購 ${p.limit}`);
-      return;
-    }
-    if(it) it.qty++;
-    else cart.push({id:String(id),qty:1});
-    persist(); updBadge();
-    showToast('✅ 已加入購物車：'+p.name.slice(0,15)+'…');
-    try{ renderShop(); }catch(e){}
-  } else {
-    // 預購：進詳細頁選規格
-    openDetail(id);
-  }
+  // 現貨和預購都進商品詳情頁
+  openDetail(id);
 }
 // ─── STATUS HELPERS ──────────────────────────────────────
 const ORDER_STATUS = {
@@ -2098,13 +2082,14 @@ function renderShop(){
         <div class="pinfo">
           <div class="pir">
             ${p.limit?`<span>每人限購 ${p.limit}</span>`:''}
-            ${p.cnt>0?`<span>${p.cnt} 人已預購</span>`:''}
+            ${p.type==='預購'&&p.cnt>0?`<span>${p.cnt} 人已預購</span>`:''}
+            ${p.type==='現貨'&&p.cnt>0?`<span>${p.cnt} 件已售</span>`:''}
           </div>
           ${p.deadline?('<div class="pir"><span class="pdeadline">結單：'+p.deadline+'</span>'+(p.arrival?'<span style="color:var(--ink3)">到貨：'+p.arrival+'</span>':'')+'</div>'):''}
         </div>
         ${p.type==='現貨'&&p.stockStatus==='out_of_stock'?'<div style="background:#f5f5f5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#888;font-weight:500">缺貨中</div>':
           p.type==='現貨'&&p.stockStatus==='notify'?'<div style="background:#fff4e5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#e67300;font-weight:500">缺貨 · 到貨通知</div>':
-          `<button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'🛒 立即購買'}</button>`}
+          `<button class="pbuy" onclick="event.stopPropagation();openDetail('${p.id}')">${p.type==='預購'?'立即預購':'立即購買'}</button>`}
         ${(()=>{
           if(p.type!=='現貨'||!p.stock) return '';
           const _inC = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
@@ -2199,7 +2184,8 @@ function openDetail(id){
   document.getElementById('dMeta').innerHTML=`
     ${p.type==='現貨'&&p.stock>0?`<div class="dmeta-row"><span style="color:${_remainStock===0?'#e74c3c':'#2e7d32'};font-weight:700">📦 剩餘庫存：${_remainStock===0?'已售完':_remainStock+' 件'}</span></div>`:''}
     ${p.type==='現貨'&&p.stock===0?`<div class="dmeta-row"><span style="color:var(--ink3)">庫存：無限制</span></div>`:''}
-    ${p.cnt>0&&p.type==='預購'?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:''}
+    ${p.type==='預購'&&p.cnt>0?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:''}
+    ${p.type==='現貨'&&p.cnt>0?`<div class="dmeta-row"><span style="color:var(--ink2)">🛒 已售出 ${p.cnt} 件</span></div>`:''}
     ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
     ${p.arrival?`<div class="dmeta-row"><span>預計到貨：${p.arrival}</span></div>`:''}
   `;
@@ -2279,18 +2265,31 @@ function updateDetailBuyBtn(p){
     btn.textContent='已達購買上限'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888';
     return;
   }
+  // 現貨：檢查庫存
+  if(p.type==='現貨'){
+    if(p.stockStatus==='out_of_stock'){
+      btn.textContent='缺貨中'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888'; return;
+    }
+    if(p.stock>0){
+      const _inCartQty2 = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
+      if(_inCartQty2 >= p.stock){
+        btn.textContent='庫存已滿'; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888'; return;
+      }
+    }
+  }
   if(needVariant && !selectedVariant){
     btn.textContent='請選擇規格'; btn.disabled=true; btn.style.background=''; btn.style.color='';
   } else if(limitReached){
-    btn.textContent='已加入購物車'; btn.disabled=true;
+    btn.textContent='已加入'; btn.disabled=true;
     btn.style.background='#ccc'; btn.style.color='#888';
   } else if(inCart>0){
-    btn.textContent=`再加入 ${Math.min(detailQty, maxQty-inCart)} 件`; btn.disabled=false; btn.style.background=''; btn.style.color='';
+    const _remain2 = Math.min(detailQty, maxQty-inCart);
+    btn.textContent=(p.type==='現貨'?'再加入 ':'再加入 ')+_remain2+' 件'; btn.disabled=false; btn.style.background=''; btn.style.color='';
   } else {
     const _depAmt = getProductDeposit(p);
     const _btnLabel = p.type==='預購'
-      ? (_depAmt>0 ? `加入預購（訂金 NT$${_depAmt}）` : '加入預購')
-      : '🛒 立即購買';
+      ? (_depAmt>0 ? '加入預購（訂金 NT$'+_depAmt+'）' : '加入預購')
+      : '🛒 加入購物車';
     btn.textContent=_btnLabel; btn.disabled=false; btn.style.background=''; btn.style.color='';
   }
 }
@@ -2301,6 +2300,14 @@ function addDetailToCart(){
   if(p.type==='預購' && isDeadlinePassed(p.deadline)){
     showToast('⚠️ 此商品已結單，無法預購');
     return;
+  }
+  // 現貨庫存檢查
+  if(p.type==='現貨'){
+    if(p.stockStatus==='out_of_stock'){ showToast('⚠️ 此商品目前缺貨'); return; }
+    if(p.stock>0){
+      const _inCartNow = cart.filter(x=>String(x.id)===String(currentProductId)).reduce((s,x)=>s+x.qty,0);
+      if(_inCartNow + detailQty > p.stock){ showToast('⚠️ 庫存不足，僅剩 '+(p.stock-_inCartNow)+' 件'); return; }
+    }
   }
   const v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
   const maxQty = parseLimit(p.limit);
@@ -2403,7 +2410,7 @@ function goCheckout(){
     const p=products.find(x=>String(x.id)===String(ci.id));
     return p?.type==='預購';
   });
-  const alreadyRead = localStorage.getItem('tf_terms_agreed')==='1';
+  const alreadyRead = sessionStorage.getItem('tf_terms_agreed')==='1'; // session only, 每次開瀏覽器重新確認
   if(hasPreorder && !alreadyRead){
     // 顯示須知 Modal
     document.getElementById('termsModal').style.display='flex';
@@ -2416,7 +2423,7 @@ function goCheckout(){
   showCheckoutPage();
 }
 function agreeTerms(){
-  localStorage.setItem('tf_terms_agreed','1');
+  sessionStorage.setItem('tf_terms_agreed','1'); // session only
   document.getElementById('termsModal').style.display='none';
   showCheckoutPage();
 }
