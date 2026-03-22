@@ -2670,13 +2670,14 @@ function renderCheckoutPage(){
   const _coPre   = cart.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='預購'; });
   const _renderItems = (items) => items.map(ci=>{
     const p=products.find(x=>String(x.id)===String(ci.id)); if(!p) return '';
+    const _vPrice = getVariantPrice(p, ci.variant); // 使用規格定價
     const pdep = getProductDeposit(p)*ci.qty;
     return '<div class="cod-item">'
       +'<div class="cod-iname">'+p.name.slice(0,28)+(p.name.length>28?'…':'')
       +(ci.variant&&ci.variant!=='單一規格'?'<span class="cod-ivar">'+ci.variant+'</span>':'')
       +'<span class="cod-ivar"> ×'+ci.qty+'</span></div>'
       +'<div style="text-align:right;flex-shrink:0">'
-      +'<div class="cod-iprice">NT$ '+(p.price*ci.qty).toLocaleString()+'</div>'
+      +'<div class="cod-iprice">NT$ '+(_vPrice*ci.qty).toLocaleString()+'</div>'
       +(pdep>0?'<div style="font-size:11px;color:var(--ink3)">訂金 NT$ '+pdep.toLocaleString()+'</div>':'')
       +'</div></div>';
   }).join('');
