@@ -79,6 +79,7 @@ input,select,textarea{font-family:var(--font)}
 .pbadge{position:absolute;top:10px;left:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:3px;letter-spacing:.4px}
 .pbadge.pre{background:#7b5ea7}
 .pbadge.stk{background:#2e7d32}
+.pbadge-new{position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:.6px;box-shadow:0 1px 4px rgba(239,68,68,.4)}
 .pfav{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;cursor:pointer;backdrop-filter:blur(4px)}
 .pfav:hover{background:#fff;transform:scale(1.1)}
 .pfav.on{color:var(--red)}
@@ -1025,7 +1026,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg"><label class="fl">售價 NT$ *</label><input class="fi" id="fPrice" type="number" placeholder="320"></div>
           <div class="fg"><label class="fl">訂金 NT$（0＝不收）</label><input class="fi" id="fDeposit" type="number" placeholder="0" min="0"></div>
           <div class="fg"><label class="fl">每人限購</label><input class="fi" id="fLimit" placeholder="例：2件"></div>
-          <div class="fg"><label class="fl">商品類型</label><select class="fi" id="fType"><option value="預購">預購</option><option value="現貨">現貨</option><option value="未分類">未分類</option></select></div>
+          <div class="fg"><label class="fl">商品類型</label><select class="fi" id="fType" onchange="onTypeChange()"><option value="預購">預購</option><option value="現貨">現貨</option><option value="未分類">未分類</option></select></div>
         </div>
         <div class="fr">
           <div class="fg"><label class="fl">結單日期</label><input class="fi" id="fDeadline" type="date"></div>
@@ -1052,6 +1053,21 @@ textarea.fi{min-height:64px;resize:vertical}
             <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>
           </div>
         </div></div>
+        <!-- 現貨庫存欄位（type=現貨時顯示）-->
+        <div class="fr" id="fStockRow" style="display:none">
+          <div class="fg">
+            <label class="fl">庫存數量（0＝無限制）</label>
+            <input class="fi" id="fStock" type="number" min="0" placeholder="0" value="0">
+          </div>
+          <div class="fg">
+            <label class="fl">缺貨狀態</label>
+            <select class="fi" id="fStockStatus">
+              <option value="in_stock">有庫存</option>
+              <option value="out_of_stock">缺貨（隱藏購買按鈕）</option>
+              <option value="notify">缺貨（顯示到貨通知）</option>
+            </select>
+          </div>
+        </div>
         <div class="fr c1"><div class="fg"><label class="fl">上架狀態</label><select class="fi" id="fStatus"><option value="published">上架</option><option value="unlisted">下架</option></select></div></div>
         <div class="fr c1"><div class="fg"><label class="fl">商品圖片（可多張）</label>
           <div class="img-upload-wrap">
@@ -1147,6 +1163,55 @@ textarea.fi{min-height:64px;resize:vertical}
       <button onclick="confirmDeadlineModal()" style="flex:1;height:40px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認</button>
       <button onclick="closeDeadlineModal()" style="height:40px;padding:0 16px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
     </div>
+  </div>
+</div>
+
+<!-- 郵寄出貨 Modal -->
+<div id="postModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;width:480px;max-width:94vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.18);margin-bottom:40px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">📮 郵寄出貨作業</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:18px" id="postModalSub"></div>
+
+    <!-- 步驟 1：補款通知 -->
+    <div id="postStep1" style="margin-bottom:16px;padding:14px;background:#f5f3ff;border-radius:8px;border:1px solid #ddd6fe">
+      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:10px">① 通知顧客補款 + 提供寄件資訊</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">尾款金額 NT$</label>
+          <input id="postTailAmt" type="number" min="0" placeholder="0"
+            style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">運費 NT$</label>
+          <input id="postShipFee" type="number" min="0" value="80" placeholder="80"
+            style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none">
+        </div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">備註（可選）</label>
+        <input id="postNote" placeholder="例：商品較大，無法使用賣貨便，改郵寄"
+          style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <button onclick="sendPostRequestEmail()" style="width:100%;height:38px;background:#7c3aed;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 寄信通知顧客補款＋填寫寄件資訊</button>
+    </div>
+
+    <!-- 步驟 2：輸入追蹤碼 -->
+    <div id="postStep2" style="padding:14px;background:#eef7f1;border-radius:8px;border:1px solid #a5d6b0">
+      <div style="font-size:13px;font-weight:700;color:#2e7d32;margin-bottom:10px">② 商品寄出後 — 輸入追蹤碼</div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">郵局追蹤號碼</label>
+        <input id="postTrackingCode" placeholder="例：RR123456789TW"
+          style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none;font-family:monospace;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">顧客寄件地址（系統自動帶入，可確認）</label>
+        <textarea id="postAddrDisplay" rows="2" readonly
+          style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:12px;background:#f5f5f5;resize:none;box-sizing:border-box;color:var(--ink3)"></textarea>
+      </div>
+      <button onclick="sendTrackingEmail()" style="width:100%;height:38px;background:#2e7d32;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📬 寄追蹤碼通知給顧客</button>
+    </div>
+
+    <button onclick="closePostModal()" style="width:100%;height:36px;margin-top:12px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--ink2);background:var(--white);cursor:pointer">關閉</button>
   </div>
 </div>
 
@@ -1482,9 +1547,17 @@ function p_cardClick(id, e){
   }
 
   if(p.type==='現貨'){
-    // 現貨：直接加購物車
+    // 現貨：檢查缺貨狀態
+    if(p.stockStatus==='out_of_stock'){
+      showToast('⚠️ 此商品目前缺貨'); return;
+    }
     if(!user){openAuth();return;}
     const maxQty = parseLimit(p.limit);
+    // 有庫存數量限制時檢查
+    if(p.stock>0){
+      const inCart=cart.filter(x=>String(x.id)===String(id)).reduce((s,x)=>s+x.qty,0);
+      if(inCart >= p.stock){ showToast(`⚠️ 庫存不足，僅剩 ${p.stock} 件`); return; }
+    }
     const it=cart.find(x=>String(x.id)===String(id));
     const curQty = it?it.qty:0;
     if(curQty >= maxQty){
@@ -1864,13 +1937,17 @@ function renderShop(){
   }
   grid.innerHTML=list.map(p=>{
     const fav=favs.map(String).includes(String(p.id));
-    const bt=p.type==='預購'?'預購':p.isNew?'NEW':p.type==='現貨'?'現貨':'';
+    // 左下角 badge：預購 / 現貨（不再顯示 NEW）
+    const bt=p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
     const bc=p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
     const _expired = p.type==='預購' && isDeadlinePassed(p.deadline);
+    // 右上角 NEW badge：3 天內新增的商品（用 isNew flag + 建立時間判斷）
+    const _isRecent = p.isNew === true;
     return`<div class="pcard${_expired?' expired':''}" onclick="openDetail('${p.id}')">
       <div class="piw">
         <div class="pimg"><img src="${p.imageUrl||PLACEHOLDER_IMG}" alt="" style="width:100%;height:100%;object-fit:cover"></div>
         ${bt?`<div class="pbadge ${bc}">${bt}</div>`:''}
+        ${_isRecent?`<div class="pbadge-new">NEW</div>`:''}
         ${p.type==='預購'&&isDeadlinePassed(p.deadline)?`<div class="pbadge" style="background:#888;top:10px;left:${bt?'60px':'10px'}">已結單</div>`:''}
         <button class="pfav ${fav?'on':''}" onclick="event.stopPropagation();toggleFav('${p.id}')">${fav?'❤️':'🤍'}</button>
       </div>
@@ -1889,7 +1966,10 @@ function renderShop(){
           </div>
           ${p.deadline?`<div class="pir"><span class="pdeadline">結單：${p.deadline}</span>${p.arrival?`<span style="color:var(--ink3)">到貨：${p.arrival}</span>`:''}</div>`:''}
         </div>
-        <button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'加入購物車'}</button>
+        ${p.type==='現貨'&&p.stockStatus==='out_of_stock'?'<div style="background:#f5f5f5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#888;font-weight:500">缺貨中</div>':
+          p.type==='現貨'&&p.stockStatus==='notify'?'<div style="background:#fff4e5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#e67300;font-weight:500">缺貨 · 到貨通知</div>':
+          `<button class="pbuy" onclick="event.stopPropagation();p_cardClick('${p.id}',event)">${p.type==='預購'?'立即預購':'加入購物車'}</button>`}
+        ${p.type==='現貨'&&p.stock>0?`<div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:3px">庫存 ${p.stock} 件</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -2400,6 +2480,8 @@ async function syncProductsFromSupabase(){
         status:    p.status||'published',
         isNew:     p.is_new||false,
         cnt:       p.order_count||0,
+        stock:      p.stock||0,
+        stockStatus:p.stock_status||'in_stock',
       }));
       localStorage.setItem('tf_p', JSON.stringify(products));
       renderShop(); updCounts();
@@ -2429,6 +2511,8 @@ async function saveProductToSupabase(productData, existingId){
     status:      productData.status||'published',
     is_new:      productData.isNew||false,
     order_count: productData.cnt||0,
+    stock:        productData.stock||0,
+    stock_status: productData.stockStatus||'in_stock',
   };
   if(existingId && !String(existingId).startsWith('p')){ // numeric Supabase id
     const {error} = await _sb.from('products').update(record).eq('id', existingId);
@@ -2935,6 +3019,15 @@ function getPriceRange(p){
   return {min:Math.min(...prices), max:Math.max(...prices)};
 }
 
+// ─── 現貨/預購 欄位切換 ─────────────────────────────────────
+function onTypeChange(){
+  const type = document.getElementById('fType')?.value;
+  const stockRow    = document.getElementById('fStockRow');
+  const deadlineRow = document.querySelector('#fDeadline')?.closest('.fr');
+  if(stockRow)    stockRow.style.display    = (type==='現貨') ? '' : 'none';
+  if(deadlineRow) deadlineRow.style.display = (type==='預購') ? '' : 'none';
+}
+
 function buildEmojiGrid(){
   document.getElementById('eg').innerHTML=EMOJIS.map(e=>
     `<button class="eo${e===selEmoji?' sel':''}" onclick="pickE('${e}')">${e}</button>`
@@ -3374,6 +3467,12 @@ function editP(id){
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
   restoreVariantPrices(p.variantPrices||{});
   document.getElementById('fStatus').value=p.status;
+  // 現貨庫存欄位
+  const _fStock = document.getElementById('fStock');
+  const _fStockStatus = document.getElementById('fStockStatus');
+  if(_fStock) _fStock.value = p.stock||0;
+  if(_fStockStatus) _fStockStatus.value = p.stockStatus||'in_stock';
+  onTypeChange(); // 根據商品類型顯示/隱藏欄位
   selEmoji=p.emoji;buildEmojiGrid();
   document.getElementById('editBadge').style.display='';
   document.getElementById('formTitle').textContent='編輯商品';
@@ -3393,16 +3492,20 @@ async function saveProduct(){
   const depositVal = document.getElementById('fDeposit')?.value.trim();
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
   const variantPrices = getVariantPrices();
+  const _ptype = document.getElementById('fType').value;
   const data={imageUrl:imgUrl,imageUrls:[..._adminImgs],name,brand,price,deposit,variantPrices,
     limit:document.getElementById('fLimit').value.trim(),
-    type:document.getElementById('fType').value,
+    type:_ptype,
     deadline:document.getElementById('fDeadline').value,
     arrival:document.getElementById('fArrival').value.trim(),
     ip:document.getElementById('fIP').value,
     form:document.getElementById('fForm').value,
     variants,
     status:document.getElementById('fStatus').value,
-    emoji:selEmoji,isNew:true,cnt:0};
+    emoji:selEmoji,isNew:true,cnt:0,
+    stock:     _ptype==='現貨' ? (parseInt(document.getElementById('fStock')?.value)||0) : 0,
+    stockStatus: _ptype==='現貨' ? (document.getElementById('fStockStatus')?.value||'in_stock') : 'in_stock',
+  };
   const btn = document.querySelector('.fsave');
   if(btn){btn.disabled=true;btn.textContent='儲存中...';}
   let err;
@@ -3438,6 +3541,9 @@ function resetForm(){
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   document.getElementById('fType').value='預購';
+  const _fStock2 = document.getElementById('fStock'); if(_fStock2) _fStock2.value=0;
+  const _fSS2 = document.getElementById('fStockStatus'); if(_fSS2) _fSS2.value='in_stock';
+  onTypeChange();
   document.getElementById('fIP').value='';document.getElementById('fForm').value='';
   document.getElementById('fStatus').value='published';
   document.getElementById('editBadge').style.display='none';
@@ -3595,6 +3701,9 @@ function _aoRenderCards(){
         ${canCancel?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
         <button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>
         <button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>
+        <button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>
+        ${o.tracking_code?`<div style="font-size:12px;color:#2e7d32;padding:2px 0">📬 追蹤碼：<b style="font-family:monospace">${o.tracking_code}</b></div>`:``}
+        ${o.shipping_addr?`<div style="font-size:11px;color:var(--ink3);padding:2px 0">📍 ${o.shipping_addr}</div>`:``}
       </div>
     </div>`;
   }).join('');
@@ -3613,6 +3722,152 @@ async function aoUpdateStatus(id, newStatus){
   // 寄通知信給顧客
   if(o?.user_email){
     sendStatusEmail(o, newStatus);
+  }
+}
+
+// ─── 郵寄出貨流程 ────────────────────────────────────────────
+let _postModalOrderId = null;
+
+function openPostModal(orderId){
+  _postModalOrderId = orderId;
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  if(!o){ showToast('找不到訂單'); return; }
+
+  // 帶入訂單資訊
+  let items=[];
+  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+  const total = items.reduce((s,i)=>s+(i.price||0),0);
+  const dep   = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const tail  = Math.max(0, total - dep);
+
+  document.getElementById('postModalSub').textContent =
+    `訂單 #${o.order_code||o.id}　顧客：${o.customer_name||'—'}　📧 ${o.user_email||'—'}`;
+  document.getElementById('postTailAmt').value  = tail || 0;
+  document.getElementById('postShipFee').value  = 80;
+  document.getElementById('postNote').value     = '';
+  document.getElementById('postTrackingCode').value = o.tracking_code||'';
+  document.getElementById('postAddrDisplay').value  = o.shipping_addr||'（顧客尚未填寫）';
+
+  document.getElementById('postModal').style.display = 'flex';
+}
+
+function closePostModal(){
+  document.getElementById('postModal').style.display = 'none';
+  _postModalOrderId = null;
+}
+
+async function sendPostRequestEmail(){
+  const o = _allAdminOrders.find(x=>x.id===_postModalOrderId);
+  if(!o?.user_email){ showToast('⚠️ 此訂單無顧客 Email，無法寄信'); return; }
+  const tail    = parseInt(document.getElementById('postTailAmt').value)||0;
+  const shipFee = parseInt(document.getElementById('postShipFee').value)||80;
+  const note    = document.getElementById('postNote').value.trim();
+  const total   = tail + shipFee;
+
+  // 用 EmailJS 寄信
+  if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId){
+    showToast('⚠️ 請先設定 EmailJS'); return;
+  }
+  try{ emailjs.init({publicKey:emailjsConfig.publicKey}); }catch(e){}
+
+  const btn = document.querySelector('#postStep1 button');
+  if(btn){ btn.disabled=true; btn.textContent='寄送中…'; }
+
+  // 收件資訊填寫連結（使用特殊 hash 讓顧客點擊後自動開啟填寫表單）
+  const fillUrl = `${window.location.origin}${window.location.pathname}#fill-addr-${o.order_code||o.id}`;
+
+  try{
+    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+      to_name:      o.customer_name||'顧客',
+      to_email:     o.user_email,
+      order_num:    o.order_code||String(o.id),
+      subject_status: '需補款並提供寄件資訊',
+      header_title: '📮 商品改以郵寄方式出貨',
+      header_sub:   `${o.customer_name||'您好'}，您的訂單商品需改為郵寄出貨，請補款並提供寄件資訊。`,
+      items_html:   `<p style="font-size:13px;line-height:1.8">
+        ${note?`<b>說明：</b>${note}<br><br>`:''}
+        <b>需補款金額：</b>NT$ ${tail.toLocaleString()}（尾款）+ NT$ ${shipFee}（運費）= <b style="color:#c0392b">NT$ ${total.toLocaleString()}</b><br><br>
+        <b>請提供寄件資訊：</b><br>
+        ・姓名<br>・手機號碼<br>・郵遞區號＋地址<br><br>
+        請直接回覆此信件提供資訊，謝謝！
+      </p>`,
+      amount_html:  `<div style="background:#f5f3ff;border-radius:8px;padding:14px;margin:12px 0">
+        <div style="font-size:16px;font-weight:700;color:#7c3aed">需付款 NT$ ${total.toLocaleString()}</div>
+        <div style="font-size:12px;color:#888;margin-top:4px">尾款 NT$${tail.toLocaleString()} + 運費 NT$${shipFee}</div>
+      </div>`,
+      bank_html:    shopSettings.bankAccount ? `<div style="background:#f8f9fa;border-radius:8px;padding:14px;margin-top:10px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">💳 匯款資訊</div>
+        <div style="font-size:13px">銀行：${shopSettings.bankName} ${shopSettings.bankCode}</div>
+        <div style="font-size:14px;font-weight:700;font-family:monospace;margin:4px 0">${shopSettings.bankAccount}</div>
+        <div style="font-size:13px">戶名：${shopSettings.bankHolder}</div>
+        ${shopSettings.bankNote?`<div style="font-size:12px;color:#888;margin-top:6px">${shopSettings.bankNote}</div>`:''}
+      </div>` : '',
+      reminder_html: '<div style="background:#fff3cd;border-radius:6px;padding:10px;margin-top:10px;font-size:12px;color:#856404">⚠️ 請盡快回覆寄件資訊並完成匯款，以便安排出貨。</div>',
+      delivery: '郵寄',
+      phone: o.phone||'',
+    });
+    showToast('✅ 補款通知信已寄出！');
+    if(btn){ btn.disabled=false; btn.textContent='📧 寄信通知顧客補款＋填寫寄件資訊'; }
+  } catch(err){
+    const msg = err?.text||err?.message||JSON.stringify(err);
+    showToast('❌ 寄信失敗：'+msg);
+    if(btn){ btn.disabled=false; btn.textContent='📧 寄信通知顧客補款＋填寫寄件資訊'; }
+  }
+}
+
+async function sendTrackingEmail(){
+  const o = _allAdminOrders.find(x=>x.id===_postModalOrderId);
+  if(!o?.user_email){ showToast('⚠️ 此訂單無顧客 Email'); return; }
+  const code = document.getElementById('postTrackingCode').value.trim();
+  if(!code){ showToast('⚠️ 請輸入追蹤號碼'); return; }
+
+  // 儲存追蹤碼到訂單
+  const {error} = await _sb.from('orders').update({tracking_code: code, status:'shipped'}).eq('id',o.id);
+  if(error){ showToast('❌ 儲存失敗：'+error.message); return; }
+  o.tracking_code = code;
+  o.status = 'shipped';
+
+  if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId){
+    showToast('✅ 追蹤碼已儲存（EmailJS 未設定，無法寄信）');
+    closePostModal(); _aoRenderStats(); _aoRenderTabs(); _aoRenderCards(); return;
+  }
+  try{ emailjs.init({publicKey:emailjsConfig.publicKey}); }catch(e){}
+
+  const btn = document.querySelector('#postStep2 button');
+  if(btn){ btn.disabled=true; btn.textContent='寄送中…'; }
+
+  try{
+    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+      to_name:      o.customer_name||'顧客',
+      to_email:     o.user_email,
+      order_num:    o.order_code||String(o.id),
+      subject_status: '商品已寄出',
+      header_title: '📬 您的商品已寄出！',
+      header_sub:   `${o.customer_name||'您好'}，您的商品已透過郵局寄出，以下是追蹤資訊。`,
+      items_html:   `<div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:12px 0;border:1px solid #a5d6b0">
+        <div style="font-size:14px;font-weight:700;color:#2e7d32;margin-bottom:8px">📬 郵局追蹤號碼</div>
+        <div style="font-size:20px;font-weight:800;font-family:monospace;letter-spacing:2px;color:#1a1a1a">${code}</div>
+        <div style="margin-top:10px">
+          <a href="https://postserv.post.gov.tw/pstmail/main_mail.html?targetTxn=SF_TRACK&query=${code}" target="_blank"
+            style="display:inline-block;background:#2e7d32;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none">
+            🔍 前往查詢追蹤進度
+          </a>
+        </div>
+      </div>`,
+      amount_html:  '',
+      bank_html:    '',
+      reminder_html:'<div style="font-size:12px;color:#888;margin-top:8px">如未收到商品請聯繫我們，感謝您的支持！</div>',
+      delivery: '郵寄',
+      phone: o.phone||'',
+    });
+    showToast('✅ 追蹤碼通知信已寄出！');
+    if(btn){ btn.disabled=false; btn.textContent='📬 寄追蹤碼通知給顧客'; }
+    closePostModal();
+    _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+  }catch(err){
+    const msg=err?.text||err?.message||JSON.stringify(err);
+    showToast('❌ 寄信失敗：'+msg);
+    if(btn){ btn.disabled=false; btn.textContent='📬 寄追蹤碼通知給顧客'; }
   }
 }
 
