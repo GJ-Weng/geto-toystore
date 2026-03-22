@@ -1075,6 +1075,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <button class="atab" id="t3" onclick="swTab(3)">訂單管理</button>
       <button class="atab" id="t4" onclick="swTab(4)">匯款設定</button>
       <button class="atab" id="t5" onclick="swTab(5)">📦 到貨追蹤</button>
+      <button class="atab" id="t6" onclick="swTab(6)">🏪 頑瘋樂請款</button>
       <button onclick="closeAdmin()" style="margin-left:8px;width:30px;height:30px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
     </div>
   </div>
@@ -1183,6 +1184,11 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- TAB 5: 到貨追蹤 -->
     <div id="tab5" style="display:none">
       <div id="arrivalTrackerWrap"></div>
+    </div>
+
+    <!-- TAB 6: 頑瘋樂請款 -->
+    <div id="tab6" style="display:none">
+      <div id="fwlWrap"></div>
     </div>
 
     <!-- TAB 3: 訂單管理 -->
@@ -3302,7 +3308,7 @@ function openAdmin(){
 }
 function closeAdmin(){document.getElementById('ap').classList.remove('open');}
 function swTab(n){
-  [1,2,3,4,5].forEach(i=>{
+  [1,2,3,4,5,6].forEach(i=>{
     const t=document.getElementById('t'+i); if(t) t.classList.toggle('act',i===n);
     const tb=document.getElementById('tab'+i); if(tb) tb.style.display=i===n?'':'none';
   });
@@ -3318,6 +3324,7 @@ function swTab(n){
     }
   }
   if(n===3) renderOrderList();
+  if(n===6) renderFwlTab();
   if(n===4) loadSettings();
   if(n===5) renderArrivalTracker();
 }
@@ -4302,13 +4309,18 @@ function _aoRenderCards(){
     }
     const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
     const dateStr=o.created_at?new Date(o.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-    const _oIsPickup = (o.store||'').startsWith('自取');
-    const canPay       = o.status==='new';
-    const canShip      = ['paid','partial'].includes(o.status);
+    const _oIsPickup  = (o.store||'').startsWith('自取');
+    // 判斷是否有訂金（有訂金 = 預購訂單，需確認付款）
+    const _hasDeposit = (o.price||0) > 0;
+    // 現貨訂單：price=0，不需確認付款，直接進入「已成立」
+    const _isStockOrder = !_hasDeposit && o.status==='new';
+    const canPay       = _hasDeposit && o.status==='new'; // 只有有訂金才需確認付款
+    const canShip      = ['paid','partial'].includes(o.status) && !_oIsPickup;
     const canPickupReady = _oIsPickup && ['paid','partial'].includes(o.status);
     const canPickupDone  = _oIsPickup && o.status==='pickup_ready';
     const canPart      = o.status==='paid' && !_oIsPickup;
     const canCancel    = ['new','paid'].includes(o.status);
+    const isDone       = ['shipped','cancelled'].includes(o.status);
     const _priorityScore = _getPriorityScore(o);
     const _completedCount = _allAdminOrders.filter(x=>x.user_email===o.user_email&&x.status==='shipped').length;
     return `<div class="aoc" style="${_batchMode&&_batchSelected.has(o.id)?'border-color:#e67300;background:#fff8f0':''}">
@@ -4363,15 +4375,18 @@ function _aoRenderCards(){
         })()}
       </div>
       <div class="aoc-actions">
-        ${canPay         ?`<button class="aoc-btn aoc-btn-pay"  onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
-        ${canPickupReady ?`<button class="aoc-btn" style="border-color:#e67300;background:#fff4e5;color:#e67300;font-weight:700" onclick="aoUpdateStatus(${o.id},'pickup_ready')">🏪 通知自取</button>`:''}
-        ${canPickupDone  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 已完成自取</button>`:''}
-        ${canPart        ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
-        ${canShip&&!_oIsPickup?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
-        ${canCancel      ?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
-        <button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>
-        <button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>
-        <button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>
+        ${isDone ? '' : `
+          ${canPay         ?`<button class="aoc-btn aoc-btn-pay" onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
+          ${_isStockOrder  ?`<button class="aoc-btn aoc-btn-pay" onclick="aoMarkStockPaid(${o.id})">✓ 確認訂單成立</button>`:''}
+          ${canPickupReady ?`<button class="aoc-btn" style="border-color:#e67300;background:#fff4e5;color:#e67300;font-weight:700" onclick="aoUpdateStatus(${o.id},'pickup_ready')">🏪 通知自取</button>`:''}
+          ${canPickupDone  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 已完成自取</button>`:''}
+          ${canPart        ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
+          ${canShip        ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
+          ${canCancel      ?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
+          ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>`:''}
+          ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>`:''}
+          ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>`:''}
+        `}
         ${o.tracking_code?`<div style="font-size:12px;color:#2e7d32;padding:2px 0">📬 追蹤碼：<b style="font-family:monospace">${o.tracking_code}</b></div>`:``}
       </div>
     </div>`;
@@ -4402,8 +4417,15 @@ async function aoUpdateStatus(id, newStatus){
   _aoRenderStats();_aoRenderTabs();_aoRenderCards();
   showToast(`✅ 訂單 #${id} → ${si?.label||newStatus}`);
 
-  // 寄通知信給顧客
-  if(o?.user_email){
+  // 寄通知信給顧客（只在特定狀態才寄）
+  const _shouldEmail = {
+    paid:         true,    // 訂金已收到（預購才會走到這）
+    partial:      true,    // 部分出貨通知
+    pickup_ready: true,    // 自取到貨通知（特殊格式）
+    shipped:      false,   // 不寄：賣貨便/郵寄自動通知，避免浪費 EmailJS 扣打
+    cancelled:    true,    // 取消通知
+  };
+  if(o?.user_email && _shouldEmail[newStatus]){
     sendStatusEmail(o, newStatus);
   }
 }
@@ -4750,6 +4772,111 @@ async function sendStatusEmail(o, newStatus){
   } catch(err){
     console.warn('寄通知信失敗：', err?.text||err?.message||err);
   }
+}
+
+// 現貨訂單確認成立（不寄付款確認信）
+async function aoMarkStockPaid(id){
+  if(!confirm('確定將此現貨訂單設為已成立？')) return;
+  const {error} = await _sb.from('orders').update({status:'paid'}).eq('id',id);
+  if(error){ showToast('❌ 失敗：'+error.message); return; }
+  const o = _allAdminOrders.find(x=>x.id===id);
+  if(o) o.status='paid';
+  _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+  showToast('✅ 訂單已成立');
+  // 不寄 Email（現貨由賣貨便通知）
+}
+
+// ─── 頑瘋樂自取請款統計 ──────────────────────────────────────
+function renderFwlTab(){
+  const wrap = document.getElementById('fwlWrap');
+  if(!wrap) return;
+
+  // 篩選：自取地點包含「頑瘋樂」的訂單
+  const fwlOrders = _allAdminOrders.filter(o=>(o.store||'').includes('頑瘋樂'));
+  if(!fwlOrders.length){
+    wrap.innerHTML='<div style="text-align:center;padding:48px;color:var(--ink3)"><div style="font-size:32px;margin-bottom:10px">🏪</div><div>目前沒有頑瘋樂自取訂單</div></div>';
+    return;
+  }
+
+  // 分組統計
+  const groups = {
+    active:    fwlOrders.filter(o=>['new','paid','partial','pickup_ready'].includes(o.status)),
+    done:      fwlOrders.filter(o=>o.status==='shipped'),
+    cancelled: fwlOrders.filter(o=>o.status==='cancelled'),
+  };
+
+  // 計算各組總金額
+  const calcTotal = (orders) => orders.reduce((s,o)=>{
+    let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+    return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
+  }, 0);
+
+  const _totalActive = calcTotal(groups.active);
+  const _totalDone   = calcTotal(groups.done);
+  const _allTotal    = calcTotal(fwlOrders.filter(o=>o.status!=='cancelled'));
+
+  // 待請款：已完成自取（shipped）
+  const _pendingClaim = groups.done;
+  const _pendingAmt   = _totalDone;
+
+  wrap.innerHTML =
+    // 統計卡片
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
+    +'<div style="flex:1;min-width:140px;background:#eef7f1;border-radius:10px;padding:16px;text-align:center">'
+    +'<div style="font-size:24px;font-weight:800;color:#2e7d32">NT$'+_pendingAmt.toLocaleString()+'</div>'
+    +'<div style="font-size:12px;color:#2e7d32;margin-top:4px">✅ 已完成（待請款）</div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+_pendingClaim.length+' 筆</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:140px;background:#fff4e5;border-radius:10px;padding:16px;text-align:center">'
+    +'<div style="font-size:24px;font-weight:800;color:#e67300">NT$'+_totalActive.toLocaleString()+'</div>'
+    +'<div style="font-size:12px;color:#e67300;margin-top:4px">🕐 進行中</div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+groups.active.length+' 筆</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:140px;background:var(--bg);border-radius:10px;padding:16px;text-align:center">'
+    +'<div style="font-size:24px;font-weight:800;color:var(--ink)">NT$'+_allTotal.toLocaleString()+'</div>'
+    +'<div style="font-size:12px;color:var(--ink3);margin-top:4px">📊 全部合計</div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">（不含取消）共 '+(fwlOrders.length-groups.cancelled.length)+' 筆</div>'
+    +'</div>'
+    +'</div>'
+
+    // 已完成訂單明細
+    +(_pendingClaim.length
+      ? '<div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#2e7d32">✅ 已完成自取訂單</div>'
+        +_pendingClaim.map(o=>{
+          let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+          const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
+          const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #2e7d32">'
+            +'<div style="flex:1">'
+            +'<div style="font-size:13px;font-weight:600">'+（o.customer_name||'—')+'</div>'
+            +'<div style="font-size:11px;color:var(--ink3)">'+o.order_code+'　'+dateStr+'</div>'
+            +'<div style="font-size:11px;color:var(--ink3)">'+items.map(i=>i.product_name+(i.variant?' ('+i.variant+')':'')+' ×'+i.qty).join('、')+'</div>'
+            +'</div>'
+            +'<div style="font-size:15px;font-weight:700;color:#2e7d32">NT$'+total.toLocaleString()+'</div>'
+            +'</div>';
+        }).join('')
+      : '<div style="color:var(--ink3);font-size:13px;padding:12px 0">目前沒有已完成的自取訂單</div>')
+
+    // 進行中訂單
+    +(groups.active.length
+      ? '<div style="font-size:13px;font-weight:700;margin:16px 0 10px;color:#e67300">🕐 進行中訂單</div>'
+        +groups.active.map(o=>{
+          let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+          const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
+          const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
+          const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #f9b84b">'
+            +'<div style="flex:1">'
+            +'<div style="display:flex;align-items:center;gap:8px">'
+            +'<span style="font-size:13px;font-weight:600">'+（o.customer_name||'—')+'</span>'
+            +'<span style="font-size:11px;background:'+si.bg+';color:'+si.color+';padding:1px 7px;border-radius:10px">'+si.label+'</span>'
+            +'</div>'
+            +'<div style="font-size:11px;color:var(--ink3)">'+o.order_code+'　'+dateStr+'</div>'
+            +'</div>'
+            +'<div style="font-size:15px;font-weight:700">NT$'+total.toLocaleString()+'</div>'
+            +'</div>';
+        }).join('')
+      : '');
 }
 
 // keep old name for compat
