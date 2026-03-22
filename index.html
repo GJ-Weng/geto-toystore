@@ -1207,7 +1207,7 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <div style="overflow-y:auto;padding:18px 20px;flex:1;line-height:1.85;font-size:13px;color:var(--ink2)">
       <div style="background:#fff4e5;border-left:3px solid #e67300;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:14px;font-size:13px;color:#92400e;font-weight:500">
-        ⏰ 商品到貨日為日本官方預購月份，到台灣後兩個月內皆為正常時間，如不能接受請勿下標。
+        ⏰ 商品頁面標示之到貨月份為<b>日本官方出貨月份</b>，商品須經海運、海關及商品檢驗等流程才能送達台灣，<b>實際到貨時間通常晚 1〜2 個月</b>，屬正常範圍，無法接受者請勿下單，以免造成彼此困擾。
       </div>
       <ul style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:10px">
         <li>如遇日本宣布停產、廠商全數砍單等因素，<b>訂金單全額退款</b>，無訂金者請配合取消訂單。</li>
@@ -1257,7 +1257,7 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">備註（可選）</label>
-        <input id="postNote" placeholder="例：商品較大，無法使用賣貨便，改郵寄"
+        <input id="postNote" value="因到貨商品體積較大，無法使用賣貨便，須改以郵寄方式寄送。"
           style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none;box-sizing:border-box">
       </div>
       <button onclick="sendPostRequestEmail()" style="width:100%;height:38px;background:#7c3aed;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 寄信通知顧客補款＋填寫寄件資訊</button>
@@ -1272,9 +1272,10 @@ textarea.fi{min-height:64px;resize:vertical}
           style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:13px;outline:none;font-family:monospace;box-sizing:border-box">
       </div>
       <div style="margin-bottom:10px">
-        <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">顧客寄件地址（系統自動帶入，可確認）</label>
-        <textarea id="postAddrDisplay" rows="2" readonly
-          style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:12px;background:#f5f5f5;resize:none;box-sizing:border-box;color:var(--ink3)"></textarea>
+        <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px">顧客回覆的寄件地址（顧客回信後請手動更新於此）</label>
+        <textarea id="postAddrDisplay" rows="2"
+          style="width:100%;border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:12px;background:var(--white);resize:vertical;box-sizing:border-box;color:var(--ink);font-family:var(--font)"></textarea>
+      <button onclick="saveShippingAddr()" style="margin-top:6px;height:30px;padding:0 12px;border:1px solid var(--border2);border-radius:var(--r);font-size:11px;color:var(--ink2);background:var(--white);cursor:pointer">💾 儲存地址</button>
       </div>
       <button onclick="sendTrackingEmail()" style="width:100%;height:38px;background:#2e7d32;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📬 寄追蹤碼通知給顧客</button>
     </div>
@@ -1579,7 +1580,13 @@ function showView(name){
 function showShop(){ showView('shopView'); renderShop(); }
 function showDetail(){ showView('detailView'); }
 function showCartPage(){ renderCartPage(); showView('cartView'); }
-function showCheckoutPage(){ renderCheckoutPage(); showView('checkoutView'); }
+function showCheckoutPage(){
+  // 每次進入結帳頁都重置按鈕狀態
+  const btn = document.getElementById('checkoutSubmitBtn');
+  if(btn){ btn.disabled=false; btn.textContent='確認預購'; btn.style.opacity=''; }
+  renderCheckoutPage();
+  showView('checkoutView');
+}
 function goHome(){ showShop(); }
 function toggleSidebar(){
   const sb = document.getElementById('sbPanel');
@@ -2740,10 +2747,10 @@ function renderCartPage(){
             <div class="cart-iprice">NT$ ${getVariantPrice(p,ci.variant).toLocaleString()}</div>
           </div>
           <div class="cart-qty">
-            <button class="cqb" onclick="cartChg('${ci.id}',-1)">−</button>
+            <button class="cqb" onclick="cartChg(this.dataset.id,-1)" data-id="${ci.id}">−</button>
             <span class="cqn">${ci.qty}</span>
-            <button class="cqb" onclick="cartChg('${ci.id}',1)">+</button>
-            <button class="cdel" onclick="cartRm('${ci.id}')">🗑</button>
+            <button class="cqb" onclick="cartChg(this.dataset.id,1)" data-id="${ci.id}">+</button>
+            <button class="cdel" onclick="cartRm(this.dataset.id)" data-id="${ci.id}">🗑</button>
           </div>
         </div>`;
       }).join('')}
@@ -2759,7 +2766,8 @@ function dismissCartNotice(){
 }
 
 function cartChg(id,d){
-  const it=cart.find(x=>String(x.id)===String(id)); if(!it)return;
+  const id_str = String(id);
+  const it=cart.find(x=>String(x.id)===id_str); if(!it){ console.warn('cartChg: item not found', id, cart); return; }
   if(d>0){
     const p=products.find(x=>String(x.id)===String(id));
     const maxQty = parseLimit(p?.limit);
@@ -2772,7 +2780,7 @@ function cartChg(id,d){
     }
   }
   it.qty=Math.max(0,it.qty+d);
-  if(!it.qty) cart=cart.filter(x=>String(x.id)!==String(id));
+  if(!it.qty) cart=cart.filter(x=>String(x.id)!==id_str);
   persist();updBadge();renderCartPage();
 }
 function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); persist();updBadge();renderCartPage(); }
@@ -3959,7 +3967,7 @@ function openPostModal(orderId){
   document.getElementById('postShipFee').value  = 80;
   document.getElementById('postNote').value     = '';
   document.getElementById('postTrackingCode').value = o.tracking_code||'';
-  document.getElementById('postAddrDisplay').value  = o.shipping_addr||'（顧客尚未填寫）';
+  document.getElementById('postAddrDisplay').value  = o.shipping_addr||'';
 
   document.getElementById('postModal').style.display = 'flex';
 }
@@ -3967,6 +3975,17 @@ function openPostModal(orderId){
 function closePostModal(){
   document.getElementById('postModal').style.display = 'none';
   _postModalOrderId = null;
+}
+
+async function saveShippingAddr(){
+  if(!_postModalOrderId) return;
+  const addr = document.getElementById('postAddrDisplay').value.trim();
+  if(!addr){ showToast('⚠️ 請輸入地址'); return; }
+  const {error} = await _sb.from('orders').update({shipping_addr: addr}).eq('id', _postModalOrderId);
+  if(error){ showToast('❌ 儲存失敗：'+error.message); return; }
+  const o = _allAdminOrders.find(x=>x.id===_postModalOrderId);
+  if(o) o.shipping_addr = addr;
+  showToast('✅ 地址已儲存');
 }
 
 async function sendPostRequestEmail(){
@@ -4000,9 +4019,12 @@ async function sendPostRequestEmail(){
       items_html:   `<p style="font-size:13px;line-height:1.8">
         ${note?`<b>說明：</b>${note}<br><br>`:''}
         <b>需補款金額：</b>NT$ ${tail.toLocaleString()}（尾款）+ NT$ ${shipFee}（運費）= <b style="color:#c0392b">NT$ ${total.toLocaleString()}</b><br><br>
-        <b>請提供寄件資訊：</b><br>
-        ・姓名<br>・手機號碼<br>・郵遞區號＋地址<br><br>
-        請直接回覆此信件提供資訊，謝謝！
+        <b>請回覆本信提供以下資訊：</b><br>
+        ① 匯款帳號<b>末五碼</b>（供查詢是否入帳）<br>
+        ② 收件人姓名<br>
+        ③ 收件人手機號碼<br>
+        ④ 郵遞區號＋完整地址<br><br>
+        收到資訊確認入帳後，我們會儘快安排寄出，並回傳郵局追蹤號碼，感謝您的耐心等候！
       </p>`,
       amount_html:  `<div style="background:#f5f3ff;border-radius:8px;padding:14px;margin:12px 0">
         <div style="font-size:16px;font-weight:700;color:#7c3aed">需付款 NT$ ${total.toLocaleString()}</div>
