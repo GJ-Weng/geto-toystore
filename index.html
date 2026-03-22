@@ -1684,8 +1684,9 @@ function p_cardClick(id, e){
     }
     if(it) it.qty++;
     else cart.push({id:String(id),qty:1});
-    persist();updBadge();renderShop();
-    showToast(`✅ 已加入購物車：${p.name.slice(0,15)}…`);
+    persist(); updBadge();
+    showToast('✅ 已加入購物車：'+p.name.slice(0,15)+'…');
+    try{ renderShop(); }catch(e){}
   } else {
     // 預購：進詳細頁選規格
     openDetail(id);
@@ -2103,7 +2104,10 @@ function renderShop(){
           if(p.type!=='現貨'||!p.stock) return '';
           const _inC = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
           const _rem = Math.max(0, p.stock - _inC);
-          return `<div style="font-size:11px;color:${_rem<=3?'#e74c3c':'var(--ink3)'};text-align:center;margin-top:3px;font-weight:${_rem<=3?'600':'400'}">${_rem===0?'❌ 已售完':_rem<=3?`⚠️ 僅剩 ${_rem} 件`:`庫存 ${_rem} 件`}</div>`;
+          const _remColor = _rem<=3?'#e74c3c':'var(--ink3)';
+          const _remWeight = _rem<=3?'600':'400';
+          const _remText = _rem===0?'❌ 已售完':(_rem<=3?('⚠️ 僅剩 '+_rem+' 件'):('庫存 '+_rem+' 件'));
+          return '<div style="font-size:11px;color:'+_remColor+';text-align:center;margin-top:3px;font-weight:'+_remWeight+'">'+_remText+'</div>';
         })()}
       </div>
     </div>`;
@@ -2313,9 +2317,10 @@ function addDetailToCart(){
   const existing = cart.find(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''));
   if(existing){ existing.qty+=detailQty; }
   else { cart.push({id:String(currentProductId), qty:detailQty, variant:v}); }
-  persist(); updBadge(); renderShop();
+  persist(); updBadge();
+  showToast('✅ 已加入購物車：'+p.name.slice(0,16)+'…');
+  try{ renderShop(); }catch(e){}
   updateDetailBuyBtn(p);
-  showToast(`✅ 已加入購物車：${p.name.slice(0,16)}…`);
 }
 
 // ─── 管理員詳細頁快速操作 ───────────────────────────────────
@@ -2571,53 +2576,54 @@ async function submitCheckoutOrder(){
 
 function showConfirmPage(orderNum, dep){
   const s = shopSettings;
-  const hasBank = !!(s.bankAccount);
   const isPreorder = dep > 0;
-  document.getElementById('confirmContent').innerHTML = `
-    <div class="conf-icon">${isPreorder?'📋':'🎉'}</div>
-    <div class="conf-h">${isPreorder?'預購申請已送出！':'訂單成立！感謝您的購買'}</div>
-    <div class="conf-sub">${isPreorder?'請完成匯款，訂金到帳後訂單才會正式成立':'我們將盡快為您安排出貨'}</div>
 
-    <div class="conf-num-row">
-      <div><div class="conf-num-lbl">訂單編號</div></div>
-      <div class="conf-num-val">${orderNum}</div>
-    </div>
+  // 建立各段 HTML（避免巢狀 template literal）
+  const iconHtml   = isPreorder ? '📋' : '🎉';
+  const titleHtml  = isPreorder ? '預購申請已送出！' : '訂單成立！感謝您的購買';
+  const subHtml    = isPreorder ? '請完成匯款，訂金到帳後訂單才會正式成立' : '我們將盡快為您安排出貨';
 
-    ${isPreorder?`
-    <div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:16px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">
-      ⚠️ <b>匯款提醒</b><br>
-      請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>
-      匯款時請備註訂單編號 <b>${orderNum}</b>
-    </div>
-    <div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>
-    <div class="bank-box">
-      ${hasBank?`
-      <div class="bank-r"><span class="bank-r-lbl">銀行</span><span class="bank-r-val">${s.bankName} ${s.bankCode}</span></div>
-      <div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">${s.bankAccount}</span></div>
-      <div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">${s.bankHolder}</span></div>
-      <div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ ${dep.toLocaleString()}</span></div>`
-      :`<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>`}
-    </div>
-    <div class="bank-note" style="margin-top:8px;margin-bottom:4px">${s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！'}</div>
-    `:`
-    <div style="background:#eef7f1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e7a38;line-height:1.8">
-      ✅ 訂單已成立！我們將於出貨後通知您。
-    </div>`}
+  let payHtml = '';
+  if(isPreorder){
+    let bankDetails = '';
+    if(s.bankAccount){
+      bankDetails = '<div class="bank-r"><span class="bank-r-lbl">銀行</span><span class="bank-r-val">'+s.bankName+' '+s.bankCode+'</span></div>'
+        +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
+        +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
+        +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+dep.toLocaleString()+'</span></div>';
+    } else {
+      bankDetails = '<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>';
+    }
+    payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:16px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
+      +'⚠️ <b>匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
+      +'匯款時請備註訂單編號 <b>'+orderNum+'</b></div>'
+      +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
+      +'<div class="bank-box">'+bankDetails+'</div>'
+      +'<div class="bank-note" style="margin-top:8px;margin-bottom:4px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>';
+  } else {
+    payHtml = '<div style="background:#eef7f1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e7a38;line-height:1.8">✅ 訂單已成立！我們將於出貨後通知您。</div>';
+  }
 
-    <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--ink3);line-height:1.8;text-align:left">
-      📋 <b style="color:var(--ink2)">注意事項</b><br>
-      • 到貨後將發送通知，請於 <b>7 日內</b>下單取貨，逾期視同棄單<br>
-      • 如有任何問題請透過訊息聯繫我們<br>
-      ${isPreorder?'• 商品正確發貨日無法預測，可能因各種因素延期，敬請見諒':''}
-    </div>
+  const noticeExtra = isPreorder ? '• 商品正確發貨日無法預測，可能因各種因素延期，敬請見諒<br>' : '';
 
-    <div class="conf-btns">
-      <button class="conf-btn-p" onclick="goOrders()">查看我的訂單</button>
-      <button class="conf-btn-s" onclick="showShop()">繼續購物</button>
-    </div>`;
+  document.getElementById('confirmContent').innerHTML =
+    '<div class="conf-icon">'+iconHtml+'</div>'
+    +'<div class="conf-h">'+titleHtml+'</div>'
+    +'<div class="conf-sub">'+subHtml+'</div>'
+    +'<div class="conf-num-row"><div><div class="conf-num-lbl">訂單編號</div></div><div class="conf-num-val">'+orderNum+'</div></div>'
+    +payHtml
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--ink3);line-height:1.8;text-align:left">'
+    +'📋 <b style="color:var(--ink2)">注意事項</b><br>'
+    +'• 到貨後將發送通知，請於 <b>7 日內</b>下單取貨，逾期視同棄單<br>'
+    +noticeExtra
+    +'• 如有任何問題請透過訊息聯繫我們</div>'
+    +'<div class="conf-btns">'
+    +'<button class="conf-btn-p" onclick="goOrders()">查看我的訂單</button>'
+    +'<button class="conf-btn-s" onclick="showShop()">繼續購物</button>'
+    +'</div>';
+
   showView('confirmView');
 }
-
 // keep for compat
 function openOrderModal(){ goCheckout(); }
 function closeOrderModal(){}
@@ -4693,7 +4699,7 @@ function showToast(m){
 // ─── INIT ─────────────────────────────────────────────────
 initEmailJS();
 updBadge(); buildEmojiGrid();
-renderShop(); // 立即用快取渲染（有快取馬上顯示，無快取顯示 loading）
+try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 syncProductsFromSupabase(); // 非同步 sync，完成後自動 re-render
 
 // 每小時重新整理商品顯示（結單自動下架）
