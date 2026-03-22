@@ -2043,7 +2043,10 @@ function renderShop(){
   document.getElementById('rcount').textContent=`共 ${list.length} 件商品`;
   const grid=document.getElementById('productGrid');
   if(!list.length){
-    grid.innerHTML=`<div class="empty"><div>🔍</div><p>找不到符合條件的商品</p></div>`;
+    const _msg = products.length===0
+      ? `<div class="empty" style="grid-column:1/-1"><div style="font-size:36px;margin-bottom:10px">⏳</div><p>商品載入中，請稍候…</p></div>`
+      : `<div class="empty"><div>🔍</div><p>找不到符合條件的商品</p></div>`;
+    grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
   grid.innerHTML=list.map(p=>{
@@ -2592,8 +2595,8 @@ async function syncProductsFromSupabase(){
     const res = await _sb.from('products').select('*').order('created_at',{ascending:false});
     const data = res.data;
     const errMsg = res.error?.message || res.error?.details || null;
-    if(errMsg){ console.warn('商品讀取失敗，使用本地資料:', errMsg); return; }
-    if(data && data.length > 0){
+    if(errMsg){ console.warn('商品讀取失敗，使用本地資料:', errMsg); renderShop(); return; }
+    if(data){
       // 轉換欄位格式（Supabase snake_case → JS camelCase）
       products = data.map(p=>({
         id:        p.id,
@@ -2619,10 +2622,10 @@ async function syncProductsFromSupabase(){
         stockStatus:p.stock_status||'in_stock',
       }));
       localStorage.setItem('tf_p', JSON.stringify(products));
-      renderShop(); updCounts();
       console.log('✅ 商品已從 Supabase 同步，共', products.length, '件');
     }
-  } catch(e){ console.warn('syncProducts error:', e); }
+    renderShop(); updCounts(); // 無論有無資料都更新畫面
+  } catch(e){ console.warn('syncProducts error:', e); renderShop(); }
 }
 
 // 儲存商品到 Supabase
@@ -4634,9 +4637,21 @@ function showToast(m){
 
 // ─── INIT ─────────────────────────────────────────────────
 initEmailJS();
-renderShop(); // 先用本地快取渲染，讓頁面立刻出現
 updBadge(); buildEmojiGrid();
-syncProductsFromSupabase(); // 背景同步最新商品
+
+// 顯示 loading 後立刻 sync（不先用快取，避免空白後跳動）
+(async()=>{
+  const grid = document.getElementById('productGrid');
+  if(grid && !products.length){
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <div style="font-size:36px;margin-bottom:10px;animation:pulse 1.2s infinite">⏳</div>
+      <p style="color:var(--ink3)">商品載入中…</p>
+    </div>`;
+  } else if(products.length){
+    renderShop(); // 有快取先顯示
+  }
+  await syncProductsFromSupabase(); // 等 sync 完成再確保畫面正確
+})();
 
 // 每小時重新整理商品顯示（結單自動下架）
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
