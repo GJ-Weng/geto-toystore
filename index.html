@@ -12,7 +12,7 @@
 :root{
   --red:#1B3A5C;--red-light:#e8eef5;--red-btn:#1B3A5C;--red-h:#112840;--gold:#C9A84C;--gold-light:#F5EDD8;
   --ink:#1a1a1a;--ink2:#555;--ink3:#888;--ink4:#bbb;
-  --bg:#f6f6f6;--white:#fff;
+  --bg:#f7f7f7;--white:#fff;
   --border:#e5e5e5;--border2:#d0d0d0;
   --sw:220px;--r:6px;
   --font:'Noto Sans TC',sans-serif;
@@ -43,7 +43,7 @@ input,select,textarea{font-family:var(--font)}
 /* LAYOUT */
 .shopview{display:flex}
 .shopview.hide{display:none}
-.lay{max-width:1360px;margin:0 auto;padding:20px;display:flex;gap:16px;align-items:flex-start;width:100%}
+.lay{max-width:1400px;margin:0 auto;padding:24px 28px;display:flex;gap:24px;align-items:flex-start;width:100%}
 
 /* SIDEBAR */
 .sb{width:var(--sw);flex-shrink:0;background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;position:sticky;top:70px}
@@ -70,32 +70,67 @@ input,select,textarea{font-family:var(--font)}
 .ssort{border:1px solid var(--border2);border-radius:var(--r);padding:7px 26px 7px 10px;font-size:13px;background:var(--white);color:var(--ink);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
 
 /* PRODUCT GRID */
-.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.pcard{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:box-shadow .2s,transform .2s;display:flex;flex-direction:column;cursor:pointer}.pcard.expired{opacity:.6;filter:grayscale(.4)}
-.pcard:hover{box-shadow:0 4px 18px rgba(0,0,0,.09);transform:translateY(-2px)}
-.piw{position:relative;background:#f2f2f2;aspect-ratio:1;overflow:hidden}
-.pimg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:88px;background:#f5f5f5;transition:transform .3s}
-.pcard:hover .pimg{transform:scale(1.05)}
-.pbadge{position:absolute;top:10px;left:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:3px;letter-spacing:.4px}
-.pbadge.pre{background:#7b5ea7}
-.pbadge.stk{background:#2e7d32}
-.pbadge-new{position:absolute;top:8px;right:40px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:.6px;box-shadow:0 1px 4px rgba(239,68,68,.4)}
-.pfav{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;cursor:pointer;backdrop-filter:blur(4px)}
-.pfav:hover{background:#fff;transform:scale(1.1)}
-.pfav.on{color:var(--red)}
-.pbody{padding:13px;flex:1;display:flex;flex-direction:column}
-.pcat{font-size:11px;color:var(--ink3);margin-bottom:5px}
-.pname{font-size:13px;font-weight:500;margin-bottom:9px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px}
-.pprice{font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px}
-.pprice span{font-size:12px;font-weight:400}
-.pinfo{margin-bottom:10px}
-.pir{font-size:11px;color:var(--ink3);display:flex;justify-content:space-between;margin-bottom:2px}
-.pir b{color:var(--red);font-weight:500}
-.pbuy{width:100%;height:38px;background:var(--gold,#C9A84C);color:#fff;border-radius:var(--r);font-size:14px;font-weight:500;transition:background .15s;margin-top:auto}
-.pbuy:hover{background:#a8873a}
-.empty{grid-column:1/-1;padding:70px 0;text-align:center;color:var(--ink3)}
-.empty div:first-child{font-size:44px;margin-bottom:10px}
+
+/* ── PRODUCT GRID & CARDS ── */
+:root{
+  --r2: 10px;
+  --acc: #1a1a2e;
+  --acc2: #c9a84c;
+  --card-shadow: 0 2px 12px rgba(0,0,0,.06);
+  --card-hover: 0 6px 24px rgba(0,0,0,.12);
+}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;padding:4px 2px}
+@media(max-width:600px){.pgrid{grid-template-columns:repeat(2,1fr);gap:12px}}
+
+.pcard{background:#fff;border-radius:var(--r2);box-shadow:var(--card-shadow);cursor:pointer;transition:box-shadow .2s,transform .2s;overflow:hidden;display:flex;flex-direction:column}
+.pcard:hover{box-shadow:var(--card-hover);transform:translateY(-2px)}
+.pcard.expired{opacity:.55;filter:grayscale(.3)}
+.piw{position:relative;aspect-ratio:1;background:#f5f5f0;overflow:hidden;flex-shrink:0}
+.piw img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.pcard:hover .piw img{transform:scale(1.04)}
+
+/* badges */
+.pbadge{position:absolute;top:8px;left:8px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.5px;color:#fff}
+.pbadge.pre{background:#5c4a8a}
+.pbadge.stk{background:#2d6a4f}
+.pbadge.sold{background:#888;top:8px;left:52px}
+.pbadge-new{position:absolute;top:8px;right:36px;background:#c0392b;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.6px}
+.pfav{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.85);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background .15s;backdrop-filter:blur(4px)}
+.pfav:hover{background:#fff}
+
+/* body */
+.pbody{padding:12px;flex:1;display:flex;flex-direction:column;gap:4px}
+.pcat{font-size:10px;color:#999;letter-spacing:.5px;text-transform:uppercase;font-weight:500}
+.pname{font-size:13px;color:#1a1a1a;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pprice{font-size:15px;margin-top:2px}
+.pprice b{color:var(--acc);font-weight:800}
+.pprice-range{color:var(--acc);font-weight:800;font-size:13px}
+.pinfo{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.ptag{font-size:10px;background:#f0ede8;color:#666;padding:2px 7px;border-radius:20px;font-weight:500}
+.ptag.dead{background:#fff3e0;color:#d84315}
+.pstock{font-size:11px;color:#2d6a4f;margin-top:2px;font-weight:500}
+.pstock.low{color:#d84315}
+.pstock.zero{color:#999}
+.pbuy{width:100%;margin-top:auto;padding-top:8px;height:36px;background:var(--acc2);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:background .15s}
+.pbuy:hover{background:#b8923e}
+.pbuy.off{background:#e0ddd8;color:#999;cursor:default;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;width:100%;margin-top:auto;padding-top:8px;height:36px;border:none}
+
+/* ── PAGINATION ── */
 .pag{display:flex;justify-content:center;gap:5px;padding:28px 0}
+
+/* Skeleton loading cards */
+@keyframes shimmer{0%{background-position:-800px 0}100%{background-position:800px 0}}
+.skel{border-radius:12px;overflow:hidden;background:var(--white);box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.skel-img{aspect-ratio:1;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:800px 100%;animation:shimmer 1.4s infinite}
+.skel-body{padding:14px}
+.skel-line{height:10px;border-radius:4px;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:800px 100%;animation:shimmer 1.4s infinite;margin-bottom:8px}
+.skel-line.w80{width:80%}.skel-line.w60{width:60%}.skel-line.w40{width:40%}
+.skel-btn{height:38px;border-radius:6px;background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 37%,#f0f0f0 63%);background-size:800px 100%;animation:shimmer 1.4s infinite;margin-top:12px}
+.pbuy.off{background:#e0e0e0;color:#999;cursor:default;pointer-events:none}
+.pstock{font-size:11px;text-align:center;padding:3px 0 6px;color:var(--ink3)}
+.pstock.low{color:#e67300;font-weight:600}
+.pstock.zero{color:#e74c3c;font-weight:600}
+.pbadge.sold{background:#888;left:auto;right:10px}
 .pgb{min-width:34px;height:34px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--ink2);display:flex;align-items:center;justify-content:center;transition:all .15s}
 .pgb:hover{border-color:var(--ink2);color:var(--ink)}
 .pgb.act{background:var(--red);color:#fff;border-color:var(--red)}
@@ -334,8 +369,9 @@ textarea.fi{min-height:64px;resize:vertical}
 .ship-btn:disabled{opacity:.5;cursor:default}
 
 @media(max-width:800px){.dgrid{grid-template-columns:1fr;gap:24px}.dmain{height:280px;font-size:100px}}
+@media(max-width:1100px){.pgrid{grid-template-columns:repeat(3,1fr);gap:16px}}
 @media(max-width:880px){
-  .pgrid{grid-template-columns:repeat(2,1fr)}
+  .pgrid{grid-template-columns:repeat(2,1fr);gap:12px}
   .sb{
     position:fixed;left:0;bottom:0;width:100%;
     max-height:88vh;
@@ -923,7 +959,7 @@ textarea.fi{min-height:64px;resize:vertical}
 </div>
 
 <!-- ORDER DETAIL OVERLAY -->
-<div class="od-overlay" id="odOverlay">
+<div class="od-overlay" id="odOverlay" onclick="if(event.target===this)closeOrderDetail()">
   <div class="od-modal">
     <div class="od-header">
       <button onclick="closeOrderDetail()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink2);display:flex;align-items:center;gap:4px">← 我的訂單</button>
@@ -2115,92 +2151,64 @@ function renderShop(){
     let _msg;
     if(products.length===0){
       // 完全沒資料 → 還在載入
-      _msg = `<div class="empty" style="grid-column:1/-1"><div style="font-size:36px;margin-bottom:8px;animation:pulse 1s infinite">⏳</div><p style="color:var(--ink3)">商品載入中…</p></div>`;
+      const _sk = '<div class="skel"><div class="skel-img"></div><div class="skel-body"><div class="skel-line w60"></div><div class="skel-line w80"></div><div class="skel-line w40"></div><div class="skel-btn"></div></div></div>';
+      _msg = _sk.repeat(8);
     } else if(_allPub.length===0){
       // 有資料但全部下架
       _msg = `<div class="empty"><div>🏪</div><p>目前沒有上架商品</p></div>`;
     } else {
       // 有商品但篩選後為空
-      _msg = `<div class="empty"><div>🔍</div><p>找不到符合條件的商品</p></div>`;
+      _msg = '<div class="empty" style="grid-column:1/-1"><div style="font-size:40px;margin-bottom:12px;opacity:.4">🔍</div><p style="font-size:14px;color:var(--ink3)">找不到符合條件的商品</p></div>';
     }
     grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
-  const _renderKey = list.map(p=>p.id+':'+p.status+':'+(p.stock||0)+':'+p.cnt).join('|');
-  const _prevKey = grid.dataset.renderKey||'';
-  const _prevFavs = grid.dataset.favs||'';
-  const _curFavs = favs.map(String).sort().join(',');
-  
-  if(_renderKey === _prevKey && _prevFavs === _curFavs && grid.children.length > 0){
-    // 資料完全沒變 → 不動 DOM，圖片不重載
-  } else if(_renderKey !== _prevKey){
-    // 資料有變 → 重繪，但保留已載入圖片的 src（避免閃爍）
-    const _oldImgMap = {};
-    grid.querySelectorAll('.pcard[data-pid] .pimg img').forEach(img=>{
-      if(img.complete && img.naturalWidth>0) _oldImgMap[img.closest('[data-pid]').dataset.pid] = img.src;
-    });
-    grid.innerHTML = list.map(p=>{
-      const fav=favs.map(String).includes(String(p.id));
-      const bt=p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
-      const bc=p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
-      const _expired = p.type==='預購' && isDeadlinePassed(p.deadline);
-      const _isRecent = p.isNew === true;
-      const _imgSrc = _oldImgMap[String(p.id)] || (p.imageUrl||PLACEHOLDER_IMG);
-      return`<div class="pcard${_expired?' expired':''}" data-pid="${p.id}" onclick="openDetail('${p.id}')">
-      <div class="piw">
-        <div class="pimg"><img src="${_imgSrc}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>
-        ${bt?`<div class="pbadge ${bc}">${bt}</div>`:''}
-        ${_isRecent?`<div class="pbadge-new">NEW</div>`:''}
-        ${p.type==='預購'&&isDeadlinePassed(p.deadline)?('<div class="pbadge" style="background:#888;top:10px;left:'+(bt?'60px':'10px')+'">已結單</div>'):''}
-        <button class="pfav ${fav?'on':''}" onclick="event.stopPropagation();toggleFav('${p.id}')">${fav?'❤️':'🤍'}</button>
-      </div>
-      <div class="pbody">
-        <div class="pcat">${p.brand}</div>
-        <div class="pname">${p.name}</div>
-        <div class="pprice">${(()=>{
-          const r=getPriceRange(p);
-          if(r.min!==r.max) return `<b class="pprice-range">NT$ ${r.min.toLocaleString()} – ${r.max.toLocaleString()}</b>`;
-          return `<b style="color:var(--red);font-weight:700">NT$ ${r.min.toLocaleString()}</b>`;
-        })()}</div>
-        <div class="pinfo">
-          <div class="pir">
-            ${p.limit?`<span>每人限購 ${p.limit}</span>`:''}
-            ${p.type==='預購'&&p.cnt>0?`<span>${p.cnt} 人已預購</span>`:''}
-            ${p.type==='現貨'&&p.cnt>0?`<span>${p.cnt} 件已售</span>`:''}
-          </div>
-          ${p.deadline?('<div class="pir"><span class="pdeadline">結單：'+p.deadline+'</span>'+(p.arrival?'<span style="color:var(--ink3)">到貨：'+p.arrival+'</span>':'')+'</div>'):''}
-        </div>
-        ${p.type==='現貨'&&p.stockStatus==='out_of_stock'?'<div style="background:#f5f5f5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#888;font-weight:500">已售完</div>':
-          p.type==='現貨'&&p.stockStatus==='notify'?'<div style="background:#fff4e5;border-radius:var(--r);padding:8px;text-align:center;font-size:12px;color:#e67300;font-weight:500">缺貨 · 到貨通知</div>':
-          `<button class="pbuy" onclick="event.stopPropagation();openDetail('${p.id}')">${p.type==='預購'?'立即預購':'立即購買'}</button>`}
-        ${(()=>{
-          if(p.type!=='現貨'||!p.stock) return '';
-          const _inC = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
-          const _rem = Math.max(0, p.stock - _inC);
-          const _remColor = _rem<=3?'#e74c3c':'var(--ink3)';
-          const _remWeight = _rem<=3?'600':'400';
-          const _remText = _rem===0?'❌ 已售完':(_rem<=3?('⚠️ 僅剩 '+_rem+' 件'):('庫存 '+_rem+' 件'));
-          return '<div style="font-size:11px;color:'+_remColor+';text-align:center;margin-top:3px;font-weight:'+_remWeight+'">'+_remText+'</div>';
-        })()}
-      </div>
-    </div>`;
-    }).join('');
-    grid.dataset.renderKey = _renderKey;
-    grid.dataset.favs = _curFavs;
-  } else if(_prevFavs !== _curFavs){
-    // 只有收藏狀態改變 → 只更新愛心按鈕，不動圖片
-    grid.querySelectorAll('.pcard[data-pid]').forEach(card=>{
-      const pid = card.dataset.pid;
-      const isFav = favs.map(String).includes(pid);
-      const favBtn = card.querySelector('.pfav');
-      if(favBtn){
-        favBtn.className='pfav '+(isFav?'on':'');
-        favBtn.textContent=isFav?'❤️':'🤍';
-      }
-    });
-    grid.dataset.favs = _curFavs;
+  // ── 全局圖片 URL 快取（防閃爍核心）─────────────────────────────────────
+  list.forEach(p=>{ if(p.imageUrl) window._imgCache = window._imgCache||{}, window._imgCache[p.id]=p.imageUrl; });
+  const _newHtml = list.map(p=>{
+    const fav    = favs.map(String).includes(String(p.id));
+    const bt     = p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
+    const bc     = p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
+    const _exp   = p.type==='預購' && isDeadlinePassed(p.deadline);
+    const _isNew = p.isNew===true;
+    const _src   = (window._imgCache&&window._imgCache[p.id]) || p.imageUrl || PLACEHOLDER_IMG;
+    const _inC   = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
+    const _rem   = p.stock>0 ? Math.max(0,p.stock-_inC) : null;
+    const _remHtml = _rem!==null
+      ? '<div class="pstock '+ (_rem<=3?'low':(_rem===0?'zero':''))+'">'
+        +(_rem===0?'已售完':(_rem<=3?'僅剩 '+_rem+' 件':'庫存 '+_rem+' 件'))+'</div>'
+      : '';
+    let _btnHtml = '';
+    if(p.type==='現貨'&&p.stockStatus==='out_of_stock') _btnHtml='<div class="pbuy off">已售完</div>';
+    else if(p.type==='現貨'&&p.stockStatus==='notify') _btnHtml='<div class="pbuy off" style="font-size:11px">缺貨 · 到貨通知</div>';
+    else _btnHtml='<button class="pbuy" onclick="event.stopPropagation();openDetail(\'' + p.id + '\')">' +(p.type==='預購'?'立即預購':'立即購買')+'</button>';
+    return '<div class="pcard'+ (_exp?' expired':'')+'" data-pid="'+p.id+'" onclick="openDetail(\'' + p.id + '\')">'
+      +'<div class="piw">'
+      +'<img src="'+_src+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r2) var(--r2) 0 0">'
+      +(bt?'<div class="pbadge '+bc+'">'+bt+'</div>':'')
+      +(_isNew?'<div class="pbadge-new">NEW</div>':'')
+      +(_exp&&bt?'<div class="pbadge sold">已結單</div>':'')
+      +'<button class="pfav '+(fav?'on':'')+'" onclick="event.stopPropagation();toggleFav(\'' + p.id + '\')">' +(fav?'❤️':'🤍')+'</button>'
+      +'</div>'
+      +'<div class="pbody">'
+      +'<div class="pcat">'+p.brand+'</div>'
+      +'<div class="pname">'+p.name+'</div>'
+      +'<div class="pprice">'+(()=>{const r=getPriceRange(p);if(r.min!==r.max)return'<b class="pprice-range">NT$ '+r.min.toLocaleString()+' – '+r.max.toLocaleString()+'</b>';return'<b style="color:var(--acc);font-weight:700">NT$ '+r.min.toLocaleString()+'</b>';})()+'</div>'
+      +(p.limit||p.deadline?'<div class="pinfo">'
+        +(p.limit?'<span class="ptag">限購'+p.limit+'</span>':'')
+        +(p.deadline?'<span class="ptag dead">'+p.deadline+' 截單</span>':'')
+      +'</div>':'')
+      +_remHtml
+      +_btnHtml
+      +'</div></div>';
+  }).join('');
+  // 比對是否真的有變化（用字串長度+前32字元快速比較）
+  const _sig = _newHtml.length+'|'+_newHtml.slice(0,32);
+  if(grid.dataset.sig !== _sig){
+    grid.innerHTML = _newHtml;
+    grid.dataset.sig = _sig;
   }
-  // pagination
+    // pagination
   const pg=Math.ceil(list.length/9);
   if(pg<=1){document.getElementById('pagination').innerHTML='';return;}
   let h='';
@@ -3066,7 +3074,7 @@ function renderCartPage(){
           : p.emoji;
         return `<div class="cart-row">
           <input type="checkbox" class="cart-cb" checked>
-          <div class="cart-img"><img src="${p.imageUrl||PLACEHOLDER_IMG}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>
+          <div class="cart-img"><img src="${p.imageUrl||PLACEHOLDER_IMG}" alt="" style="width:100%;height:100%;object-fit:cover"></div>
           <div class="cart-info">
             <div class="cart-iname" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${p.name}</div>
             ${ci.variant&&ci.variant!=='單一規格'?`<div class="cart-ivar">${ci.variant}</div>`:''}
