@@ -79,7 +79,7 @@ input,select,textarea{font-family:var(--font)}
 .pbadge{position:absolute;top:10px;left:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:3px;letter-spacing:.4px}
 .pbadge.pre{background:#7b5ea7}
 .pbadge.stk{background:#2e7d32}
-.pbadge-new{position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:.6px;box-shadow:0 1px 4px rgba(239,68,68,.4)}
+.pbadge-new{position:absolute;top:8px;right:40px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:.6px;box-shadow:0 1px 4px rgba(239,68,68,.4)}
 .pfav{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;cursor:pointer;backdrop-filter:blur(4px)}
 .pfav:hover{background:#fff;transform:scale(1.1)}
 .pfav.on{color:var(--red)}
@@ -1122,7 +1122,22 @@ textarea.fi{min-height:64px;resize:vertical}
         <div class="ao-search">
           <input id="aoSearch" placeholder="搜尋姓名、電話、訂單編號…" oninput="aoDoSearch()">
         </div>
+        <select id="aoSort" onchange="_aoRenderCards()" style="height:34px;border:1px solid var(--border2);border-radius:var(--r);padding:0 10px;font-size:12px;background:var(--white);color:var(--ink2);cursor:pointer">
+          <option value="time">依時間排序</option>
+          <option value="priority">依優先（常客＞量＞時間）</option>
+        </select>
         <button class="ao-refresh" onclick="renderOrderList()">↻ 重新整理</button>
+        <button onclick="openCustomerSearch()" style="height:34px;padding:0 12px;border:1px solid #1a56c4;border-radius:var(--r);font-size:12px;font-weight:600;color:#1a56c4;background:#e8f0fc;cursor:pointer;white-space:nowrap">👤 顧客查詢</button>
+        <button id="batchCancelBtn" onclick="toggleBatchMode()" style="height:34px;padding:0 12px;border:1px solid #e67300;border-radius:var(--r);font-size:12px;font-weight:600;color:#e67300;background:#fff8f0;cursor:pointer;white-space:nowrap">☑ 批量取消</button>
+      </div>
+      <!-- 批量操作列 -->
+      <div id="batchBar" style="display:none;background:#fff4e5;border:1px solid #f9b84b;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;color:#92400e;font-weight:600">批量取消模式</span>
+        <span id="batchCount" style="font-size:12px;color:#92400e">已選 0 筆</span>
+        <button onclick="selectAllOrders()" style="height:28px;padding:0 12px;border:1px solid #f9b84b;border-radius:var(--r);font-size:12px;background:#fff;color:#92400e;cursor:pointer">全選</button>
+        <button onclick="executeBatchCancel()" style="height:28px;padding:0 14px;border:none;border-radius:var(--r);font-size:12px;font-weight:700;background:#e67300;color:#fff;cursor:pointer">確認取消選取訂單</button>
+        <button onclick="toggleBatchMode()" style="height:28px;padding:0 12px;border:1px solid var(--border2);border-radius:var(--r);font-size:12px;background:#fff;color:var(--ink2);cursor:pointer">結束</button>
+        <span style="font-size:11px;color:#92400e;flex:1">⚠️ 取消後依常客優先排序，可了解砍量後誰能保留</span>
       </div>
       <div id="orderList"></div>
     </div>
@@ -1162,6 +1177,59 @@ textarea.fi{min-height:64px;resize:vertical}
     <div style="display:flex;gap:10px">
       <button onclick="confirmDeadlineModal()" style="flex:1;height:40px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認</button>
       <button onclick="closeDeadlineModal()" style="height:40px;padding:0 16px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 顧客查詢 Modal -->
+<div id="customerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto">
+  <div style="background:var(--white);border-radius:14px;width:600px;max-width:94vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.18);margin-bottom:40px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700">👤 顧客歷史查詢</div>
+      <button onclick="document.getElementById('customerModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink3)">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="customerSearchInput" placeholder="輸入顧客姓名或電話…"
+        style="flex:1;border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:13px;outline:none;font-family:var(--font)"
+        oninput="searchCustomer()" onkeydown="if(event.key==='Enter')searchCustomer()">
+      <button onclick="searchCustomer()" style="height:38px;padding:0 16px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">查詢</button>
+    </div>
+    <div id="customerResult"></div>
+  </div>
+</div>
+
+<!-- 預購須知 Modal -->
+<div id="termsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--white);border-radius:14px;width:520px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.22)">
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="font-size:17px;font-weight:800;color:var(--ink)">📋 預購須知</div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:3px">請閱讀以下說明，下單即代表您已同意</div>
+    </div>
+    <div style="overflow-y:auto;padding:18px 20px;flex:1;line-height:1.85;font-size:13px;color:var(--ink2)">
+      <div style="background:#fff4e5;border-left:3px solid #e67300;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:14px;font-size:13px;color:#92400e;font-weight:500">
+        ⏰ 商品到貨日為日本官方預購月份，到台灣後兩個月內皆為正常時間，如不能接受請勿下標。
+      </div>
+      <ul style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:10px">
+        <li>如遇日本宣布停產、廠商全數砍單等因素，<b>訂金單全額退款</b>，無訂金者請配合取消訂單。</li>
+        <li>預購商品正確發貨日無法預測，<b style="color:var(--red)">可能因各種因素延期</b>，敬請見諒。</li>
+        <li>到貨後會發送通知，請於 <b>7 日內</b>下單賣貨便取貨；逾期視同棄單，<b>訂金恕不退還</b>。逾期後若仍欲購買，酌收倉儲費 NT$50／天。</li>
+        <li>注意 <b>八角魔人、盒控、膠帶控及完美主義者</b>，請勿下單造成彼此困擾。</li>
+        <li>玩具為大量製造商品，新品如有<b>缺件、輕微掉漆、色差及零件鬆動</b>等問題不提供退換貨，煩請洽詢代理商。</li>
+        <li>扭蛋商品除非重大瑕疵（斷件、商品未上色等），<b>不予以退款退貨</b>。</li>
+        <li><b>未成年下單視同家長同意購買</b>，不接受任何理由退款。</li>
+      </ul>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <input type="checkbox" id="termsCheck" style="width:16px;height:16px;cursor:pointer" onchange="document.getElementById('termsAgreeBtn').disabled=!this.checked">
+        <label for="termsCheck" style="font-size:13px;cursor:pointer;color:var(--ink)">我已閱讀並同意以上預購須知</label>
+      </div>
+      <button id="termsAgreeBtn" onclick="agreeTerms()" disabled
+        style="width:100%;height:42px;background:var(--red);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;opacity:.5;transition:opacity .15s"
+        onmouseenter="if(!this.disabled)this.style.opacity='.85'" onmouseleave="if(!this.disabled)this.style.opacity='1'">
+        確認同意，繼續結帳
+      </button>
+      <div id="termsCheckWarn" style="display:none;text-align:center;font-size:12px;color:var(--red);margin-top:6px">請先勾選確認已閱讀須知</div>
     </div>
   </div>
 </div>
@@ -1423,8 +1491,10 @@ let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify({
   bankNote: '轉帳請備註訂單編號(#字不用打)，以利老闆核對確認，感謝！'
 }));
 
-// 計算購物車總訂金（依各商品設定）
+// 計算購物車總訂金（依各商品設定，首購預購商品收50%）
 function calcCartDeposit(){
+  const firstBuyerDep = calcFirstBuyerDeposit();
+  if(firstBuyerDep > 0) return firstBuyerDep; // 首購：直接收50%
   return cart.reduce((s,ci)=>{
     const p=products.find(x=>String(x.id)===String(ci.id));
     if(!p) return s;
@@ -1439,18 +1509,52 @@ function getProductDeposit(p){
 let selectedDelivery = '寄送';
 
 // ─── USER PROFILE ────────────────────────────────────────
-let userProfile = { name:'', phone:'' }; // 登入後依 email 載入
+let userProfile = { name:'', phone:'', trusted:false }; // 登入後依 email 載入
 
 function loadProfileForUser(email){
-  if(!email){ userProfile={name:'',phone:''}; return; }
+  if(!email){ userProfile={name:'',phone:'',trusted:false}; return; }
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
-  userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:''};
+  userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
+}
+
+// 判斷是否首購（無已完成或已成立的預購訂單）
+function isFirstTimeBuyer(){
+  if(userProfile.trusted) return false; // 管理員已標記信任
+  // 檢查是否有過預購訂單
+  const hasPreOrders = _allAdminOrders?.some(o=>
+    o.user_email===user?.email &&
+    o.status!=='cancelled'
+  );
+  if(hasPreOrders) return false;
+  // 檢查本地 orderedQtyMap 有沒有資料
+  return Object.keys(orderedQtyMap).length === 0;
+}
+
+// 計算首購強制訂金（預購商品總金額的50%）
+function calcFirstBuyerDeposit(){
+  if(!isFirstTimeBuyer()) return 0;
+  const preorderTotal = cart.reduce((s,ci)=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    if(!p||p.type!=='預購') return s;
+    return s + getVariantPrice(p,ci.variant)*ci.qty;
+  },0);
+  return Math.ceil(preorderTotal * 0.5);
 }
 
 function saveProfileForUser(email, profile){
   if(!email) return;
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
   localStorage.setItem(key, JSON.stringify(profile));
+}
+
+// ─── 信任買家管理 ───────────────────────────────────────────
+function setTrustedBuyer(email, trusted){
+  if(!email) return;
+  const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
+  const prof = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
+  prof.trusted = trusted;
+  localStorage.setItem(key, JSON.stringify(prof));
+  showToast(trusted ? `✅ 已標記為信任買家` : `已移除信任標記`);
 }
 
 function persist(){
@@ -2248,6 +2352,26 @@ function toggleDetailFav(){
 function goCheckout(){
   if(!user){openAuth();return;}
   if(!cart.length){showToast('購物車是空的');return;}
+  // 檢查是否有預購商品 → 須先閱讀須知
+  const hasPreorder = cart.some(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    return p?.type==='預購';
+  });
+  const alreadyRead = localStorage.getItem('tf_terms_agreed')==='1';
+  if(hasPreorder && !alreadyRead){
+    // 顯示須知 Modal
+    document.getElementById('termsModal').style.display='flex';
+    document.getElementById('termsCheck').checked=false;
+    document.getElementById('termsAgreeBtn').disabled=true;
+    document.getElementById('termsAgreeBtn').style.opacity='.5';
+    document.getElementById('termsCheckWarn').style.display='none';
+    return;
+  }
+  showCheckoutPage();
+}
+function agreeTerms(){
+  localStorage.setItem('tf_terms_agreed','1');
+  document.getElementById('termsModal').style.display='none';
   showCheckoutPage();
 }
 
@@ -2306,9 +2430,13 @@ function renderCheckoutPage(){
   }).join('');
 
   const tail = total - dep;
+  const _isFirstBuyer = isFirstTimeBuyer();
   document.getElementById('checkoutSummaryRows').innerHTML = `
+    ${_isFirstBuyer?`<div style="background:#fff4e5;border:1px solid #f9b84b;border-radius:6px;padding:9px 12px;margin-bottom:8px;font-size:12px;color:#92400e">
+      ⭐ 首次預購需支付商品總金額 <b>50%</b> 作為訂金，待信任紀錄建立後後續訂單依商品設定收取。
+    </div>`:''}
     <div class="cod-row"><span>商品合計</span><span>NT$ ${total.toLocaleString()}</span></div>
-    ${dep>0?`<div class="cod-row"><span>需付訂金</span><span style="color:var(--red);font-weight:700">NT$ ${dep.toLocaleString()}</span></div>`:''}
+    ${dep>0?`<div class="cod-row"><span>${_isFirstBuyer?'首購訂金（50%）':'需付訂金'}</span><span style="color:var(--red);font-weight:700">NT$ ${dep.toLocaleString()}</span></div>`:''}
     ${dep>0?`<div class="cod-row"><span>尾款（取貨時付）</span><span>NT$ ${tail.toLocaleString()}</span></div>`:''}`;
   document.getElementById('checkoutPayAmt').textContent = dep>0 ? `NT$ ${dep.toLocaleString()}` : `NT$ ${total.toLocaleString()}`;
 }
@@ -3621,6 +3749,79 @@ function _aoRenderTabs(){
 }
 
 function aoSetTab(key){_aoTab=key;_aoRenderTabs();_aoRenderCards();}
+
+// ─── 批量取消 ────────────────────────────────────────────────
+let _batchMode = false;
+let _batchSelected = new Set();
+
+function toggleBatchMode(){
+  _batchMode = !_batchMode;
+  _batchSelected.clear();
+  const bar = document.getElementById('batchBar');
+  const btn = document.getElementById('batchCancelBtn');
+  if(bar){ bar.style.display = _batchMode ? 'flex' : 'none'; }
+  if(btn){ btn.style.background = _batchMode ? '#e67300' : '#fff8f0'; btn.style.color = _batchMode ? '#fff' : '#e67300'; }
+  _aoRenderCards();
+}
+
+function toggleBatchSelect(id){
+  if(_batchSelected.has(id)) _batchSelected.delete(id);
+  else _batchSelected.add(id);
+  document.getElementById('batchCount').textContent = `已選 ${_batchSelected.size} 筆`;
+  // 更新 checkbox UI
+  const cb = document.getElementById('batchcb-'+id);
+  if(cb) cb.checked = _batchSelected.has(id);
+}
+
+function selectAllOrders(){
+  const ol = document.getElementById('orderList');
+  ol.querySelectorAll('[id^="batchcb-"]').forEach(cb=>{
+    const id = parseInt(cb.id.replace('batchcb-',''));
+    _batchSelected.add(id);
+    cb.checked = true;
+  });
+  document.getElementById('batchCount').textContent = `已選 ${_batchSelected.size} 筆`;
+}
+
+async function executeBatchCancel(){
+  if(!_batchSelected.size){ showToast('⚠️ 請先選取訂單'); return; }
+  const ids = [..._batchSelected];
+  if(!confirm(`確定取消選取的 ${ids.length} 筆訂單？此操作無法復原。`)) return;
+
+  const btn = document.querySelector('#batchBar button:nth-child(4)');
+  if(btn){ btn.disabled=true; btn.textContent='取消中…'; }
+
+  let success=0, fail=0;
+  for(const id of ids){
+    const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',id);
+    if(!error){
+      const o = _allAdminOrders.find(x=>x.id===id);
+      if(o) o.status='cancelled';
+      success++;
+    } else { fail++; }
+  }
+
+  if(btn){ btn.disabled=false; btn.textContent='確認取消選取訂單'; }
+  showToast(`✅ 已取消 ${success} 筆${fail?'，失敗 '+fail+' 筆':''}`);
+  _batchSelected.clear();
+  _batchMode = false;
+  const bar = document.getElementById('batchBar');
+  if(bar) bar.style.display='none';
+  const cancelBtn = document.getElementById('batchCancelBtn');
+  if(cancelBtn){ cancelBtn.style.background='#fff8f0'; cancelBtn.style.color='#e67300'; }
+  _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+}
+
+// ─── 優先排序：常客（已完成訂單數）> 訂單量 > 時間 ──────────────
+function _getPriorityScore(o){
+  const completedCount = _allAdminOrders.filter(x=>
+    x.user_email===o.user_email && x.status==='shipped'
+  ).length;
+  let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+  const qty = items.reduce((s,i)=>s+(i.qty||1),0) || o.qty || 1;
+  // 分數：常客數 * 1000 + 訂單量 * 10（時間由排序位置決定）
+  return completedCount * 1000 + qty * 10;
+}
 function aoDoSearch(){_aoQuery=document.getElementById('aoSearch').value.trim().toLowerCase();_aoRenderCards();}
 
 function _aoRenderCards(){
@@ -3631,8 +3832,14 @@ function _aoRenderCards(){
       (o.customer_name||'').toLowerCase().includes(_aoQuery)||
       (o.phone||'').includes(_aoQuery)||
       String(o.id).includes(_aoQuery)||
+      (o.order_code||'').toLowerCase().includes(_aoQuery)||
       (o.product_name||'').toLowerCase().includes(_aoQuery)
     );
+  }
+  // 排序
+  const sortMode = document.getElementById('aoSort')?.value||'time';
+  if(sortMode==='priority'){
+    list.sort((a,b)=> _getPriorityScore(b) - _getPriorityScore(a));
   }
   if(!list.length){ol.innerHTML='<div class="ao-empty"><div>📭</div><p>沒有符合的訂單</p></div>';return;}
 
@@ -3648,7 +3855,14 @@ function _aoRenderCards(){
     const canShip   = ['paid','partial'].includes(o.status);
     const canPart   = o.status==='paid';
     const canCancel = ['new','paid'].includes(o.status);
-    return `<div class="aoc">
+    const _priorityScore = _getPriorityScore(o);
+    const _completedCount = _allAdminOrders.filter(x=>x.user_email===o.user_email&&x.status==='shipped').length;
+    return `<div class="aoc" style="${_batchMode&&_batchSelected.has(o.id)?'border-color:#e67300;background:#fff8f0':''}">
+      ${_batchMode?`<div style="padding:8px 16px 0;display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="batchcb-${o.id}" ${_batchSelected.has(o.id)?'checked':''} onchange="toggleBatchSelect(${o.id})" style="width:16px;height:16px;cursor:pointer">
+        <label for="batchcb-${o.id}" style="font-size:12px;cursor:pointer;color:var(--ink2)">選取此訂單</label>
+        ${_completedCount>0?`<span style="font-size:11px;background:#eef7f1;color:#2e7d32;padding:1px 7px;border-radius:10px">⭐ 常客 ${_completedCount} 單</span>`:'<span style="font-size:11px;background:#f5f5f5;color:#888;padding:1px 7px;border-radius:10px">新買家</span>'}
+      </div>`:''}
       <div class="aoc-head">
         <span class="aoc-id">#${o.id}</span>
         <span style="font-size:11px;font-family:monospace;color:#888;margin-left:4px">${o.order_code||''}</span>
@@ -3703,7 +3917,6 @@ function _aoRenderCards(){
         <button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>
         <button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>
         ${o.tracking_code?`<div style="font-size:12px;color:#2e7d32;padding:2px 0">📬 追蹤碼：<b style="font-family:monospace">${o.tracking_code}</b></div>`:``}
-        ${o.shipping_addr?`<div style="font-size:11px;color:var(--ink3);padding:2px 0">📍 ${o.shipping_addr}</div>`:``}
       </div>
     </div>`;
   }).join('');
@@ -3869,6 +4082,94 @@ async function sendTrackingEmail(){
     showToast('❌ 寄信失敗：'+msg);
     if(btn){ btn.disabled=false; btn.textContent='📬 寄追蹤碼通知給顧客'; }
   }
+}
+
+// ─── 顧客歷史查詢 ────────────────────────────────────────────
+function openCustomerSearch(){
+  document.getElementById('customerModal').style.display='flex';
+  document.getElementById('customerSearchInput').value='';
+  document.getElementById('customerResult').innerHTML='';
+  setTimeout(()=>document.getElementById('customerSearchInput').focus(), 50);
+}
+
+function searchCustomer(){
+  const q = document.getElementById('customerSearchInput').value.trim().toLowerCase();
+  const wrap = document.getElementById('customerResult');
+  if(!q){ wrap.innerHTML=''; return; }
+
+  // 比對姓名或電話
+  const matched = _allAdminOrders.filter(o=>
+    (o.customer_name||'').toLowerCase().includes(q) ||
+    (o.phone||'').includes(q)
+  );
+
+  if(!matched.length){
+    wrap.innerHTML='<div style="text-align:center;padding:32px;color:var(--ink3)">找不到符合的顧客</div>';
+    return;
+  }
+
+  // 依 email/phone 分組（同一顧客）
+  const groups = {};
+  matched.forEach(o=>{
+    const key = o.user_email||o.phone||o.customer_name;
+    if(!groups[key]) groups[key]={name:o.customer_name,phone:o.phone,email:o.user_email,orders:[]};
+    groups[key].orders.push(o);
+  });
+
+  wrap.innerHTML = Object.values(groups).map(g=>{
+    const completed  = g.orders.filter(o=>o.status==='shipped');
+    const active     = g.orders.filter(o=>['paid','partial','new'].includes(o.status));
+    const cancelled  = g.orders.filter(o=>o.status==='cancelled');
+    const totalSpent = completed.reduce((s,o)=>{
+      let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+      return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
+    },0);
+    const totalDeposit = g.orders.filter(o=>['paid','partial','shipped'].includes(o.status))
+      .reduce((s,o)=>s+(o.price||0),0);
+    const isRegular = completed.length >= 3;
+    const isTrusted = g.email ? (()=>{
+      const key='tf_prof_'+btoa(g.email).replace(/=/g,'');
+      const prof=JSON.parse(localStorage.getItem(key)||'null');
+      return prof?.trusted||false;
+    })() : false;
+
+    return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
+      <!-- 顧客摘要 -->
+      <div style="padding:12px 16px;background:var(--bg);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;margin-bottom:2px">
+            ${g.name||'—'}
+            ${isRegular?'<span style="font-size:11px;background:#eef7f1;color:#2e7d32;padding:1px 7px;border-radius:10px;margin-left:6px">⭐ 常客</span>':''}
+            ${isTrusted?'<span style="font-size:11px;background:#e8f0fc;color:#1a56c4;padding:1px 7px;border-radius:10px;margin-left:4px">✓ 信任買家</span>':'<span style="font-size:11px;background:#fff4e5;color:#e67300;padding:1px 7px;border-radius:10px;margin-left:4px">首購規則適用</span>'}
+          </div>
+          <div style="font-size:12px;color:var(--ink3)">📞 ${g.phone||'—'} &nbsp;|&nbsp; 📧 ${g.email||'—'}</div>
+        </div>
+        <div style="display:flex;gap:16px;flex-shrink:0;text-align:center">
+          <div><div style="font-size:18px;font-weight:800;color:#2e7d32">${completed.length}</div><div style="font-size:11px;color:var(--ink3)">已完成</div></div>
+          <div><div style="font-size:18px;font-weight:800;color:#1a56c4">${active.length}</div><div style="font-size:11px;color:var(--ink3)">進行中</div></div>
+          <div><div style="font-size:18px;font-weight:800;color:#888">${cancelled.length}</div><div style="font-size:11px;color:var(--ink3)">已取消</div></div>
+          <div><div style="font-size:16px;font-weight:800;color:var(--red)">NT$${totalSpent.toLocaleString()}</div><div style="font-size:11px;color:var(--ink3)">完成總額</div></div>
+        </div>
+        ${g.email?`<button onclick="setTrustedBuyer('${g.email}',${!isTrusted});searchCustomer()" style="height:30px;padding:0 12px;border:1px solid ${isTrusted?'#e74c3c':'#2e7d32'};border-radius:var(--r);font-size:11px;font-weight:600;color:${isTrusted?'#e74c3c':'#2e7d32'};background:#fff;cursor:pointer;flex-shrink:0">${isTrusted?'移除信任':'✓ 標記信任買家'}</button>`:''}
+      </div>
+      <!-- 訂單列表 -->
+      <div style="max-height:280px;overflow-y:auto">
+        ${g.orders.map(o=>{
+          const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
+          const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
+          let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
+          const total=items.reduce((s,i)=>s+(i.price||0),0)||o.price||0;
+          return `<div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-family:monospace;font-size:12px;color:var(--ink2)">#${o.order_code||o.id}</span>
+            <span style="font-size:11px;background:${si.bg};color:${si.color};padding:1px 7px;border-radius:10px;font-weight:600">${si.label}</span>
+            <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.product_name||'—'}</span>
+            <span style="font-size:12px;color:var(--ink3)">${dateStr}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--red)">NT$${total.toLocaleString()}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function sendStatusEmail(o, newStatus){
