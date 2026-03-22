@@ -2126,20 +2126,32 @@ function renderShop(){
     grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
-  const _newHtml = list.map(p=>{
-    const fav=favs.map(String).includes(String(p.id));
-    // 左下角 badge：預購 / 現貨（不再顯示 NEW）
-    const bt=p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
-    const bc=p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
-    const _expired = p.type==='預購' && isDeadlinePassed(p.deadline);
-    // 右上角 NEW badge：3 天內新增的商品（用 isNew flag + 建立時間判斷）
-    const _isRecent = p.isNew === true;
-    return`<div class="pcard${_expired?' expired':''}" data-pid="${p.id}" onclick="openDetail('${p.id}')">
+  const _renderKey = list.map(p=>p.id+':'+p.status+':'+(p.stock||0)+':'+p.cnt).join('|');
+  const _prevKey = grid.dataset.renderKey||'';
+  const _prevFavs = grid.dataset.favs||'';
+  const _curFavs = favs.map(String).sort().join(',');
+  
+  if(_renderKey === _prevKey && _prevFavs === _curFavs && grid.children.length > 0){
+    // 資料完全沒變 → 不動 DOM，圖片不重載
+  } else if(_renderKey !== _prevKey){
+    // 資料有變 → 重繪，但保留已載入圖片的 src（避免閃爍）
+    const _oldImgMap = {};
+    grid.querySelectorAll('.pcard[data-pid] .pimg img').forEach(img=>{
+      if(img.complete && img.naturalWidth>0) _oldImgMap[img.closest('[data-pid]').dataset.pid] = img.src;
+    });
+    grid.innerHTML = list.map(p=>{
+      const fav=favs.map(String).includes(String(p.id));
+      const bt=p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
+      const bc=p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
+      const _expired = p.type==='預購' && isDeadlinePassed(p.deadline);
+      const _isRecent = p.isNew === true;
+      const _imgSrc = _oldImgMap[String(p.id)] || (p.imageUrl||PLACEHOLDER_IMG);
+      return`<div class="pcard${_expired?' expired':''}" data-pid="${p.id}" onclick="openDetail('${p.id}')">
       <div class="piw">
-        <div class="pimg"><img src="${p.imageUrl||PLACEHOLDER_IMG}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>
+        <div class="pimg"><img src="${_imgSrc}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover"></div>
         ${bt?`<div class="pbadge ${bc}">${bt}</div>`:''}
         ${_isRecent?`<div class="pbadge-new">NEW</div>`:''}
-        ${p.type==='預購'&&isDeadlinePassed(p.deadline)?`<div class="pbadge" style="background:#888;top:10px;left:${bt?'60px':'10px'}">已結單</div>`:''}
+        ${p.type==='預購'&&isDeadlinePassed(p.deadline)?('<div class="pbadge" style="background:#888;top:10px;left:'+(bt?'60px':'10px')+'">已結單</div>'):''}
         <button class="pfav ${fav?'on':''}" onclick="event.stopPropagation();toggleFav('${p.id}')">${fav?'❤️':'🤍'}</button>
       </div>
       <div class="pbody">
@@ -2172,55 +2184,21 @@ function renderShop(){
         })()}
       </div>
     </div>`;
-  }).join('');
-  // 智慧更新：若 HTML 相同就不重繪（避免圖片閃爍）
-  if(grid.innerHTML !== _newHtml){
-    // 比對每個商品，只替換有變化的卡片
-    const _tmpDiv = document.createElement('div');
-    _tmpDiv.innerHTML = _newHtml;
-    const _newCards = Array.from(_tmpDiv.querySelectorAll('.pcard[data-pid]'));
-    const _oldCards = Array.from(grid.querySelectorAll('.pcard[data-pid]'));
-    const _oldMap = {};
-    _oldCards.forEach(c=>{ _oldMap[c.dataset.pid]=c; });
-    // 若商品數量/順序一致，做差量更新
-    if(_newCards.length===_oldCards.length && _newCards.every((c,i)=>c.dataset.pid===_oldCards[i]?.dataset.pid)){
-      _newCards.forEach((newCard, i)=>{
-        const oldCard = _oldCards[i];
-        if(oldCard && oldCard.outerHTML !== newCard.outerHTML){
-          // 保留已載入的 img src，只更新 img 以外的部分
-          const _oldImgs = Array.from(oldCard.querySelectorAll('img'));
-          oldCard.outerHTML = newCard.outerHTML; // 更新 card
-          // 但這會重觸發載入，改用 innerHTML 差量
-        }
-      });
-      // 只更新文字/badge 部分（不動 img）
-      _newCards.forEach((newCard, i)=>{
-        const oldCard = grid.querySelectorAll('.pcard[data-pid]')[i];
-        if(!oldCard) return;
-        // 只更新 pbody（文字/價格/按鈕），保留 piw（圖片區塊）不動
-        const _newBody = newCard.querySelector('.pbody');
-        const _oldBody = oldCard.querySelector('.pbody');
-        if(_newBody && _oldBody && _newBody.innerHTML !== _oldBody.innerHTML){
-          _oldBody.innerHTML = _newBody.innerHTML;
-        }
-        // 更新 badge（上架狀態/NEW badge）
-        const _newPiw = newCard.querySelector('.piw');
-        const _oldPiw = oldCard.querySelector('.piw');
-        if(_newPiw && _oldPiw){
-          // 只更新 badge（非 img）
-          Array.from(_newPiw.children).forEach((child, ci)=>{
-            if(child.tagName!=='IMG' && child.classList && !child.classList.contains('pfav')){
-              const oldChild = _oldPiw.children[ci];
-              if(oldChild && oldChild.outerHTML!==child.outerHTML) oldChild.outerHTML=child.outerHTML;
-            }
-          });
-        }
-        // 更新 onclick 和 class（過期狀態）
-        if(oldCard.className !== newCard.className) oldCard.className = newCard.className;
-      });
-    } else {
-      grid.innerHTML = _newHtml; // 商品數/順序有變 → 全量替換
-    }
+    }).join('');
+    grid.dataset.renderKey = _renderKey;
+    grid.dataset.favs = _curFavs;
+  } else if(_prevFavs !== _curFavs){
+    // 只有收藏狀態改變 → 只更新愛心按鈕，不動圖片
+    grid.querySelectorAll('.pcard[data-pid]').forEach(card=>{
+      const pid = card.dataset.pid;
+      const isFav = favs.map(String).includes(pid);
+      const favBtn = card.querySelector('.pfav');
+      if(favBtn){
+        favBtn.className='pfav '+(isFav?'on':'');
+        favBtn.textContent=isFav?'❤️':'🤍';
+      }
+    });
+    grid.dataset.favs = _curFavs;
   }
   // pagination
   const pg=Math.ceil(list.length/9);
@@ -2939,7 +2917,23 @@ async function syncProductsFromSupabase(){
       console.log('✅ 商品已從 Supabase 同步，共', products.length, '件');
     }
     renderShop(); updCounts(); // 無論有無資料都更新畫面
+    _restoreHashPage(); // sync 完成後嘗試恢復 hash 頁面
   } catch(e){ console.warn('syncProducts error:', e); renderShop(); }
+}
+
+// 根據 URL hash 恢復頁面（在 products 載入後呼叫）
+let _hashRestored = false;
+function _restoreHashPage(){
+  if(_hashRestored) return; // 只恢復一次
+  const _h = window.location.hash;
+  if(!_h || _h==='#'){ _hashRestored=true; return; }
+  _hashRestored = true;
+  if(_h.startsWith('#product/')){
+    const _pid = _h.replace('#product/','');
+    if(_pid) openDetail(_pid);
+  } else if(_h==='#cart'){ renderCartPage(); showView('cartView',false); }
+  else if(_h==='#orders' && user){ loadOrders(); showView('ordersView',false); }
+  else if(_h==='#profile' && user){ renderProfile(); showView('profileView',false); }
 }
 
 // 儲存商品到 Supabase
@@ -5065,16 +5059,7 @@ setInterval(()=>{
   }
   renderAuth(); // 確定狀態後才渲染
   updBadge();
-  // 恢復頁面（如果 URL 有 hash）
-  const _initHash = window.location.hash;
-  if(_initHash && _initHash !== '#'){
-    if(_initHash.startsWith('#product/')){
-      const _pid = _initHash.replace('#product/','');
-      if(_pid && products.length) openDetail(_pid);
-    } else if(_initHash==='#orders' && user){ loadOrders(); showView('ordersView',false); }
-    else if(_initHash==='#profile' && user){ renderProfile(); showView('profileView',false); }
-    else if(_initHash==='#cart'){ renderCartPage(); showView('cartView',false); }
-  }
+  // hash 恢復在 syncProductsFromSupabase 後執行，確保 products 已載入
 })();
 </script>
 </body>
