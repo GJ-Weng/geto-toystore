@@ -1376,10 +1376,10 @@ function daysLater(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISO
 // ─── DEFAULT DATA ─────────────────────────────────────────
 const DEF_PRODUCTS=[]; // 商品從 Supabase 載入，這裡只是備用空陣列
 // ─── STATE ────────────────────────────────────────────────
-// ─── 管理員設定（填入你的 Google 登入 Email）──────────────
+// ─── 管理員設定(填入你的 Google 登入 Email)──────────────
 const ADMIN_EMAILS = ['geto.toy23@gmail.com']; // ← 改成你的 email
 
-// 解析每人限購數字（例：「2件」→ 2，「1~2件」→ 2，「無限制」→ Infinity）
+// 解析每人限購數字(例：「2件」→ 2，「1~2件」→ 2，「無限制」→ Infinity)
 function parseLimit(limitStr){
   if(!limitStr||limitStr==='無限制'||limitStr==='') return Infinity;
   const nums = limitStr.match(/\d+/g);
@@ -1387,10 +1387,10 @@ function parseLimit(limitStr){
   return Math.max(...nums.map(Number));
 }
 
-// 判斷是否已過結單日（結單當天 23:59:59 仍可購買，隔天起才關閉）
+// 判斷是否已過結單日(結單當天 23:59:59 仍可購買，隔天起才關閉)
 function isDeadlinePassed(deadline){
   if(!deadline) return false;
-  // deadline = 'YYYY-MM-DD'，轉成當天台灣時間結束（23:59:59）
+  // deadline = 'YYYY-MM-DD'，轉成當天台灣時間結束(23:59:59)
   const [y,m,d] = deadline.split('-').map(Number);
   // 用當地時間建立「結單當天 23:59:59」
   const cutoff = new Date(y, m-1, d, 23, 59, 59, 999);
@@ -1398,7 +1398,7 @@ function isDeadlinePassed(deadline){
 }
 
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
-const _CACHE_TTL = 60; // 快取有效秒數（60秒內不重複 sync）
+const _CACHE_TTL = 60; // 快取有效秒數(60秒內不重複 sync)
 function _isCacheFresh(){
   const ts = parseInt(localStorage.getItem('tf_p_ts')||'0');
   return (Date.now() - ts) < _CACHE_TTL * 1000;
@@ -1410,7 +1410,7 @@ let orders   = JSON.parse(localStorage.getItem('tf_o')||'[]');
 
 let filter='全部', subFilter='', editingId=null, selEmoji=EMOJIS[0], searchQ='';
 let currentProductId=null, selectedVariant=null, detailQty=1;
-// 已成立訂單的商品（防止重複下單）
+// 已成立訂單的商品(防止重複下單)
 // 已下單紀錄：{productId: {variant: qty}} 
 let orderedQtyMap = JSON.parse(localStorage.getItem('tf_ordered_v2')||'{}');
 
@@ -1427,8 +1427,8 @@ function getTotalOrderedQty(productId){
 
 // ─── 店家設定 ────────────────────────────────────────────
 // ─── EMAIL 設定 ──────────────────────────────────────────
-// 填入你的 EmailJS 資訊（見後台「匯款設定」）
-// ── EmailJS 預設值（直接寫入，不依賴 localStorage）──────
+// 填入你的 EmailJS 資訊(見後台「匯款設定」)
+// ── EmailJS 預設值(直接寫入，不依賴 localStorage)──────
 const _EJS_DEFAULTS = {
   publicKey:  'MDOLmuUdaFTZc2KvJ',
   serviceId:  'geto_service',
@@ -1447,14 +1447,13 @@ function initEmailJS(){
   if(saved.publicKey) {
     emailjsConfig = saved;
     emailjs.init({ publicKey: saved.publicKey });
-    console.log('✅ EmailJS 初始化完成');
   } else {
     console.warn('⚠️ EmailJS 尚未設定，請到後台「匯款設定」填寫');
   }
 }
 
 async function sendOrderEmail({ customerName, customerEmail, orderNum, items, total, dep, tail, delivery, phone, settings }){
-  // 重新從 localStorage 讀取最新設定（防止快取過期）
+  // 重新從 localStorage 讀取最新設定(防止快取過期)
   const _ejsCfg = JSON.parse(localStorage.getItem('tf_ejs')||'{}');
   if(_ejsCfg.publicKey) Object.assign(emailjsConfig, _ejsCfg);
 
@@ -1469,7 +1468,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
 
   const hasDeposit = dep > 0;
 
-  // 商品明細表格（有訂金時才顯示訂金欄）
+  // 商品明細表格(有訂金時才顯示訂金欄)
   const itemsHtml = `<table style="width:100%;border-collapse:collapse;margin:12px 0">
     <thead><tr style="background:#f5f5f5">
       <th style="padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #eee">商品</th>
@@ -1506,7 +1505,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
         <div style="font-size:12px;color:#666;margin-top:4px">取貨時付款</div>
       </div>`;
 
-  // 匯款資訊（只有需要付訂金時才顯示）
+  // 匯款資訊(只有需要付訂金時才顯示)
   const bankHtml = (hasDeposit && settings.bankAccount)
     ? `<div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-top:12px">
         <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:#1a1a1a">💳 轉帳資訊</div>
@@ -1554,7 +1553,6 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
     // 每次都重新 init 確保 key 正確
     if(emailjsConfig.publicKey) emailjs.init({ publicKey: emailjsConfig.publicKey });
     const result = await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, params);
-    console.log('✅ 訂單確認信已寄出', result);
   } catch(err){
     const errMsg = err?.text || err?.message || JSON.stringify(err);
     console.error('❌ EmailJS 寄信失敗：', errMsg);
@@ -1574,7 +1572,7 @@ let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify({
   bankNote: '轉帳請備註訂單編號(#字不用打)，以利老闆核對確認，感謝！'
 }));
 
-// 計算購物車總訂金（依各商品設定，首購預購商品收50%）
+// 計算購物車總訂金(依各商品設定，首購預購商品收50%)
 function calcCartDeposit(){
   const firstBuyerDep = calcFirstBuyerDeposit();
   if(firstBuyerDep > 0) return firstBuyerDep; // 首購：直接收50%
@@ -1600,20 +1598,19 @@ function loadProfileForUser(email){
   userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
 }
 
-// 判斷是否首購（無已完成或已成立的預購訂單）
+// 判斷是否首購(無已完成或已成立的預購訂單)
 function isFirstTimeBuyer(){
   if(userProfile.trusted) return false; // 管理員已標記信任
-  // 檢查是否有過預購訂單
-  const hasPreOrders = _allAdminOrders?.some(o=>
-    o.user_email===user?.email &&
-    o.status!=='cancelled'
-  );
-  if(hasPreOrders) return false;
-  // 檢查本地 orderedQtyMap 有沒有資料
-  return Object.keys(orderedQtyMap).length === 0;
+  if(!user) return true; // 未登入視為首購
+  // 以 orderedQtyMap 為主（login 後 rebuild，資料可信）
+  if(Object.keys(orderedQtyMap).length > 0) return false;
+  // 備用：allOrdersCache（顧客看自己訂單時會載入）
+  const hasOrders = allOrdersCache?.some(o=>o.status!=='cancelled');
+  if(hasOrders) return false;
+  return true;
 }
 
-// 計算首購強制訂金（預購商品總金額的50%）
+// 計算首購強制訂金(預購商品總金額的50%)
 function calcFirstBuyerDeposit(){
   if(!isFirstTimeBuyer()) return 0;
   const preorderTotal = cart.reduce((s,ci)=>{
@@ -1642,10 +1639,10 @@ function setTrustedBuyer(email, trusted){
 
 function persist(){
   try{
-    // products 存輕量版本（base64 圖片不存 localStorage，避免 QuotaExceededError）
+    // products 存輕量版本(base64 圖片不存 localStorage，避免 QuotaExceededError)
     const lightProducts = products.map(p=>{
       const {imageUrl, imageUrls, ...rest} = p;
-      // 只保留 URL（非 base64）的圖片
+      // 只保留 URL(非 base64)的圖片
       const _url = imageUrl&&!imageUrl.startsWith('data:') ? imageUrl : '';
       const _urls = Array.isArray(imageUrls) ? imageUrls.filter(u=>u&&!u.startsWith('data:')) : [];
       return {...rest, imageUrl:_url, imageUrls:_urls};
@@ -1667,7 +1664,7 @@ function showView(name, pushHistory){
     document.getElementById(id).classList.toggle('show', id===name);
   });
   window.scrollTo(0,0);
-  // 更新 URL hash（讓分享/書籤/重新整理能回到正確頁面）
+  // 更新 URL hash(讓分享/書籤/重新整理能回到正確頁面)
   if(pushHistory !== false){
     const _hashMap = {
       shopView:'', detailView:'product', cartView:'cart',
@@ -1701,6 +1698,12 @@ function showCheckoutPage(){
   // 每次進入結帳頁都重置按鈕狀態
   const btn = document.getElementById('checkoutSubmitBtn');
   if(btn){ btn.disabled=false; btn.textContent='確認訂單'; btn.style.opacity=''; }
+  // 重置配送選項（避免上次選自取殘留）
+  if(selectedDelivery==='自取'){
+    // 保留上次選擇（使用者可能只是返回修改）
+  } else {
+    selDelivery('寄送');
+  }
   renderCheckoutPage();
   showView('checkoutView');
 }
@@ -1814,7 +1817,7 @@ async function loadOrders(){
 
   if(error){ wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--red)">讀取失敗：${error.message}</div>`; return; }
   allOrdersCache = data||[];
-  // 從真實訂單重建 orderedQtyMap（這樣管理員取消訂單後會自動歸零）
+  // 從真實訂單重建 orderedQtyMap(這樣管理員取消訂單後會自動歸零)
   rebuildOrderedQtyMap(allOrdersCache);
   renderOrdersTabs();
   renderOrdersList();
@@ -1823,7 +1826,7 @@ async function loadOrders(){
 function rebuildOrderedQtyMap(orders){
   const newMap = {};
   (orders||[]).forEach(o=>{
-    // 只計算「有效」訂單（非取消）
+    // 只計算「有效」訂單(非取消)
     if(o.status==='cancelled') return;
     let items=[];
     try{ items=JSON.parse(o.note||'[]'); }catch(e){}
@@ -1983,7 +1986,7 @@ function openOrderDetail(orderId){
       <div class="od-row"><span class="od-row-lbl">日期</span><span class="od-row-val">${dateStr}</span></div>
       <div class="od-row"><span class="od-row-lbl">配送方式</span><span class="od-row-val">${o.store||'—'}</span></div>
       <div class="od-row"><span class="od-row-lbl">商品合計</span><span class="od-row-val">NT$ ${total.toLocaleString()}</span></div>
-      <div class="od-row"><span class="od-row-lbl">尾款（取貨時付）</span><span class="od-row-val">NT$ ${tail.toLocaleString()}</span></div>
+      <div class="od-row"><span class="od-row-lbl">尾款(取貨時付)</span><span class="od-row-val">NT$ ${tail.toLocaleString()}</span></div>
       <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">NT$ ${dep.toLocaleString()}</span></div>
     </div>
 
@@ -2048,7 +2051,7 @@ function renderShopDebounced(){
   _renderShopTimer = setTimeout(renderShop, 50);
 }
 function getVis(){
-  // 已過結單日的預購商品視同下架（「已結單」filter 除外）
+  // 已過結單日的預購商品視同下架(「已結單」filter 除外)
   const pub=products.filter(p=>
     p.status==='published' &&
     !(p.type==='預購' && isDeadlinePassed(p.deadline))
@@ -2107,7 +2110,7 @@ function updCounts(){
 function renderDynamicFilter(listId, items){
   const el = document.getElementById(listId);
   if(!el) return;
-  if(!items.length){ el.innerHTML='<a style="color:var(--ink3);cursor:default;font-size:12px">（暫無）</a>'; return; }
+  if(!items.length){ el.innerHTML='<a style="color:var(--ink3);cursor:default;font-size:12px">(暫無)</a>'; return; }
   el.innerHTML = items.map(v=>
     `<a onclick="setSubFilter('${v.replace(/'/g,"&#39;")}')">${v}</a>`
   ).join('');
@@ -2132,11 +2135,11 @@ function setSubFilter(f){
 function renderBrandFilter(pub){
   const bl = document.getElementById('brandList');
   if(!bl) return;
-  // 取所有已上架商品的品牌（brand 欄位，取「/」前的部分作為廠牌）
+  // 取所有已上架商品的品牌(brand 欄位，取「/」前的部分作為廠牌)
   const brands = [...new Set(
     pub.map(p=>(p.brand||'').split('/')[0].trim()).filter(Boolean)
   )].sort();
-  if(!brands.length){ bl.innerHTML='<a style="color:var(--ink3);cursor:default">（暫無）</a>'; return; }
+  if(!brands.length){ bl.innerHTML='<a style="color:var(--ink3);cursor:default">(暫無)</a>'; return; }
   bl.innerHTML = brands.map(b=>
     `<a onclick="setBrandFilter('${b.replace(/'/g,"\'")}')">
       ${b}
@@ -2202,7 +2205,7 @@ function renderShop(){
     grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
-  // ── 全局圖片 URL 快取（防閃爍核心）─────────────────────────────────────
+  // ── 全局圖片 URL 快取(防閃爍核心)─────────────────────────────────────
   list.forEach(p=>{ if(p.imageUrl) window._imgCache = window._imgCache||{}, window._imgCache[p.id]=p.imageUrl; });
   const _newHtml = list.map(p=>{
     const fav    = favs.map(String).includes(String(p.id));
@@ -2245,7 +2248,7 @@ function renderShop(){
       +'</div>'
       +'</div></div>';
   }).join('');
-  // 比對是否真的有變化（用字串長度+前32字元快速比較）
+  // 比對是否真的有變化(用字串長度+前32字元快速比較)
   const _sig = _newHtml.length+'|'+_newHtml.slice(0,32);
   if(grid.dataset.sig !== _sig){
     grid.innerHTML = _newHtml;
@@ -2278,7 +2281,7 @@ function openDetail(id){
     <span class="bc-link" onclick="setSubFilter('${p.form}');goHome()">${p.form||p.brand}</span>
   `;
 
-  // Image（使用 imageUrls 陣列，第一張為主圖）
+  // Image(使用 imageUrls 陣列，第一張為主圖)
   const _imgs = (Array.isArray(p.imageUrls)&&p.imageUrls.length) ? p.imageUrls : (p.imageUrl ? [p.imageUrl] : []);
   const _mainImg = _imgs[0] || PLACEHOLDER_IMG;
   const dMainEl = document.getElementById('dMainImg');
@@ -2327,7 +2330,7 @@ function openDetail(id){
 
   // Meta
   const _deadlinePassed = p.type==='預購' && isDeadlinePassed(p.deadline);
-  // 現貨剩餘庫存（扣掉購物車中的數量）
+  // 現貨剩餘庫存(扣掉購物車中的數量)
   const _inCartQty = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
   const _remainStock = p.stock>0 ? Math.max(0, p.stock - _inCartQty) : null;
   document.getElementById('dMeta').innerHTML=`
@@ -2342,7 +2345,7 @@ function openDetail(id){
   // Fav & Buy button
   updateDetailFavBtn();
   updateDetailBuyBtn(p);
-  // 初始化 + 按鈕狀態（同步 chgDQty 邏輯）
+  // 初始化 + 按鈕狀態(同步 chgDQty 邏輯)
   _syncPlusBtn(p);
 
   // 管理員快速操作列
@@ -2381,7 +2384,7 @@ function selVariant(el,v){
   updateDetailBuyBtn(p);
   _syncPlusBtn(p);
 }
-// 同步 + 按鈕狀態（供 openDetail / selVariant 呼叫）
+// 同步 + 按鈕狀態(供 openDetail / selVariant 呼叫)
 function _syncPlusBtn(p){
   if(!p) p=products.find(x=>String(x.id)===String(currentProductId));
   if(!p) return;
@@ -2413,7 +2416,7 @@ function chgDQty(d){
   const newQty=Math.max(1, Math.min(detailQty+d, maxAdd>0?maxAdd:1));
   detailQty=newQty;
   document.getElementById('dQtyVal').textContent=detailQty;
-  // 更新 + 按鈕狀態（依庫存和限購同時限制）
+  // 更新 + 按鈕狀態(依庫存和限購同時限制)
   const plusBtn=document.querySelector('[onclick="chgDQty(1)"]');
   if(plusBtn){ plusBtn.disabled=(detailQty>=maxAdd||maxAdd<=0); plusBtn.style.opacity=(detailQty>=maxAdd||maxAdd<=0)?'0.35':''; }
 }
@@ -2465,7 +2468,7 @@ function updateDetailBuyBtn(p){
   } else {
     const _depAmt = getProductDeposit(p);
     const _label = p.type==='預購'
-      ? (_depAmt>0 ? '加入預購（訂金 NT$'+_depAmt+'）' : '加入預購')
+      ? (_depAmt>0 ? '加入預購(訂金 NT$'+_depAmt+')' : '加入預購')
       : '🛒 加入購物車';
     _en(_label);
   }
@@ -2488,7 +2491,7 @@ function addDetailToCart(){
   }
   const v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
   const maxQty = parseLimit(p.limit);
-  // 每個規格分別限購（例如限購2，每個規格都最多2件）
+  // 每個規格分別限購(例如限購2，每個規格都最多2件)
   // 找同商品同規格在購物車的總數量
   const variantQtyInCart   = cart
     .filter(x=>String(x.id)===String(currentProductId) && (x.variant||'')===(v||''))
@@ -2497,7 +2500,7 @@ function addDetailToCart(){
   const variantQtyTotal    = variantQtyInCart + variantQtyOrdered;
   if(variantQtyTotal + detailQty > maxQty){
     const msg = variantQtyOrdered > 0
-      ? `⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}（已下單 ${variantQtyOrdered} 件，購物車 ${variantQtyInCart} 件）`
+      ? `⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}(已下單 ${variantQtyOrdered} 件，購物車 ${variantQtyInCart} 件)`
       : `⚠️ ${v?'【'+v+'】':'此商品'} 每人限購 ${p.limit}，您已有 ${variantQtyInCart} 件`;
     showToast(msg);
     return;
@@ -2509,7 +2512,7 @@ function addDetailToCart(){
   persist(); updBadge();
   showToast('✅ 已加入購物車：'+p.name.slice(0,16)+'…');
   updateDetailBuyBtn(p); // 更新按鈕狀態
-  // 延遲輕量更新（只更新庫存顯示，不重繪整個商品列表）
+  // 延遲輕量更新(只更新庫存顯示，不重繪整個商品列表)
   setTimeout(()=>{ try{ updCounts(); }catch(e){} }, 100);
 }
 
@@ -2662,7 +2665,7 @@ function renderCheckoutPage(){
   const dep = calcCartDeposit();
   const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
 
-  // items detail（分現貨/預購分組）
+  // items detail(分現貨/預購分組)
   const _coStock = cart.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='現貨'; });
   const _coPre   = cart.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='預購'; });
   const _renderItems = (items) => items.map(ci=>{
@@ -2703,8 +2706,8 @@ function renderCheckoutPage(){
       +'⭐ 首次預購需支付預購商品總金額 <b>50%</b> 作為訂金，現貨商品無需訂金。</div>';
   }
   _summaryHtml += '<div class="cod-row"><span>商品合計</span><span>NT$ '+total.toLocaleString()+'</span></div>';
-  if(dep>0) _summaryHtml += '<div class="cod-row"><span>'+(_isFirstBuyer?'首購訂金（50%）':'預購訂金')+'</span><span style="color:var(--red);font-weight:700">NT$ '+dep.toLocaleString()+'</span></div>';
-  if(dep>0) _summaryHtml += '<div class="cod-row"><span>尾款（到貨時付）</span><span>NT$ '+tail.toLocaleString()+'</span></div>';
+  if(dep>0) _summaryHtml += '<div class="cod-row"><span>'+(_isFirstBuyer?'首購訂金(50%)':'預購訂金')+'</span><span style="color:var(--red);font-weight:700">NT$ '+dep.toLocaleString()+'</span></div>';
+  if(dep>0) _summaryHtml += '<div class="cod-row"><span>尾款(到貨時付)</span><span>NT$ '+tail.toLocaleString()+'</span></div>';
 
   document.getElementById('checkoutSummaryRows').innerHTML = _summaryHtml;
   document.getElementById('checkoutPayAmt').textContent = dep>0 ? 'NT$ '+dep.toLocaleString() : 'NT$ '+total.toLocaleString();
@@ -2762,7 +2765,7 @@ async function submitCheckoutOrder(){
     order_code: orderNum,
   });
 
-  // ── 建立訂單（可能是1或2張）───────────────────────────────
+  // ── 建立訂單(可能是1或2張)───────────────────────────────
   let stockOrderNum='', preOrderNum='', stockDep=0, preDep=0;
   let insertError = null;
 
@@ -2859,7 +2862,7 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
     subHtml   = isPickup ? '請完成匯款，到貨後依通知告知自取時間' : '請完成匯款，訂金到帳後訂單才會正式成立';
   }
 
-  // ── 訂單編號區（可能兩張）──────────────────────────────────
+  // ── 訂單編號區(可能兩張)──────────────────────────────────
   let orderNumHtml = '';
   if(hasMixed){
     orderNumHtml =
@@ -2883,7 +2886,7 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
       +'・預購商品待到貨後另行通知出貨</div>'
     : '';
 
-  // ── 付款資訊（預購才有訂金）──────────────────────────────
+  // ── 付款資訊(預購才有訂金)──────────────────────────────
   let payHtml = '';
   if(hasPre && preDep>0){
     let bankDetails = s.bankAccount
@@ -2891,7 +2894,7 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
         +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
         +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
         +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+preDep.toLocaleString()+'</span></div>'
-      : '<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>';
+      : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫店家確認匯款方式)</div>';
     payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
       +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
       +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b></div>'
@@ -2906,9 +2909,9 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
   // 自取地點說明
   const _pickupInfo = isPickup && pickupLoc ? (() => {
     if(pickupLoc.includes('頑瘋樂'))
-      return '• 自取地點：<b>七張 — 頑瘋樂</b>（週一〜六 16:30–21:00）<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間，<b>須提前告知</b>';
+      return '• 自取地點：<b>七張 — 頑瘋樂</b>(週一〜六 16:30–21:00)<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間，<b>須提前告知</b>';
     if(pickupLoc.includes('亞昕'))
-      return '• 自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員預約自取，<b>須提前預約</b>';
+      return '• 自取地點：<b>林口 — 7-11 亞昕門市</b>(限週日、週一)<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員預約自取，<b>須提前預約</b>';
     return '• 自取地點：'+pickupLoc+'<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間';
   })() : '';
 
@@ -2984,7 +2987,7 @@ async function syncProductsFromSupabase(){
     if(errMsg){ console.warn('商品讀取失敗，使用本地資料:', errMsg); renderShop(); return; }
     // sync 成功：清除任何可能殘留的舊測試資料
     if(data){
-      // 轉換欄位格式（Supabase snake_case → JS camelCase）
+      // 轉換欄位格式(Supabase snake_case → JS camelCase)
       products = data.map(p=>({
         id:        p.id,
         name:      p.name||'',
@@ -3010,14 +3013,13 @@ async function syncProductsFromSupabase(){
       }));
       localStorage.setItem('tf_p', JSON.stringify(products));
       localStorage.setItem('tf_p_ts', String(Date.now())); // 更新快取時間戳
-      console.log('✅ 商品已從 Supabase 同步，共', products.length, '件');
-    }
+      }
     renderShop(); updCounts(); // 無論有無資料都更新畫面
     _restoreHashPage(); // sync 完成後嘗試恢復 hash 頁面
   } catch(e){ console.warn('syncProducts error:', e); renderShop(); }
 }
 
-// 根據 URL hash 恢復頁面（在 products 載入後呼叫）
+// 根據 URL hash 恢復頁面(在 products 載入後呼叫)
 let _hashRestored = false;
 function _restoreHashPage(){
   if(_hashRestored) return;
@@ -3139,7 +3141,7 @@ function renderCartPage(){
       _cartWarn.style.display='';
       _cartWarn.innerHTML='⚠️ <b>庫存不足：</b>'+_overStock.map(ci=>{
         const p=products.find(x=>String(x.id)===String(ci.id));
-        return p.name.slice(0,15)+'（剩 '+p.stock+' 件，已加 '+ci.qty+' 件）';
+        return p.name.slice(0,15)+'(剩 '+p.stock+' 件，已加 '+ci.qty+' 件)';
       }).join('、')+' — 請調整數量後再結帳';
     } else { _cartWarn.style.display='none'; }
   }
@@ -3203,9 +3205,11 @@ function cartChg(id,d){
   }
   it.qty=Math.max(0,it.qty+d);
   if(!it.qty) cart=cart.filter(x=>String(x.id)!==id_str);
-  persist();updBadge();renderCartPage();
+  // 只存 cart，不存 products（products 很大，不必每次 +/- 都存）
+  try{ localStorage.setItem('tf_c', JSON.stringify(cart)); }catch(e){}
+  updBadge(); renderCartPage();
 }
-function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); persist();updBadge();renderCartPage(); }
+function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); try{localStorage.setItem('tf_c',JSON.stringify(cart));}catch(e){} updBadge();renderCartPage(); }
 
 // ─── AUTH (Supabase) ──────────────────────────────────────
 function openAuth(){document.getElementById('authModal').classList.add('open');}
@@ -3213,7 +3217,7 @@ function closeAuth(){document.getElementById('authModal').classList.remove('open
 
 async function loginWithGoogle(){
   try {
-    // 先試 popup（不跳頁，體驗更好）
+    // 先試 popup(不跳頁，體驗更好)
     const {error} = await _sb.auth.signInWithOAuth({
       provider:'google',
       options:{
@@ -3272,14 +3276,14 @@ _sb.auth.onAuthStateChange((event, session) => {
       email: u.email,
       photo: u.user_metadata?.avatar_url || null,
     };
-    // 載入此帳號專屬的 profile（姓名、電話）
+    // 載入此帳號專屬的 profile(姓名、電話)
     loadProfileForUser(u.email);
     persist();
     closeAuth();
     renderAuth();
     if(event==='SIGNED_IN'){
       showToast('👋 歡迎，'+user.name.split(' ')[0]+'！');
-      // 登入後拉訂單重建限購記錄（確保與伺服器同步）
+      // 登入後拉訂單重建限購記錄(確保與伺服器同步)
       _sb.from('orders').select('id,note,status').eq('user_email', u.email).neq('status','cancelled').then(({data})=>{
         if(data) rebuildOrderedQtyMap(data);
       });
@@ -3386,16 +3390,15 @@ async function testEmail(){
       subject_status: '待付款',
       header_title: '【測試信】訂單已成立 — 待付款',
       header_sub: `${user.name||'測試用戶'} 您好，這是一封測試信，確認 EmailJS 設定正確。`,
-      items_html: '<table style="width:100%;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:8px;text-align:left;font-size:12px">商品</th><th style="padding:8px;text-align:center;font-size:12px">數量</th><th style="padding:8px;text-align:right;font-size:12px">小計</th></tr><tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">測試商品（規格：紅色）</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">1</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ 320</td></tr></table>',
+      items_html: '<table style="width:100%;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:8px;text-align:left;font-size:12px">商品</th><th style="padding:8px;text-align:center;font-size:12px">數量</th><th style="padding:8px;text-align:right;font-size:12px">小計</th></tr><tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">測試商品(規格：紅色)</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">1</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ 320</td></tr></table>',
       amount_html: '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b"><span>應付訂金</span><span>NT$ 100</span></div><div style="font-size:12px;color:#888;margin-top:6px">尾款 NT$ 220 於取貨時支付</div></div>',
-      bank_html: shopSettings.bankAccount ? `<div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-top:12px"><div style="font-size:15px;font-weight:700;margin-bottom:12px">💳 轉帳資訊</div><table style="width:100%;font-size:13px"><tr><td style="padding:5px 0;color:#888;width:50px">銀行</td><td>${shopSettings.bankName} ${shopSettings.bankCode}</td></tr><tr><td style="padding:5px 0;color:#888">帳號</td><td style="font-family:monospace;letter-spacing:2px">${shopSettings.bankAccount}</td></tr><tr><td style="padding:5px 0;color:#888">戶名</td><td>${shopSettings.bankHolder}</td></tr></table></div>` : '<p style="color:#888;font-size:12px">（尚未設定銀行帳號）</p>',
-      reminder_html: '<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404">⚠️ 請於 48 小時內完成匯款，逾時視同取消。（這是測試信）</div>',
+      bank_html: shopSettings.bankAccount ? `<div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-top:12px"><div style="font-size:15px;font-weight:700;margin-bottom:12px">💳 轉帳資訊</div><table style="width:100%;font-size:13px"><tr><td style="padding:5px 0;color:#888;width:50px">銀行</td><td>${shopSettings.bankName} ${shopSettings.bankCode}</td></tr><tr><td style="padding:5px 0;color:#888">帳號</td><td style="font-family:monospace;letter-spacing:2px">${shopSettings.bankAccount}</td></tr><tr><td style="padding:5px 0;color:#888">戶名</td><td>${shopSettings.bankHolder}</td></tr></table></div>` : '<p style="color:#888;font-size:12px">(尚未設定銀行帳號)</p>',
+      reminder_html: '<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404">⚠️ 請於 48 小時內完成匯款，逾時視同取消。(這是測試信)</div>',
       delivery: '寄送',
       phone: '0900000000',
     });
-    console.log('EmailJS result:', result);
     if(btn){ btn.disabled=false; btn.textContent='📧 寄測試信'; }
-    alert(`✅ 測試信已成功寄出！\n\n寄送至：${user.email}\n\n請到信箱查收（可能在垃圾信件匣）。`);
+    alert(`✅ 測試信已成功寄出！\n\n寄送至：${user.email}\n\n請到信箱查收(可能在垃圾信件匣)。`);
   } catch(err){
     console.error('EmailJS error:', err);
     if(btn){ btn.disabled=false; btn.textContent='📧 寄測試信'; }
@@ -3475,7 +3478,7 @@ function acSave(){
 function acAddMemory(type, value){
   if(!value) return;
   if(!acMemory[type]) acMemory[type]=[];
-  // 移到最前面（最近用過的）
+  // 移到最前面(最近用過的)
   acMemory[type] = [value, ...acMemory[type].filter(v=>v!==value)].slice(0,30);
   acSave();
 }
@@ -3533,7 +3536,7 @@ function renderVariantPrices(){
     const inp=row.querySelector('.vp-price-inp');
     if(n&&inp) existing[n]=inp.value;
   });
-  grid.innerHTML = '<div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>' +
+  grid.innerHTML = '<div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價(留空表示使用售價)</div>' +
     variants.map(v=>`
       <div class="vp-row" data-v="${v}">
         <span class="vp-name">${v}</span>
@@ -3662,7 +3665,7 @@ function renderArrivalTracker(){
   // 讀取目前選擇的月份
   const selEl = document.getElementById('arrivalMonthSel');
   let selectedMonth = selEl ? selEl.value : '';
-  // 若目前選的月份不在清單裡（例如切換後商品被刪），fallback 到第一個
+  // 若目前選的月份不在清單裡(例如切換後商品被刪)，fallback 到第一個
   if(!selectedMonth || !months.includes(selectedMonth)) selectedMonth = months[0];
 
   // 篩選該月到貨的商品
@@ -3677,7 +3680,7 @@ function renderArrivalTracker(){
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div style="font-size:14px;font-weight:700">📦 到貨追蹤</div>
       <select id="arrivalMonthSel" style="height:32px;font-size:13px;border:1px solid var(--border2);border-radius:var(--r);padding:4px 10px;background:var(--white);color:var(--ink);outline:none;cursor:pointer;max-width:200px" onchange="renderArrivalTracker()">
-        ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月（${products.filter(p=>p.arrival&&p.arrival.slice(0,7)===m).length}件）</option>`).join('')}
+        ${months.map(m=>`<option value="${m}" ${m===selectedMonth?'selected':''}>${m.replace('-','年')}月(${products.filter(p=>p.arrival&&p.arrival.slice(0,7)===m).length}件)</option>`).join('')}
       </select>
       <span style="font-size:12px;color:var(--ink3)">${monthLabel}共 <b style="color:var(--ink)">${arrivals.length}</b> 件商品預計到貨</span>
     </div>
@@ -3758,7 +3761,7 @@ function renderAdminList(){
     return aT - bT;
   });
 
-  // 今日結單數量（在已篩選的清單裡）
+  // 今日結單數量(在已篩選的清單裡)
   const todayCount = sorted.filter(_isTodayDeadline).length;
 
   let html = '';
@@ -3769,7 +3772,7 @@ function renderAdminList(){
       <span style="font-size:18px">⏰</span>
       <div>
         <div style="font-size:13px;font-weight:700;color:#b45309">今日結單提醒</div>
-        <div style="font-size:12px;color:#92400e">共 ${todayCount} 件商品今天（${todayStr}）截止，請確認訂單是否完整！</div>
+        <div style="font-size:12px;color:#92400e">共 ${todayCount} 件商品今天(${todayStr})截止，請確認訂單是否完整！</div>
       </div>
     </div>`;
   }
@@ -3791,7 +3794,7 @@ function renderAdminList(){
       catch(e){ return s+(o.qty||1); }
     }, 0);
 
-    // 各規格分別售出數（排除已取消）
+    // 各規格分別售出數(排除已取消)
     const _variantSold = {};
     _pOrders.filter(o=>o.status!=='cancelled').forEach(o=>{
       try{
@@ -3870,7 +3873,7 @@ function renderAdminList(){
       </div>
       ${_pOrders.length>0?`
       <div class="p-order-panel" id="opanel-${pid}">
-        <div style="font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.5px;margin-bottom:8px">📋 購買訂單（共 ${_pOrders.length} 筆）</div>
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.5px;margin-bottom:8px">📋 購買訂單(共 ${_pOrders.length} 筆)</div>
         ${_orderRows}
       </div>`:''}
     </div>`;
@@ -3907,7 +3910,7 @@ function openDeadlineModal(id, mode){
     input.min   = new Date().toISOString().split('T')[0]; // 不能選過去
   } else {
     title.textContent = '🔄 恢復結單 — 重設截止日';
-    sub.textContent   = '請選擇新的結單日（選好後商品將恢復可購買狀態）';
+    sub.textContent   = '請選擇新的結單日(選好後商品將恢復可購買狀態)';
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate()+1);
     input.value = tomorrow.toISOString().split('T')[0];
@@ -3949,7 +3952,7 @@ async function confirmDeadlineModal(){
   closeDeadlineModal();
   renderAdminList(); renderShop();
 
-  // 更新詳細頁（若正在看該商品）
+  // 更新詳細頁(若正在看該商品)
   if(String(currentProductId)===String(_deadlineModalId||p.id)){
     updateDetailBuyBtn(p);
     const _bar = document.getElementById('adminDetailBar');
@@ -3969,7 +3972,7 @@ async function forceCloseDeadline(id){
   if(!p){ showToast('找不到商品'); return; }
   if(!confirm(`確定要提早結單「${p.name.slice(0,20)}」？\n\n結單後購物車中的此商品將自動移除，顧客無法再下單。`)) return;
 
-  // 把 deadline 改成昨天（確保 isDeadlinePassed 立刻生效）
+  // 把 deadline 改成昨天(確保 isDeadlinePassed 立刻生效)
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate()-1);
   const newDeadline = yesterday.toISOString().split('T')[0];
@@ -4071,7 +4074,7 @@ async function saveProduct(){
   if(!name||!brand||!price){showToast('⚠️ 請填寫名稱、品牌及售價');return;}
   const varStr=document.getElementById('fVariants').value.trim();
   const variants=varStr?varStr.split(',').map(x=>x.trim()).filter(Boolean):[];
-  const imgUrl=_adminImgs[0]||'';  // 第一張為主圖（imageUrl 欄位向下相容）
+  const imgUrl=_adminImgs[0]||'';  // 第一張為主圖(imageUrl 欄位向下相容)
   const depositVal = document.getElementById('fDeposit')?.value.trim();
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
   const variantPrices = getVariantPrices();
@@ -4165,12 +4168,12 @@ function _aoRenderStats(){
   const counts={all:0,new:0,paid:0,partial:0,pickup_ready:0,shipped:0,cancelled:0};
   _allAdminOrders.forEach(o=>{counts.all++;if(counts[o.status]!==undefined)counts[o.status]++;});
 
-  // 訂金收入：已收到的訂金（paid + partial + shipped）
+  // 訂金收入：已收到的訂金(paid + partial + shipped)
   const depositAmt = _allAdminOrders
     .filter(o=>['paid','partial','shipped'].includes(o.status))
     .reduce((s,o)=>s+(o.price||0),0);
 
-  // 總收入：已完成訂單的商品總金額（items 裡的 price 加總）
+  // 總收入：已完成訂單的商品總金額(items 裡的 price 加總)
   const completedOrders = _allAdminOrders.filter(o=>o.status==='shipped');
   const totalRevenue = completedOrders.reduce((s,o)=>{
     let items=[];
@@ -4189,7 +4192,7 @@ function _aoRenderStats(){
 }
 
 function _aoRenderTabs(){
-  const counts={all:0,new:0,paid:0,partial:0,shipped:0,cancelled:0};
+  const counts={all:0,new:0,paid:0,partial:0,pickup_ready:0,shipped:0,cancelled:0};
   _allAdminOrders.forEach(o=>{counts.all++;if(counts[o.status]!==undefined)counts[o.status]++;});
   const tabs=[
     {key:'all',label:'全部'},
@@ -4270,14 +4273,14 @@ async function executeBatchCancel(){
   _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
 }
 
-// ─── 優先排序：常客（已完成訂單數）> 訂單量 > 時間 ──────────────
+// ─── 優先排序：常客(已完成訂單數)> 訂單量 > 時間 ──────────────
 function _getPriorityScore(o){
   const completedCount = _allAdminOrders.filter(x=>
     x.user_email===o.user_email && x.status==='shipped'
   ).length;
   let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
   const qty = items.reduce((s,i)=>s+(i.qty||1),0) || o.qty || 1;
-  // 分數：常客數 * 1000 + 訂單量 * 10（時間由排序位置決定）
+  // 分數：常客數 * 1000 + 訂單量 * 10(時間由排序位置決定)
   return completedCount * 1000 + qty * 10;
 }
 function aoDoSearch(){_aoQuery=document.getElementById('aoSearch').value.trim().toLowerCase();_aoRenderCards();}
@@ -4310,7 +4313,7 @@ function _aoRenderCards(){
     const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
     const dateStr=o.created_at?new Date(o.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
     const _oIsPickup  = (o.store||'').startsWith('自取');
-    // 判斷是否有訂金（有訂金 = 預購訂單，需確認付款）
+    // 判斷是否有訂金(有訂金 = 預購訂單，需確認付款)
     const _hasDeposit = (o.price||0) > 0;
     // 現貨訂單：price=0，不需確認付款，直接進入「已成立」
     const _isStockOrder = !_hasDeposit && o.status==='new';
@@ -4417,11 +4420,11 @@ async function aoUpdateStatus(id, newStatus){
   _aoRenderStats();_aoRenderTabs();_aoRenderCards();
   showToast(`✅ 訂單 #${id} → ${si?.label||newStatus}`);
 
-  // 寄通知信給顧客（只在特定狀態才寄）
+  // 寄通知信給顧客(只在特定狀態才寄)
   const _shouldEmail = {
-    paid:         true,    // 訂金已收到（預購才會走到這）
+    paid:         true,    // 訂金已收到(預購才會走到這)
     partial:      true,    // 部分出貨通知
-    pickup_ready: true,    // 自取到貨通知（特殊格式）
+    pickup_ready: true,    // 自取到貨通知(特殊格式)
     shipped:      false,   // 不寄：賣貨便/郵寄自動通知，避免浪費 EmailJS 扣打
     cancelled:    true,    // 取消通知
   };
@@ -4489,7 +4492,7 @@ async function sendPostRequestEmail(){
   const btn = document.querySelector('#postStep1 button');
   if(btn){ btn.disabled=true; btn.textContent='寄送中…'; }
 
-  // 收件資訊填寫連結（使用特殊 hash 讓顧客點擊後自動開啟填寫表單）
+  // 收件資訊填寫連結(使用特殊 hash 讓顧客點擊後自動開啟填寫表單)
   const fillUrl = `${window.location.origin}${window.location.pathname}#fill-addr-${o.order_code||o.id}`;
 
   try{
@@ -4502,9 +4505,9 @@ async function sendPostRequestEmail(){
       header_sub:   `${o.customer_name||'您好'}，您的訂單商品需改為郵寄出貨，請補款並提供寄件資訊。`,
       items_html:   `<p style="font-size:13px;line-height:1.8">
         ${note?`<b>說明：</b>${note}<br><br>`:''}
-        <b>需補款金額：</b>NT$ ${tail.toLocaleString()}（尾款）+ NT$ ${shipFee}（運費）= <b style="color:#c0392b">NT$ ${total.toLocaleString()}</b><br><br>
+        <b>需補款金額：</b>NT$ ${tail.toLocaleString()}(尾款)+ NT$ ${shipFee}(運費)= <b style="color:#c0392b">NT$ ${total.toLocaleString()}</b><br><br>
         <b>請回覆本信提供以下資訊：</b><br>
-        ① 匯款帳號<b>末五碼</b>（供查詢是否入帳）<br>
+        ① 匯款帳號<b>末五碼</b>(供查詢是否入帳)<br>
         ② 收件人姓名<br>
         ③ 收件人手機號碼<br>
         ④ 郵遞區號＋完整地址<br><br>
@@ -4547,7 +4550,7 @@ async function sendTrackingEmail(){
   o.status = 'shipped';
 
   if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId){
-    showToast('✅ 追蹤碼已儲存（EmailJS 未設定，無法寄信）');
+    showToast('✅ 追蹤碼已儲存(EmailJS 未設定，無法寄信)');
     closePostModal(); _aoRenderStats(); _aoRenderTabs(); _aoRenderCards(); return;
   }
   try{ emailjs.init({publicKey:emailjsConfig.publicKey}); }catch(e){}
@@ -4614,7 +4617,7 @@ function searchCustomer(){
     return;
   }
 
-  // 依 email/phone 分組（同一顧客）
+  // 依 email/phone 分組(同一顧客)
   const groups = {};
   matched.forEach(o=>{
     const key = o.user_email||o.phone||o.customer_name;
@@ -4733,9 +4736,9 @@ async function sendStatusEmail(o, newStatus){
   let reminderHtml = '';
   if(newStatus === 'pickup_ready'){
     const _locDetail = _pickupLoc.includes('頑瘋樂')
-      ? '自取地點：<b>七張 — 頑瘋樂</b>（週一〜六 16:30–21:00）<br>地址：<a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" style="color:#1a56c4">Google Maps 導航</a>'
+      ? '自取地點：<b>七張 — 頑瘋樂</b>(週一〜六 16:30–21:00)<br>地址：<a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" style="color:#1a56c4">Google Maps 導航</a>'
       : _pickupLoc.includes('亞昕')
-      ? '自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>地址：<a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" style="color:#1a56c4">Google Maps 導航</a>'
+      ? '自取地點：<b>林口 — 7-11 亞昕門市</b>(限週日、週一)<br>地址：<a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" style="color:#1a56c4">Google Maps 導航</a>'
       : '自取地點：' + _pickupLoc;
     reminderHtml =
       '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin-top:12px;font-size:13px;line-height:1.9">'
@@ -4774,7 +4777,7 @@ async function sendStatusEmail(o, newStatus){
   }
 }
 
-// 現貨訂單確認成立（不寄付款確認信）
+// 現貨訂單確認成立(不寄付款確認信)
 async function aoMarkStockPaid(id){
   if(!confirm('確定將此現貨訂單設為已成立？')) return;
   const {error} = await _sb.from('orders').update({status:'paid'}).eq('id',id);
@@ -4783,7 +4786,7 @@ async function aoMarkStockPaid(id){
   if(o) o.status='paid';
   _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
   showToast('✅ 訂單已成立');
-  // 不寄 Email（現貨由賣貨便通知）
+  // 不寄 Email(現貨由賣貨便通知)
 }
 
 // ─── 頑瘋樂自取請款統計 ──────────────────────────────────────
@@ -4815,7 +4818,7 @@ function renderFwlTab(){
   const _totalDone   = calcTotal(groups.done);
   const _allTotal    = calcTotal(fwlOrders.filter(o=>o.status!=='cancelled'));
 
-  // 待請款：已完成自取（shipped）
+  // 待請款：已完成自取(shipped)
   const _pendingClaim = groups.done;
   const _pendingAmt   = _totalDone;
 
@@ -4824,7 +4827,7 @@ function renderFwlTab(){
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
     +'<div style="flex:1;min-width:140px;background:#eef7f1;border-radius:10px;padding:16px;text-align:center">'
     +'<div style="font-size:24px;font-weight:800;color:#2e7d32">NT$'+_pendingAmt.toLocaleString()+'</div>'
-    +'<div style="font-size:12px;color:#2e7d32;margin-top:4px">✅ 已完成（待請款）</div>'
+    +'<div style="font-size:12px;color:#2e7d32;margin-top:4px">✅ 已完成(待請款)</div>'
     +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+_pendingClaim.length+' 筆</div>'
     +'</div>'
     +'<div style="flex:1;min-width:140px;background:#fff4e5;border-radius:10px;padding:16px;text-align:center">'
@@ -4835,7 +4838,7 @@ function renderFwlTab(){
     +'<div style="flex:1;min-width:140px;background:var(--bg);border-radius:10px;padding:16px;text-align:center">'
     +'<div style="font-size:24px;font-weight:800;color:var(--ink)">NT$'+_allTotal.toLocaleString()+'</div>'
     +'<div style="font-size:12px;color:var(--ink3);margin-top:4px">📊 全部合計</div>'
-    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">（不含取消）共 '+(fwlOrders.length-groups.cancelled.length)+' 筆</div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">(不含取消)共 '+(fwlOrders.length-groups.cancelled.length)+' 筆</div>'
     +'</div>'
     +'</div>'
 
@@ -4848,7 +4851,7 @@ function renderFwlTab(){
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #2e7d32">'
             +'<div style="flex:1">'
-            +'<div style="font-size:13px;font-weight:600">'+（o.customer_name||'—')+'</div>'
+            +'<div style="font-size:13px;font-weight:600">'+(o.customer_name||'—')+'</div>'
             +'<div style="font-size:11px;color:var(--ink3)">'+o.order_code+'　'+dateStr+'</div>'
             +'<div style="font-size:11px;color:var(--ink3)">'+items.map(i=>i.product_name+(i.variant?' ('+i.variant+')':'')+' ×'+i.qty).join('、')+'</div>'
             +'</div>'
@@ -4868,7 +4871,7 @@ function renderFwlTab(){
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #f9b84b">'
             +'<div style="flex:1">'
             +'<div style="display:flex;align-items:center;gap:8px">'
-            +'<span style="font-size:13px;font-weight:600">'+（o.customer_name||'—')+'</span>'
+            +'<span style="font-size:13px;font-weight:600">'+(o.customer_name||'—')+'</span>'
             +'<span style="font-size:11px;background:'+si.bg+';color:'+si.color+';padding:1px 7px;border-radius:10px">'+si.label+'</span>'
             +'</div>'
             +'<div style="font-size:11px;color:var(--ink3)">'+o.order_code+'　'+dateStr+'</div>'
@@ -4988,7 +4991,7 @@ function openMyshipModal(orderId){
   const custName= o.customer_name||'顧客';
   const shopName= `${custName} 訂單#${o.id}`;
 
-  // 商品名稱（合併所有品項）
+  // 商品名稱(合併所有品項)
   const prodName = items.map(i=>`${i.product_name||''}${i.variant?' ('+i.variant+')':''}×${i.qty||1}`).join('、').slice(0,60);
   const totalQty = items.reduce((s,i)=>s+(i.qty||1),0);
 
@@ -5006,7 +5009,7 @@ function openMyshipModal(orderId){
   var rdoDuring = document.getElementById('rdoDuring_0');
   if(rdoDuring){ rdoDuring.click(); }
 
-  // 設為私密賣場（只傳連結給顧客）
+  // 設為私密賣場(只傳連結給顧客)
   var isPrivate = document.getElementById('isPrivate');
   if(isPrivate){ isPrivate.click(); }
 
@@ -5014,22 +5017,22 @@ function openMyshipModal(orderId){
   var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');
   if(prodNameEl){ prodNameEl.value = ${JSON.stringify(prodName)}; prodNameEl.dispatchEvent(new Event('input')); }
 
-  // 規格（留空，用預設）
+  // 規格(留空，用預設)
   // var specEl = document.querySelector('[name="specification.Cgds_Spec[1]"]');
 
-  // 價格（尾款）
+  // 價格(尾款)
   var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');
   if(priceEl){ priceEl.value = '${tail}'; priceEl.dispatchEvent(new Event('change')); }
 
-  // 庫存數量（等於訂單數量）
+  // 庫存數量(等於訂單數量)
   var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');
   if(invEl){ invEl.value = '${totalQty}'; invEl.dispatchEvent(new Event('change')); }
 
-  // 每人限購（等於訂單數量）
+  // 每人限購(等於訂單數量)
   var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');
   if(maxEl){ maxEl.value = '${totalQty}'; maxEl.dispatchEvent(new Event('change')); }
 
-  // 最低下單（1件）
+  // 最低下單(1件)
   var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');
   if(minEl){ minEl.value = '1'; minEl.dispatchEvent(new Event('change')); }
 
@@ -5117,10 +5120,10 @@ function gen711Script(orderId){
   const singleProduct = [{
     name:  productNames.slice(0, 60),
     qty:   1,
-    price: payAmt   // 總尾款（或總金額），顧客付一次
+    price: payAmt   // 總尾款(或總金額)，顧客付一次
   }];
 
-  // === 腳本內容（在 myship 頁面執行）===
+  // === 腳本內容(在 myship 頁面執行)===
   // 注意：這段腳本裡不能有任何模板字串 ${} 以外的反引號
   const storesData = JSON.stringify([{ name: storeName, products: singleProduct }], null, 2);
 
@@ -5169,7 +5172,7 @@ function gen711Script(orderId){
     '      redirect: "follow",',
     '      credentials: "include"',
     '    });',
-    '    // 從 redirect 後的最終 URL 取得賣場 ID（最後一段路徑）',
+    '    // 從 redirect 後的最終 URL 取得賣場 ID(最後一段路徑)',
     '    const text = await resp.text();',
     '    // 從 HTML 回應裡找 GM 開頭的賣場 ID',
     '    const gmMatch = text.match(/GM[0-9]{10,}/g);',
@@ -5254,7 +5257,7 @@ try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
 // ── Hash 路由恢復：快取有資料時立即執行，不等 sync ────────────────
 if(products.length){
-  // 快取有資料 → 立即嘗試恢復頁面（不等網路）
+  // 快取有資料 → 立即嘗試恢復頁面(不等網路)
   setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
 }
 
@@ -5265,9 +5268,9 @@ if(products.length && _isCacheFresh()){
   syncProductsFromSupabase(); // 無快取或過期 → 立即 sync
 }
 
-// 每小時重新整理商品顯示（結單自動下架）
+// 每小時重新整理商品顯示(結單自動下架)
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
-// 每分鐘輕量檢查（精確到分鐘）— 結單後自動清購物車
+// 每分鐘輕量檢查(精確到分鐘)— 結單後自動清購物車
 setInterval(()=>{
   const expiredIds = new Set(
     products
@@ -5310,7 +5313,7 @@ setInterval(()=>{
     user = null;
     userProfile = { name:'', phone:'' };
   }
-  // 清除 URL hash（Supabase OAuth 會留下 #）
+  // 清除 URL hash(Supabase OAuth 會留下 #)
   if(window.location.hash){
     history.replaceState(null, '', window.location.pathname);
   }
