@@ -927,8 +927,13 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="co-sep"></div>
       <div class="co-sec">配送方式</div>
       <div class="delivery-row">
-        <button class="delivery-opt sel" id="dopt-ship" onclick="selDelivery('寄送')">📦 寄送到府</button>
+        <button class="delivery-opt sel" id="dopt-ship" onclick="selDelivery('寄送')">📦 賣貨便寄送</button>
         <button class="delivery-opt" id="dopt-pickup" onclick="selDelivery('自取')">🏪 自取</button>
+      </div>
+      <!-- 寄送費用說明（寄送時顯示）-->
+      <div id="shipFeeWrap" style="margin-top:10px;background:#f7f7f7;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink3);line-height:1.8">
+        📦 <b style="color:var(--ink2)">賣貨便寄送</b>：運費 <b style="color:var(--ink)">NT$38</b>（依官方公告）<br>
+        <span style="font-size:11px">⚠️ 大型物件無法使用賣貨便，將通知改用郵寄（NT$80），並需提供寄件資訊</span>
       </div>
       <!-- 自取地點選擇（自取時才顯示）-->
       <div id="pickupLocWrap" style="display:none;margin-top:12px">
@@ -2601,9 +2606,11 @@ function selDelivery(v){
   selectedDelivery=v;
   document.getElementById('dopt-ship').classList.toggle('sel',v==='寄送');
   document.getElementById('dopt-pickup').classList.toggle('sel',v==='自取');
-  // 自取時顯示地點選擇
-  const locWrap = document.getElementById('pickupLocWrap');
-  if(locWrap) locWrap.style.display = (v==='自取') ? '' : 'none';
+  // 顯示/隱藏運費說明 & 自取地點
+  const locWrap  = document.getElementById('pickupLocWrap');
+  const shipWrap = document.getElementById('shipFeeWrap');
+  if(locWrap)  locWrap.style.display  = (v==='自取') ? '' : 'none';
+  if(shipWrap) shipWrap.style.display = (v==='寄送') ? '' : 'none';
   if(v!=='自取'){ selectedPickupLoc=''; document.querySelectorAll('.ploc-opt').forEach(el=>el.classList.remove('sel')); }
 }
 
@@ -2741,7 +2748,7 @@ async function submitCheckoutOrder(){
     price: dep,
     customer_name: customerName,
     phone,
-    store: selectedDelivery==='自取' ? '自取：'+selectedPickupLoc : selectedDelivery,
+    store: selectedDelivery==='自取' ? '自取：'+selectedPickupLoc : '賣貨便',
     store_code: '', store_name: '',
     note: JSON.stringify(items),
     user_email: user?.email||'',
@@ -2816,6 +2823,8 @@ async function submitCheckoutOrder(){
     }).catch(e=>console.warn('寄信失敗',e));
   }
   persist(); updBadge();
+  // 清除須知同意記號，下次購買預購商品仍需重新確認
+  sessionStorage.removeItem('tf_terms_agreed');
 
   showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc});
 }
