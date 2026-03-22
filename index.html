@@ -1887,9 +1887,26 @@ function confirmCancelOrder(orderId){
 
 async function doCancelOrder(orderId, btn){
   btn.disabled=true; btn.textContent='處理中...';
+  // 取消前先讀訂單內容，以便恢復庫存
+  const _cancelOrder = allOrdersCache.find(x=>x.id===orderId);
   const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',orderId);
   document.querySelector('.cancel-overlay')?.remove();
   if(error){ showToast('❌ 取消失敗：'+error.message); return; }
+  // 恢復現貨庫存
+  if(_cancelOrder){
+    let _items=[];
+    try{ _items=JSON.parse(_cancelOrder.note||'[]'); }catch(e){}
+    _items.forEach(async it=>{
+      const p=products.find(x=>String(x.id)===String(it.product_id));
+      if(!p||p.type!=='現貨'||!p.stock&&p.stockStatus!=='out_of_stock') return;
+      const restore = it.qty||1;
+      p.stock = (p.stock||0) + restore;
+      if(p.stockStatus==='out_of_stock') p.stockStatus='in_stock';
+      if(p.id && !String(p.id).startsWith('p')){
+        await _sb.from('products').update({stock:p.stock, stock_status:'in_stock'}).eq('id',p.id);
+      }
+    });
+  }
   closeOrderDetail();
   showToast('已取消訂單');
   loadOrders();
@@ -2484,14 +2501,25 @@ function renderCheckoutPage(){
 
   const tail = total - dep;
   const _isFirstBuyer = isFirstTimeBuyer();
-  document.getElementById('checkoutSummaryRows').innerHTML = `
-    ${_isFirstBuyer?`<div style="background:#fff4e5;border:1px solid #f9b84b;border-radius:6px;padding:9px 12px;margin-bottom:8px;font-size:12px;color:#92400e">
-      ⭐ 首次預購需支付商品總金額 <b>50%</b> 作為訂金，待信任紀錄建立後後續訂單依商品設定收取。
-    </div>`:''}
-    <div class="cod-row"><span>商品合計</span><span>NT$ ${total.toLocaleString()}</span></div>
-    ${dep>0?`<div class="cod-row"><span>${_isFirstBuyer?'首購訂金（50%）':'需付訂金'}</span><span style="color:var(--red);font-weight:700">NT$ ${dep.toLocaleString()}</span></div>`:''}
-    ${dep>0?`<div class="cod-row"><span>尾款（取貨時付）</span><span>NT$ ${tail.toLocaleString()}</span></div>`:''}`;
-  document.getElementById('checkoutPayAmt').textContent = dep>0 ? `NT$ ${dep.toLocaleString()}` : `NT$ ${total.toLocaleString()}`;
+  const _hasStockCart  = cart.some(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='現貨'; });
+  const _hasPreCart    = cart.some(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='預購'; });
+  const _isMixed       = _hasStockCart && _hasPreCart;
+
+  let _summaryHtml = '';
+  if(_isMixed){
+    _summaryHtml += '<div style="background:#e8f0fc;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#1a3a6b">'
+      +'📌 購物車同時含有<b>現貨</b>與<b>預購</b>商品，結帳後將自動分成 <b>2 張訂單</b>處理</div>';
+  }
+  if(_isFirstBuyer){
+    _summaryHtml += '<div style="background:#fff4e5;border:1px solid #f9b84b;border-radius:6px;padding:9px 12px;margin-bottom:8px;font-size:12px;color:#92400e">'
+      +'⭐ 首次預購需支付預購商品總金額 <b>50%</b> 作為訂金，現貨商品無需訂金。</div>';
+  }
+  _summaryHtml += '<div class="cod-row"><span>商品合計</span><span>NT$ '+total.toLocaleString()+'</span></div>';
+  if(dep>0) _summaryHtml += '<div class="cod-row"><span>'+(_isFirstBuyer?'首購訂金（50%）':'預購訂金')+'</span><span style="color:var(--red);font-weight:700">NT$ '+dep.toLocaleString()+'</span></div>';
+  if(dep>0) _summaryHtml += '<div class="cod-row"><span>尾款（到貨時付）</span><span>NT$ '+tail.toLocaleString()+'</span></div>';
+
+  document.getElementById('checkoutSummaryRows').innerHTML = _summaryHtml;
+  document.getElementById('checkoutPayAmt').textContent = dep>0 ? 'NT$ '+dep.toLocaleString() : 'NT$ '+total.toLocaleString();
 }
 
 function genOrderNum(){
@@ -2505,130 +2533,213 @@ async function submitCheckoutOrder(){
   const btn = document.getElementById('checkoutSubmitBtn');
   btn.disabled=true; btn.textContent='送出中...';
 
-  const dep = calcCartDeposit();
-  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
-  const orderNum = genOrderNum();
-  const items = cart.map(ci=>{
-    const p=products.find(x=>String(x.id)===String(ci.id));
-    const vp=getVariantPrice(p,ci.variant); return { product_id:ci.id, product_name:p?.name||'', product_emoji:p?.emoji||'', variant:ci.variant||'', qty:ci.qty, price:vp*ci.qty, deposit:(getProductDeposit(p))*ci.qty };
-  });
+  // ── 分類購物車：現貨 / 預購 ──────────────────────────────
+  const cart_snapshot = [...cart];
+  const stockItems   = cart_snapshot.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='現貨'; });
+  const preItems     = cart_snapshot.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='預購'; });
+  const hasMixed     = stockItems.length>0 && preItems.length>0;
+  const hasStock     = stockItems.length>0;
+  const hasPre       = preItems.length>0;
 
-  const record = {
-    product_name: items.map(i=>i.product_name).join(' / '),
+  // ── 計算訂金 ─────────────────────────────────────────────
+  const firstBuyerDep = calcFirstBuyerDeposit();
+  const _calcDep = (items) => {
+    if(firstBuyerDep>0){
+      // 首購：只對預購商品收50%
+      return Math.ceil(items.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='預購'; })
+        .reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return s+getVariantPrice(p,ci.variant)*ci.qty; },0)*0.5);
+    }
+    return items.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); if(!p) return s; return s+(getProductDeposit(p))*ci.qty; },0);
+  };
+  const _makeItems = (items) => items.map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); const vp=getVariantPrice(p,ci.variant); return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp*ci.qty,deposit:getProductDeposit(p)*ci.qty}; });
+  const _makeRecord = (items, dep, orderNum, label) => ({
+    product_name: items.map(i=>i.product_name).join(' / ')+(label?' ['+label+']':''),
     product_emoji: items[0]?.product_emoji||'',
     variant: items.map(i=>i.variant).filter(Boolean).join(', '),
-    qty: cart.reduce((s,i)=>s+i.qty,0),
+    qty: items.reduce((s,i)=>s+i.qty,0),
     price: dep,
     customer_name: customerName,
     phone,
     store: selectedDelivery,
-    store_code: '',
-    store_name: '',
+    store_code: '', store_name: '',
     note: JSON.stringify(items),
     user_email: user?.email||'',
     status: 'new',
-    order_code: orderNum,  // 顧客看到的編號（如 MQ1C2YBO）
-  };
+    order_code: orderNum,
+  });
 
-  const {data,error} = await _sb.from('orders').insert([record]).select().single();
+  // ── 建立訂單（可能是1或2張）───────────────────────────────
+  let stockOrderNum='', preOrderNum='', stockDep=0, preDep=0;
+  let insertError = null;
 
-  if(error){
-    btn.disabled=false; btn.textContent='確認訂單';
-    showToast('❌ 送出失敗：'+error.message); return;
+  if(hasStock){
+    const _items = _makeItems(stockItems);
+    const _dep   = 0; // 現貨不收訂金
+    const _num   = genOrderNum();
+    const {data, error} = await _sb.from('orders').insert([_makeRecord(_items,_dep,_num,hasMixed?'現貨':'')]).select().single();
+    if(error){ insertError=error; }
+    else { stockOrderNum = data?.order_code||_num; stockDep=_dep; }
   }
 
-  // 成功後才 disable 按鈕防重複送出
+  if(!insertError && hasPre){
+    const _items = _makeItems(preItems);
+    const _dep   = _calcDep(preItems);
+    const _num   = genOrderNum();
+    const {data, error} = await _sb.from('orders').insert([_makeRecord(_items,_dep,_num,hasMixed?'預購':'')]).select().single();
+    if(error){ insertError=error; }
+    else { preOrderNum = data?.order_code||_num; preDep=_dep; }
+  }
+
+  if(insertError){
+    btn.disabled=false; btn.textContent='確認訂單';
+    showToast('❌ 送出失敗：'+insertError.message); return;
+  }
+
   btn.disabled=true; btn.textContent='已送出';
 
-  // 以存進 DB 的 order_code 為主（確保一致）
-  const confirmedOrderNum = data?.order_code || orderNum;
-
-  // 快照購物車（清空前）
-  const cart_snapshot = [...cart];
-
-  // increment preorder count (per person, not per qty)
+  // ── 更新計數、庫存、orderedQtyMap ────────────────────────
   const _orderedIds = [...new Set(cart_snapshot.map(ci=>ci.id))];
   _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
 
-  // 記錄各商品各規格已下單數量
-  cart_snapshot.forEach(ci => {
-    const pid = String(ci.id);
-    const v   = ci.variant||'';
+  const _stockUpdates = [];
+  stockItems.forEach(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    if(!p||!p.stock) return;
+    p.stock = Math.max(0, p.stock - ci.qty);
+    if(p.stock===0) p.stockStatus='out_of_stock';
+    if(p.id&&!String(p.id).startsWith('p'))
+      _stockUpdates.push({id:p.id, stock:p.stock, stock_status:p.stock===0?'out_of_stock':(p.stockStatus||'in_stock')});
+  });
+  _stockUpdates.forEach(async ({id,stock,stock_status})=>{ await _sb.from('products').update({stock,stock_status}).eq('id',id); });
+
+  cart_snapshot.forEach(ci=>{
+    const pid=String(ci.id); const v=ci.variant||'';
     if(!orderedQtyMap[pid]) orderedQtyMap[pid]={};
-    orderedQtyMap[pid][v] = (orderedQtyMap[pid][v]||0) + ci.qty;
+    orderedQtyMap[pid][v]=(orderedQtyMap[pid][v]||0)+ci.qty;
   });
   localStorage.setItem('tf_ordered_v2', JSON.stringify(orderedQtyMap));
-
   cart=[];
 
-  // 寄訂單確認信（在 cart 清空後，用已快照的 items）
+  // ── 寄信 ─────────────────────────────────────────────────
   if(user?.email){
-    console.log('📧 準備寄信給', user.email, '| EmailJS keys:', {
-      publicKey: !!emailjsConfig.publicKey,
-      serviceId: !!emailjsConfig.serviceId,
-      templateId: !!emailjsConfig.templateId,
-    });
+    const allItems = _makeItems(cart_snapshot);
+    const allDep   = stockDep+preDep;
+    const allTotal = cart_snapshot.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
     sendOrderEmail({
       customerName: customerName||user.name||user.email,
       customerEmail: user.email,
-      orderNum: confirmedOrderNum,
-      items,
-      total,
-      dep,
-      tail: total - dep,
-      delivery: selectedDelivery,
-      phone: phone||'',
-      settings: shopSettings,
+      orderNum: [stockOrderNum,preOrderNum].filter(Boolean).join(' / '),
+      items: allItems, total: allTotal, dep: allDep,
+      tail: allTotal-allDep, delivery: selectedDelivery,
+      phone: phone||'', settings: shopSettings,
     }).catch(e=>console.warn('寄信失敗',e));
   }
   persist(); updBadge();
 
-  showConfirmPage(confirmedOrderNum, dep);
+  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre});
 }
 
-function showConfirmPage(orderNum, dep){
+function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false}={}){
   const s = shopSettings;
-  const isPreorder = dep > 0;
+  const dep = stockDep + preDep;
+  const isPreorder = hasPre;
+  const isStockOnly = hasStock && !hasPre;
+  const isPreOnly   = hasPre && !hasStock;
 
-  // 建立各段 HTML（避免巢狀 template literal）
-  const iconHtml   = isPreorder ? '📋' : '🎉';
-  const titleHtml  = isPreorder ? '預購申請已送出！' : '訂單成立！感謝您的購買';
-  const subHtml    = isPreorder ? '請完成匯款，訂金到帳後訂單才會正式成立' : '我們將盡快為您安排出貨';
-
-  let payHtml = '';
-  if(isPreorder){
-    let bankDetails = '';
-    if(s.bankAccount){
-      bankDetails = '<div class="bank-r"><span class="bank-r-lbl">銀行</span><span class="bank-r-val">'+s.bankName+' '+s.bankCode+'</span></div>'
-        +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
-        +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
-        +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+dep.toLocaleString()+'</span></div>';
-    } else {
-      bankDetails = '<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>';
-    }
-    payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:16px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
-      +'⚠️ <b>匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
-      +'匯款時請備註訂單編號 <b>'+orderNum+'</b></div>'
-      +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
-      +'<div class="bank-box">'+bankDetails+'</div>'
-      +'<div class="bank-note" style="margin-top:8px;margin-bottom:4px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>';
+  // ── 標題區 ───────────────────────────────────────────────
+  let iconHtml, titleHtml, subHtml;
+  if(hasMixed){
+    iconHtml  = '🎉';
+    titleHtml = '訂單已成立！';
+    subHtml   = '本次購買包含現貨與預購商品，將分批出貨';
+  } else if(isStockOnly){
+    iconHtml  = '🎉';
+    titleHtml = '訂單成立！感謝您的購買';
+    subHtml   = '我們將盡快為您安排出貨';
   } else {
-    payHtml = '<div style="background:#eef7f1;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e7a38;line-height:1.8">✅ 訂單已成立！我們將於出貨後通知您。</div>';
+    iconHtml  = '📋';
+    titleHtml = '預購申請已送出！';
+    subHtml   = '請完成匯款，訂金到帳後訂單才會正式成立';
   }
 
-  const noticeExtra = isPreorder ? '• 商品正確發貨日無法預測，可能因各種因素延期，敬請見諒<br>' : '';
+  // ── 訂單編號區（可能兩張）──────────────────────────────────
+  let orderNumHtml = '';
+  if(hasMixed){
+    orderNumHtml =
+      '<div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:12px">'
+      +'<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">本次共建立 <b>2 張訂單</b></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +(stockOrderNum?'<div style="flex:1;min-width:140px;background:#eef7f1;border-radius:6px;padding:8px 12px"><div style="font-size:10px;color:#2e7d32;font-weight:700;margin-bottom:3px">📦 現貨訂單</div><div style="font-family:monospace;font-weight:700;font-size:14px">'+stockOrderNum+'</div></div>':'')
+      +(preOrderNum?'<div style="flex:1;min-width:140px;background:#fff4e5;border-radius:6px;padding:8px 12px"><div style="font-size:10px;color:#e67300;font-weight:700;margin-bottom:3px">🕐 預購訂單</div><div style="font-family:monospace;font-weight:700;font-size:14px">'+preOrderNum+'</div></div>':'')
+      +'</div></div>';
+  } else {
+    const _num = stockOrderNum||preOrderNum;
+    orderNumHtml = '<div class="conf-num-row"><div><div class="conf-num-lbl">訂單編號</div></div><div class="conf-num-val">'+_num+'</div></div>';
+  }
+
+  // ── 混合出貨說明 ──────────────────────────────────────────
+  const mixedHtml = hasMixed
+    ? '<div style="background:#e8f0fc;border-left:3px solid #1a56c4;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:12px;font-size:12px;color:#1a3a6b;line-height:1.7">'
+      +'📌 <b>分批出貨說明</b><br>'
+      +'由於本次購買包含<b>現貨</b>與<b>預購</b>商品，系統已自動分成兩張訂單處理：<br>'
+      +'・現貨商品將在確認庫存後優先寄出<br>'
+      +'・預購商品待到貨後另行通知出貨</div>'
+    : '';
+
+  // ── 付款資訊（預購才有訂金）──────────────────────────────
+  let payHtml = '';
+  if(hasPre && preDep>0){
+    let bankDetails = s.bankAccount
+      ? '<div class="bank-r"><span class="bank-r-lbl">銀行</span><span class="bank-r-val">'+s.bankName+' '+s.bankCode+'</span></div>'
+        +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
+        +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
+        +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+preDep.toLocaleString()+'</span></div>'
+      : '<div style="color:var(--ink3);font-size:12px;padding:8px">（請聯繫店家確認匯款方式）</div>';
+    payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
+      +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
+      +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b></div>'
+      +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
+      +'<div class="bank-box">'+bankDetails+'</div>'
+      +'<div class="bank-note" style="margin-top:8px;margin-bottom:12px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>';
+  } else if(hasStock){
+    payHtml = '<div style="background:#eef7f1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1e7a38">✅ 現貨訂單已成立！我們確認庫存後將盡快安排出貨。</div>';
+  }
+
+  // ── 注意事項 ──────────────────────────────────────────────
+  let noticeLines = '';
+  if(hasMixed){
+    noticeLines =
+      '<b style="color:#1a56c4">【現貨商品】</b><br>'
+      +'• 倉管確認庫存後，Email 將發送賣貨便下單連結，請於 <b>7 日內</b>完成下單<br>'
+      +'• 商品將於收到下單連結後 <b>7 日內</b>寄出，逾期未完成視同棄單<br><br>'
+      +'<b style="color:#e67300">【預購商品】</b><br>'
+      +'• 商品標示到貨月份為日本官方出貨月份，實際到台灣約晚 1〜2 個月，屬正常範圍<br>'
+      +'• 到貨後 Email 將發送通知，請於 <b>7 日內</b>完成下單，倉庫將於 7 日內寄出<br>'
+      +'• 逾期未完成者視同棄單，<b>訂金恕不退還</b><br>'
+      +'• 商品正確到貨日無法預測，可能因各種因素延期，敬請見諒';
+  } else if(isStockOnly){
+    noticeLines =
+      '• 倉管確認庫存後，Email 將發送賣貨便下單連結，請於 <b>7 日內</b>完成下單<br>'
+      +'• 商品將於收到下單連結後 <b>7 日內</b>寄出<br>'
+      +'• 逾期未完成下單者視同棄單';
+  } else {
+    noticeLines =
+      '• 商品標示到貨月份為日本官方出貨月份，實際到台灣約晚 1〜2 個月，屬正常範圍<br>'
+      +'• 到貨後 Email 將發送通知，請於 <b>7 日內</b>完成下單，倉庫將於 7 日內寄出<br>'
+      +'• 逾期未完成者視同棄單，<b>訂金恕不退還</b><br>'
+      +'• 商品正確到貨日無法預測，可能因各種因素延期，敬請見諒';
+  }
 
   document.getElementById('confirmContent').innerHTML =
     '<div class="conf-icon">'+iconHtml+'</div>'
     +'<div class="conf-h">'+titleHtml+'</div>'
     +'<div class="conf-sub">'+subHtml+'</div>'
-    +'<div class="conf-num-row"><div><div class="conf-num-lbl">訂單編號</div></div><div class="conf-num-val">'+orderNum+'</div></div>'
+    +orderNumHtml
+    +mixedHtml
     +payHtml
-    +'<div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--ink3);line-height:1.8;text-align:left">'
+    +'<div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--ink3);line-height:1.9;text-align:left">'
     +'📋 <b style="color:var(--ink2)">注意事項</b><br>'
-    +'• 到貨後將發送通知，請於 <b>7 日內</b>下單取貨，逾期視同棄單<br>'
-    +noticeExtra
-    +'• 如有任何問題請透過訊息聯繫我們</div>'
+    +noticeLines+'</div>'
     +'<div class="conf-btns">'
     +'<button class="conf-btn-p" onclick="goOrders()">查看我的訂單</button>'
     +'<button class="conf-btn-s" onclick="showShop()">繼續購物</button>'
@@ -2636,6 +2747,7 @@ function showConfirmPage(orderNum, dep){
 
   showView('confirmView');
 }
+
 // keep for compat
 function openOrderModal(){ goCheckout(); }
 function closeOrderModal(){}
@@ -4017,6 +4129,20 @@ async function aoUpdateStatus(id, newStatus){
   const {error}=await _sb.from('orders').update({status:newStatus}).eq('id',id);
   if(error){showToast('❌ 更新失敗：'+error.message);return;}
   const o=_allAdminOrders.find(x=>x.id===id);
+  // 改為取消時：恢復現貨庫存
+  if(newStatus==='cancelled' && o){
+    let _items=[];
+    try{ _items=JSON.parse(o.note||'[]'); }catch(e){}
+    _items.forEach(async it=>{
+      const p=products.find(x=>String(x.id)===String(it.product_id));
+      if(!p||p.type!=='現貨') return;
+      p.stock=(p.stock||0)+(it.qty||1);
+      if(p.stockStatus==='out_of_stock') p.stockStatus='in_stock';
+      if(p.id&&!String(p.id).startsWith('p')){
+        await _sb.from('products').update({stock:p.stock,stock_status:'in_stock'}).eq('id',p.id);
+      }
+    });
+  }
   if(o) o.status=newStatus;
   _aoRenderStats();_aoRenderTabs();_aoRenderCards();
   showToast(`✅ 訂單 #${id} → ${si?.label||newStatus}`);
