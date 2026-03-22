@@ -2043,9 +2043,18 @@ function renderShop(){
   document.getElementById('rcount').textContent=`共 ${list.length} 件商品`;
   const grid=document.getElementById('productGrid');
   if(!list.length){
-    const _msg = products.length===0
-      ? `<div class="empty" style="grid-column:1/-1"><div style="font-size:36px;margin-bottom:10px">⏳</div><p>商品載入中，請稍候…</p></div>`
-      : `<div class="empty"><div>🔍</div><p>找不到符合條件的商品</p></div>`;
+    const _allPub = products.filter(p=>p.status==='published');
+    let _msg;
+    if(products.length===0){
+      // 完全沒資料 → 還在載入
+      _msg = `<div class="empty" style="grid-column:1/-1"><div style="font-size:36px;margin-bottom:8px;animation:pulse 1s infinite">⏳</div><p style="color:var(--ink3)">商品載入中…</p></div>`;
+    } else if(_allPub.length===0){
+      // 有資料但全部下架
+      _msg = `<div class="empty"><div>🏪</div><p>目前沒有上架商品</p></div>`;
+    } else {
+      // 有商品但篩選後為空
+      _msg = `<div class="empty"><div>🔍</div><p>找不到符合條件的商品</p></div>`;
+    }
     grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
@@ -3367,6 +3376,22 @@ function renderAdminList(){
       catch(e){ return s+(o.qty||1); }
     }, 0);
 
+    // 各規格分別售出數（排除已取消）
+    const _variantSold = {};
+    _pOrders.filter(o=>o.status!=='cancelled').forEach(o=>{
+      try{
+        const items=JSON.parse(o.note||'[]');
+        items.filter(it=>String(it.product_id)===pid).forEach(it=>{
+          const v = (it.variant&&it.variant!=='單一規格') ? it.variant : '__single__';
+          _variantSold[v] = (_variantSold[v]||0) + (it.qty||1);
+        });
+      }catch(e){}
+    });
+    // 各規格 badge 字串
+    const _variantBadges = Object.entries(_variantSold).map(([v,q])=>
+      `<span style="font-size:11px;background:#fff0f0;border:1px solid #fca5a5;border-radius:6px;padding:1px 8px;color:#dc2626;font-weight:700">${v==='__single__'?'':v+' '}×${q}</span>`
+    ).join('');
+
     // 狀態標籤
     let _statusBadge = '';
     if(_isToday) _statusBadge = '<span style="font-size:10px;color:#fff;background:#e67300;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:700;animation:pulse 1.2s infinite">今日結單</span>';
@@ -3406,7 +3431,10 @@ function renderAdminList(){
           <div class="aimeta">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}</div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap">
             <span class="aimeta" style="color:${_isToday?'#b45309':'var(--ink3)'};font-weight:${_isToday?'600':'400'}">${p.deadline?'結單：'+p.deadline:''} ${p.arrival?'到貨：'+p.arrival:''}</span>
-            ${_soldQty>0?`<span class="p-sold-badge">🛒 ${_soldQty} <span>件已售</span></span>`:''}
+            ${_soldQty>0?`
+              <span class="p-sold-badge">🛒 ${_soldQty} <span>件已售</span></span>
+              ${_variantBadges}
+            `:''}
           </div>
         </div>
         <div class="aiac" style="flex-shrink:0">
@@ -4638,20 +4666,8 @@ function showToast(m){
 // ─── INIT ─────────────────────────────────────────────────
 initEmailJS();
 updBadge(); buildEmojiGrid();
-
-// 顯示 loading 後立刻 sync（不先用快取，避免空白後跳動）
-(async()=>{
-  const grid = document.getElementById('productGrid');
-  if(grid && !products.length){
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
-      <div style="font-size:36px;margin-bottom:10px;animation:pulse 1.2s infinite">⏳</div>
-      <p style="color:var(--ink3)">商品載入中…</p>
-    </div>`;
-  } else if(products.length){
-    renderShop(); // 有快取先顯示
-  }
-  await syncProductsFromSupabase(); // 等 sync 完成再確保畫面正確
-})();
+renderShop(); // 立即用快取渲染（有快取馬上顯示，無快取顯示 loading）
+syncProductsFromSupabase(); // 非同步 sync，完成後自動 re-render
 
 // 每小時重新整理商品顯示（結單自動下架）
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
