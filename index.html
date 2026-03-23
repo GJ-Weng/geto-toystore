@@ -1775,13 +1775,12 @@ function loadProfileForUser(email){
 
 // 判斷是否首購(無已完成或已成立的預購訂單)
 function isFirstTimeBuyer(){
-  if(userProfile.trusted) return false; // 管理員已標記信任
-  if(!user) return true; // 未登入視為首購
-  // 以 orderedQtyMap 為主（login 後 rebuild，資料可信）
+  if(userProfile.trusted) return false;
+  if(!user) return true;
+  // orderedQtyMap 有資料 → 有過訂單 → 非首購
   if(Object.keys(orderedQtyMap).length > 0) return false;
-  // 備用：allOrdersCache（顧客看自己訂單時會載入）
-  const hasOrders = allOrdersCache?.some(o=>o.status!=='cancelled');
-  if(hasOrders) return false;
+  // allOrdersCache 有有效訂單 → 非首購
+  if(allOrdersCache?.some(o=>o.status!=='cancelled')) return false;
   return true;
 }
 
@@ -1944,10 +1943,10 @@ function saveProfile(){
   toggleProfileEdit(false);
   renderProfile();
   showToast('✅ 資料已儲存');
-  // 若從結帳頁跳來，儲存後返回
+  // 若從結帳頁跳來，儲存後返回（走 goCheckout 才有須知+首購判斷）
   if(_profileReturnTo==='checkout'){
     _profileReturnTo=null;
-    setTimeout(()=>showCheckoutPage(),300);
+    setTimeout(()=>goCheckout(),300);
   }
 }
 function p_cardClick(id, e){
@@ -2770,22 +2769,34 @@ function toggleDetailFav(){
 function goCheckout(){
   if(!user){openAuth();return;}
   if(!cart.length){showToast('購物車是空的');return;}
-  // 檢查是否有預購商品 → 須先閱讀須知
+  // 有預購商品？每次都要跳須知（sessionStorage 在下單完成後被清除）
   const hasPreorder = cart.some(ci=>{
     const p=products.find(x=>String(x.id)===String(ci.id));
     return p?.type==='預購';
   });
-  const alreadyRead = sessionStorage.getItem('tf_terms_agreed')==='1'; // session only, 每次開瀏覽器重新確認
+  const alreadyRead = sessionStorage.getItem('tf_terms_agreed')==='1';
   if(hasPreorder && !alreadyRead){
-    // 顯示須知 Modal
-    document.getElementById('termsModal').style.display='flex';
-    document.getElementById('termsCheck').checked=false;
-    document.getElementById('termsAgreeBtn').disabled=true;
-    document.getElementById('termsAgreeBtn').style.opacity='.5';
-    document.getElementById('termsCheckWarn').style.display='none';
+    const modal = document.getElementById('termsModal');
+    const chk   = document.getElementById('termsCheck');
+    const btn   = document.getElementById('termsAgreeBtn');
+    const warn  = document.getElementById('termsCheckWarn');
+    if(modal) modal.style.display='flex';
+    if(chk)  { chk.checked=false; }
+    if(btn)  { btn.disabled=true; btn.style.opacity='.5'; }
+    if(warn)   warn.style.display='none';
     return;
   }
-  showCheckoutPage();
+  // 若 user 已登入但 orderedQtyMap 和 allOrdersCache 都是空的，
+  // 先從 Supabase 同步一次確保首購判斷正確
+  if(user && Object.keys(orderedQtyMap).length===0 && !allOrdersCache.length){
+    _sb.from('orders').select('id,note,status').eq('user_email',user.email).neq('status','cancelled')
+      .then(({data})=>{
+        if(data?.length) rebuildOrderedQtyMap(data);
+        showCheckoutPage();
+      }).catch(()=>showCheckoutPage());
+  } else {
+    showCheckoutPage();
+  }
 }
 function agreeTerms(){
   sessionStorage.setItem('tf_terms_agreed','1'); // session only
@@ -5107,6 +5118,7 @@ function renderFwlTab(){
     return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
   }, 0);
 
+  const _pendingClaim = groups.done;   // 待請款訂單列表
   const _pendingAmt   = calcTotal(groups.done);
   const _claimedAmt   = calcTotal(groups.claimed);
   const _activeAmt    = calcTotal(groups.active);
