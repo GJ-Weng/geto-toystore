@@ -1562,8 +1562,19 @@ function isDeadlinePassed(deadline){
   return new Date() > cutoff;
 }
 
+// ── 快取版本號：每次改這裡都會自動清掉舊快取 ─────────────────
+const _CACHE_VERSION = 'v3';
+(function _bustCache(){
+  if(localStorage.getItem('tf_p_ver') !== _CACHE_VERSION){
+    localStorage.removeItem('tf_p');
+    localStorage.removeItem('tf_p_ts');
+    localStorage.setItem('tf_p_ver', _CACHE_VERSION);
+    console.log('[cache] 舊版快取已清除，將重新從 Supabase 載入商品');
+  }
+})();
+
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
-const _CACHE_TTL = 300; // 快取有效秒數（5分鐘內不強制重新 sync）
+const _CACHE_TTL = 300; // 快取有效秒數（5分鐘內允許使用快取）
 function _isCacheFresh(){
   const ts = parseInt(localStorage.getItem('tf_p_ts')||'0');
   return (Date.now() - ts) < _CACHE_TTL * 1000;
@@ -2849,7 +2860,17 @@ function goCheckout(){
 function agreeTerms(){
   sessionStorage.setItem('tf_terms_agreed','1'); // session only
   document.getElementById('termsModal').style.display='none';
-  showCheckoutPage();
+  // 須知同意後才進行首購判斷 & 同步訂單，走 goCheckout 完整流程
+  if(user && Object.keys(orderedQtyMap).length===0 && !allOrdersCache.length){
+    _sb.from('orders').select('id,note,status').eq('user_email',user.email).neq('status','cancelled')
+      .then(({data})=>{
+        if(data?.length) rebuildOrderedQtyMap(data);
+        allOrdersCache = data || [];
+        showCheckoutPage();
+      }).catch(()=>showCheckoutPage());
+  } else {
+    showCheckoutPage();
+  }
 }
 
 let selectedPickupLoc = '';
@@ -3280,10 +3301,12 @@ async function syncProductsFromSupabase(){
     }));
 
     try{
-      localStorage.setItem('tf_p',    JSON.stringify(products));
-      localStorage.setItem('tf_p_ts', String(Date.now()));
+      localStorage.setItem('tf_p',     JSON.stringify(products));
+      localStorage.setItem('tf_p_ts',  String(Date.now()));
+      localStorage.setItem('tf_p_ver', _CACHE_VERSION); // 更新快取版本
     } catch(storErr){ console.warn('localStorage write error:', storErr); }
 
+    console.log('[Supabase sync] 商品載入完成，共 ' + products.length + ' 件（已上架：' + products.filter(p=>p.status==='published').length + ' 件）');
     renderShop();
     updCounts();
     _restoreHashPage();
@@ -5727,14 +5750,13 @@ initEmailJS();
 updBadge(); buildEmojiGrid();
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
-// ── Hash 路由恢復：快取有資料時立即執行，不等 sync ────────────────
-if(products.length){
-  // 快取有資料 → 立即嘗試恢復頁面(不等網路)
+// ── Hash 路由恢復：快取有資料且版本符合時立即執行 ──────────────────
+if(products.length && localStorage.getItem('tf_p_ver')===_CACHE_VERSION){
   setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
 }
 
-// ── 背景同步 ─────────────────────────────────────────────────────
-// 無論是否有快取，一律從 Supabase 拉取最新商品（確保 60+ 件商品都能顯示）
+// ── 每次進頁面都直接 sync Supabase（確保顯示最新商品）──────────────
+// 快取只是讓頁面先有東西顯示，不跳過 sync
 syncProductsFromSupabase();
 
 // 每小時重新整理商品顯示(結單自動下架)
