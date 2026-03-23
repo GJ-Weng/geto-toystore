@@ -1429,14 +1429,13 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <!-- 聯絡按鈕 -->
     <div style="padding:16px 24px 20px">
-      <button onclick="closeBugReport();if(window.$crisp){$crisp.push(['do','chat:open'])}else{window.open('https://m.me/getotoy','_blank')}"
-        style="width:100%;height:48px;background:#1877F2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s"
+      <button onclick="closeBugReport();if(window.$crisp){$crisp.push(['do','chat:open'])}"
+        style="width:100%;height:48px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s"
         onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
-        📘 開啟 Messenger 聯絡我們
+        💬 開啟線上客服對話
       </button>
-      <div style="font-size:12px;color:var(--ink3);text-align:center;margin-top:8px;line-height:1.6">
-        直接在右下角 Messenger 對話框傳訊息<br>
-        <span style="color:var(--ink2)">可附上截圖、商品連結等</span>
+      <div style="font-size:12px;color:var(--ink3);text-align:center;margin-top:8px">
+        直接在右下角對話框傳訊息，可附截圖或商品連結
       </div>
     </div>
   </div>
@@ -1496,9 +1495,9 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- 底部按鈕 -->
     <div style="padding:12px 24px 16px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px">
       <button onclick="closeFaq()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:8px;font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">好的，了解！</button>
-      <button onclick="closeFaq();if(window.$crisp){$crisp.push(['do','chat:open'])}else{window.open('https://m.me/getotoy','_blank')}"
-        style="flex:1;height:42px;background:#1877F2;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-        📘 還有問題？聯絡我們
+      <button onclick="closeFaq();if(window.$crisp){$crisp.push(['do','chat:open'])}"
+        style="flex:1;height:42px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+        💬 線上客服
       </button>
     </div>
   </div>
@@ -5572,26 +5571,10 @@ function closeFaq(){
 let _csOpen = false; // FB Chat Plugin 取代原有客服按鈕
 // CS Modal 內容設定
 const CS_CONFIGS = {
-  bug: {
-    title: '🐛 回報 Bug / 問題',
-    hint: '',
-    placeholder: '請描述問題：例如「加入購物車後頁面空白」、「圖片無法顯示」…\n建議附上：裝置（iPhone/Android/電腦）、瀏覽器、發生步驟',
-  },
-  payment: {
-    title: '💳 匯款末五碼回報',
-    hint: '📋 <b>預購須知提醒</b><br>・請於下單後 <b>48 小時內</b>完成匯款，逾時訂單自動取消<br>・匯款時請在備註欄填寫訂單編號<br>・若已在「我的訂單」頁面按「已匯款」並填寫末五碼，<b>無需再次聯絡</b>，我們會主動確認',
-    placeholder: '請提供：\n1. 訂單編號（例：ABC12345）\n2. 匯款帳號末五碼\n3. 匯款金額',
-  },
-  progress: {
-    title: '📦 詢問商品進度',
-    hint: '📋 <b>到貨時間說明</b><br>・商品頁標示的到貨月份為<b>日本官方出貨月份</b><br>・經海運、海關、商品檢驗等流程，<b>實際到台灣通常晚 1〜2 個月</b><br>・到貨後我們會主動 Email 通知，無需額外詢問<br>・如超過預估月份 2 個月以上仍未到，歡迎聯絡',
-    placeholder: '請提供：\n1. 訂單編號\n2. 商品名稱\n3. 您的疑問',
-  },
-  newproduct: {
-    title: '🌟 新品資訊詢問',
-    hint: '📋 <b>新品預購說明</b><br>・新品上架後會在 Facebook 社團公告<br>・歡迎追蹤我們的 Facebook 粉專掌握最新消息<br>・如有特定商品想詢問是否有代購計畫，歡迎留言',
-    placeholder: '請描述您想詢問的商品：\n例如「XX系列 XX角色 XX商品」',
-  },
+  bug:        { title:'🐛 回報問題' },
+  payment:    { title:'💳 匯款末五碼回報', hint:'📋 <b>提醒</b><br>・若已在「我的訂單」頁面填寫末五碼，<b>無需再次聯絡</b>，我們會主動確認入帳' },
+  progress:   { title:'📦 詢問商品進度',   hint:'📋 <b>到貨時間說明</b><br>・到貨月份為日本官方出貨月份，實際到台灣通常晚 1〜2 個月<br>・到貨後我們會主動 Email 通知，無需額外詢問' },
+  newproduct: { title:'🌟 新品資訊詢問' },
 };
 
 function openCsModal(type){
@@ -5687,6 +5670,13 @@ setInterval(()=>{
       photo: u.user_metadata?.avatar_url || null,
     };
     loadProfileForUser(u.email); // 載入此帳號的 profile
+    // 同步登入資訊給 Crisp（顯示顧客姓名而非 Visitor）
+    if(window.$crisp){
+      $crisp.push(["set","user:email",[u.email]]);
+      const _dispName = u.user_metadata?.full_name || u.email;
+      $crisp.push(["set","user:nickname",[_dispName]]);
+      if(u.user_metadata?.avatar_url) $crisp.push(["set","user:avatar",[u.user_metadata.avatar_url]]);
+    }
   } else {
     user = null;
     userProfile = { name:'', phone:'' };
