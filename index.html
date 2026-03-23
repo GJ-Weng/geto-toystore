@@ -144,8 +144,12 @@ input,select,textarea{font-family:var(--font)}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:flex-start}
 .dimgs{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .dmain{height:460px;display:flex;align-items:center;justify-content:center;font-size:160px;background:#f8f8f6}
-.dthumbs{display:flex;border-top:1px solid var(--border)}
-.dthumb{flex:1;height:76px;display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;background:#fafaf8;border-right:1px solid var(--border);transition:background .15s;background-size:cover;background-position:center;background-repeat:no-repeat}
+.dthumbs{display:flex;gap:8px;padding:10px 0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+.dthumbs::-webkit-scrollbar{height:3px}
+.dthumbs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.dthumb{width:72px;height:72px;flex-shrink:0;cursor:pointer;background:#f4f4f4;border:2px solid transparent;border-radius:6px;transition:border-color .15s,opacity .15s;background-size:cover;background-position:center;background-repeat:no-repeat;overflow:hidden}
+.dthumb:hover{border-color:var(--ink3);opacity:.85}
+.dthumb.act{border-color:var(--ink)}
 .dthumb:last-child{border-right:none}
 .dthumb:hover,.dthumb.act{background:var(--red-light)}
 .dinfo{padding:4px 0}
@@ -378,6 +382,8 @@ textarea.fi{min-height:64px;resize:vertical}
 .expand-btn.open{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 /* TOAST */
+.cs-opt{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:24px;color:#fff;font-size:13px;font-weight:600;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2);white-space:nowrap;transition:opacity .15s}
+.cs-opt:hover{opacity:.88}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:rgba(26,26,26,.92);color:#fff;font-size:13px;padding:10px 20px;border-radius:30px;opacity:0;transition:all .25s;z-index:700;pointer-events:none;white-space:nowrap;backdrop-filter:blur(8px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
@@ -1104,7 +1110,12 @@ textarea.fi{min-height:64px;resize:vertical}
       <button class="atab" id="t4" onclick="swTab(4)">匯款設定</button>
       <button class="atab" id="t5" onclick="swTab(5)">📦 到貨追蹤</button>
       <button class="atab" id="t6" onclick="swTab(6)">🏪 頑瘋樂請款</button>
-      <button onclick="closeAdmin()" style="margin-left:8px;width:30px;height:30px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
+      <!-- 匯款通知鈴鐺 -->
+      <div style="position:relative;margin-left:4px">
+        <button onclick="swTab(3);aoSetTab('new')" style="width:34px;height:34px;border:none;background:none;font-size:20px;cursor:pointer;position:relative" title="待確認匯款">🔔</button>
+        <span id="payBell" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:800;border-radius:10px;padding:1px 4px;min-width:16px;text-align:center;line-height:14px;pointer-events:none">0</span>
+      </div>
+      <button onclick="closeAdmin()" style="margin-left:4px;width:30px;height:30px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
     </div>
   </div>
   <div class="apb">
@@ -1168,6 +1179,10 @@ textarea.fi{min-height:64px;resize:vertical}
             </select>
           </div>
         </div>
+        <div class="fr c1"><div class="fg">
+          <label class="fl">商品說明 <span style="font-size:11px;color:var(--ink3)">（特典內容、尺寸、注意事項等）</span></label>
+          <textarea class="fi" id="fDesc" placeholder="例：全高約 14cm，附初回特典購入憑證 1 張。商品為非賣品。" rows="3" style="resize:vertical"></textarea>
+        </div></div>
         <div class="fr c1"><div class="fg"><label class="fl">上架狀態</label><select class="fi" id="fStatus"><option value="published">上架</option><option value="unlisted">下架</option></select></div></div>
         <div class="fr c1"><div class="fg"><label class="fl">商品圖片（可多張）</label>
           <div class="img-upload-wrap">
@@ -1386,6 +1401,89 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
 
     <button onclick="closePostModal()" style="width:100%;height:36px;margin-top:12px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--ink2);background:var(--white);cursor:pointer">關閉</button>
+  </div>
+</div>
+
+<!-- 客服浮動按鈕 -->
+<div id="csBtn" style="position:fixed;bottom:24px;right:20px;z-index:600;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+  <!-- 展開的選項 -->
+  <div id="csOptions" style="display:none;flex-direction:column;gap:8px;align-items:flex-end">
+    <div class="cs-opt" style="background:#888;cursor:pointer" onclick="openCsModal('bug')">🐛 回報 Bug / 問題</div>
+    <div class="cs-opt" style="background:var(--gold);cursor:pointer" onclick="openCsModal('payment')">💳 回報匯款末五碼</div>
+    <div class="cs-opt" style="background:#1a56c4;cursor:pointer" onclick="openCsModal('progress')">📦 詢問商品進度</div>
+    <div class="cs-opt" style="background:#7b5ea7;cursor:pointer" onclick="openCsModal('newproduct')">🌟 新品資訊詢問</div>
+  </div>
+  <!-- 主按鈕 -->
+  <button onclick="toggleCsMenu()" id="csBtnMain"
+    style="width:52px;height:52px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:22px;display:flex;align-items:center;justify-content:center;transition:transform .2s">
+    💬
+  </button>
+</div>
+
+<!-- 客服聯絡 Modal（含 hint）-->
+<div id="bugModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeBugReport()">
+  <div style="background:var(--white);border-radius:14px;width:460px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="padding:20px 24px 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div id="csModalTitle" style="font-size:16px;font-weight:700"></div>
+        <button onclick="closeBugReport()" style="width:28px;height:28px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
+      </div>
+    </div>
+    <!-- hint 區 -->
+    <div id="csHintBox" style="display:none;margin:12px 24px;background:#f0f7ff;border-left:3px solid #1a56c4;border-radius:0 8px 8px 0;padding:12px 14px;font-size:12px;color:#1a3a6b;line-height:1.8"></div>
+    <!-- 聯絡按鈕 -->
+    <div style="padding:0 24px;margin-top:12px;display:flex;gap:8px">
+      <a href="https://m.me/wu.pei.xian.152149/" target="_blank"
+        style="flex:1;height:40px;background:#1877F2;color:#fff;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;text-decoration:none">
+        📘 FB Messenger
+      </a>
+      <a href="https://line.me/R/ti/p/@475vorns" target="_blank"
+        style="flex:1;height:40px;background:#06C755;color:#fff;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;text-decoration:none">
+        💚 LINE
+      </a>
+    </div>
+    <div style="padding:0 24px 20px;margin-top:10px">
+      <!-- 連結欄位（新品詢問才顯示）-->
+      <div id="csLinkWrap" style="display:none;margin-bottom:8px">
+        <input id="csLinkInput" type="url" placeholder="貼上商品連結（選填）例：https://www.amazon.co.jp/..."
+          style="width:100%;border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-size:13px;font-family:var(--font);outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      </div>
+      <textarea id="bugText" rows="3"
+        style="width:100%;border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:13px;resize:none;font-family:var(--font);outline:none;box-sizing:border-box"
+        placeholder="請描述您的問題或需求（聯繫時請附上此內容）"></textarea>
+      <!-- 上傳照片 -->
+      <div style="margin-top:8px">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--ink2);background:var(--bg);border:1px solid var(--border2);padding:6px 12px;border-radius:20px;transition:background .15s"
+          onmouseover="this.style.background='#eee'" onmouseout="this.style.background='var(--bg)'">
+          📷 附上截圖或照片（選填）
+          <input type="file" id="csImgInput" accept="image/*" multiple style="display:none" onchange="handleCsImgChange(this)">
+        </label>
+        <div id="csImgPreview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:8px">
+        📋 複製上方文字 → 點 <b>FB</b> 或 <b>LINE</b> 傳送，<b>照片請直接在對話框上傳</b>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 匯款回報 Modal -->
+<div id="payReportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--white);border-radius:14px;width:380px;max-width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">💳 匯款回報</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:16px" id="payReportSub">訂單 #XXXXXXXX</div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;color:var(--ink2);display:block;margin-bottom:6px;font-weight:600">匯款帳號末 5 碼</label>
+      <input id="payCodeInput" type="number" maxlength="5" placeholder="例：12345"
+        style="width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:12px;font-size:20px;font-family:monospace;letter-spacing:4px;text-align:center;outline:none;box-sizing:border-box"
+        oninput="this.value=this.value.slice(0,5)" onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      <div style="font-size:11px;color:var(--ink3);margin-top:6px">請確認末 5 碼正確，提交後無法修改</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closePayReport()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
+      <button onclick="submitPayReport()" style="flex:2;height:42px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認提交</button>
+    </div>
   </div>
 </div>
 
@@ -1943,7 +2041,8 @@ function renderOrdersList(){
       <div class="order-card-foot">
         <div class="ocf-info">
           <span>${dateStr}</span>
-          ${o.status==='new'?`<span style="background:#fff4e5;color:#e67300;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">需付款</span>`:''}
+          ${o.status==='new'?'<span style="background:#fff4e5;color:#e67300;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">需付款</span>':''}
+          ${o.status==='new'&&(o.price||0)>0?('<button class="pay-report-btn" onclick="event.stopPropagation();openPayReport('+o.id+')" style="background:'+(o.payment_code?'#eef7f1':'var(--gold)')+';color:'+(o.payment_code?'#2e7d32':'#fff')+';border:none;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer">'+(o.payment_code?'✅ 已回報末五碼':'💳 已匯款')+'</button>'):''}
         </div>
         <div class="ocf-total">
           共 ${items.length} 件
@@ -2318,9 +2417,10 @@ function openDetail(id){
   // Thumbnails：有幾張圖顯示幾張，沒圖就不顯示縮圖
   const dThumbs = document.getElementById('dThumbs');
   if(_imgs.length > 1){
-    dThumbs.innerHTML = _imgs.map((src,i)=>
-      `<div class="dthumb${i===0?' act':''}" onclick="selDetailImg(this,'${src.replace(/'/g,"\'")}')" style="background-size:cover;background-position:center;background-image:url('${src.replace(/'/g,"\'")}')"></div>`
-    ).join('');
+    dThumbs.innerHTML = _imgs.map((src,i)=>{
+      const _s = src.replace(/'/g,'%27');
+      return '<div class="dthumb'+(i===0?' act':'')+'" onclick="selDetailImg(this,\''+_s+'\')" style="background-image:url(\''+_s+'\')"></div>';
+    }).join('');
     dThumbs.style.display='';
   } else {
     dThumbs.innerHTML='';
@@ -2366,6 +2466,7 @@ function openDetail(id){
     ${p.type==='現貨'&&p.stock===0?`<div class="dmeta-row"><span style="color:var(--ink3)">庫存：無限制</span></div>`:''}
     ${p.type==='預購'&&p.cnt>0?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:''}
     ${p.type==='現貨'&&p.cnt>0?`<div class="dmeta-row"><span style="color:var(--ink2)">🛒 已售出 ${p.cnt} 件</span></div>`:''}
+    ${p.description?`<div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--ink2);line-height:1.8;white-space:pre-wrap">${p.description}</div>`:''}
     ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
     ${p.arrival?`<div class="dmeta-row"><span>預計到貨：${p.arrival}</span></div>`:''}
   `;
@@ -3042,6 +3143,7 @@ async function syncProductsFromSupabase(){
         imageUrl:    p.image_url||'',
         imageUrls:   Array.isArray(p.image_urls)&&p.image_urls.length ? p.image_urls : (p.image_url ? [p.image_url] : []),
         variantPrices: p.variant_prices||{},
+        variantStocks: p.variant_stocks||{},
         status:    p.status||'published',
         isNew:     p.is_new||false,
         cnt:       p.order_count||0,
@@ -3087,6 +3189,8 @@ async function saveProductToSupabase(productData, existingId){
     variants:    productData.variants||[],
     emoji:       productData.emoji||'🧸',
     image_url:     productData.imageUrl||'',
+    description:   productData.description||'',
+    variant_stocks: productData.variantStocks||{},
     image_urls:    productData.imageUrls||[],
     variant_prices: productData.variantPrices||{},
     status:      productData.status||'published',
@@ -3346,8 +3450,14 @@ function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   buildEmojiGrid();renderAdminList();renderOrderList();
   document.getElementById('ap').classList.add('open');
+  const csb = document.getElementById('csBtn');
+  if(csb) csb.style.display='none'; // 管理員後台隱藏客服按鈕
 }
-function closeAdmin(){document.getElementById('ap').classList.remove('open');}
+function closeAdmin(){
+  const csb = document.getElementById('csBtn');
+  if(csb) csb.style.display='';
+  document.getElementById('ap').classList.remove('open');
+}
 function swTab(n){
   [1,2,3,4,5,6].forEach(i=>{
     const t=document.getElementById('t'+i); if(t) t.classList.toggle('act',i===n);
@@ -3451,12 +3561,38 @@ function renderAdminImgPreviews(){
   const list = document.getElementById('imgPreviewList');
   if(!list) return;
   if(!_adminImgs.length){ list.innerHTML=''; return; }
-  list.innerHTML = _adminImgs.map((src,i)=>`
-    <div style="position:relative;flex-shrink:0">
-      <img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:${i===0?'2px solid var(--ink)':'1px solid var(--border)'}">
-      ${i===0?'<span style="position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">主圖</span>':''}
-      <button type="button" onclick="removeAdminImg(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
-    </div>`).join('');
+  list.innerHTML = _adminImgs.map((src,i)=>
+    '<div draggable="true" data-imgidx="'+i+'" ondragstart="imgDragStart(event,'+i+')" ondragover="imgDragOver(event)" ondrop="imgDrop(event,'+i+')" ondragend="imgDragEnd(event)"'
+    +' style="position:relative;flex-shrink:0;cursor:grab;transition:opacity .2s">'
+    +'<img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:'+(i===0?'2px solid var(--ink)':'1px solid var(--border)')+';">'
+    +(i===0?'<span style="position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">主圖</span>':'')
+    +'<span style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;cursor:grab">⠿</span>'
+    +'<button type="button" onclick="removeAdminImg('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>'
+    +'</div>'
+  ).join('');
+}
+
+let _imgDragFrom = null;
+function imgDragStart(e, idx){
+  _imgDragFrom = idx;
+  e.target.style.opacity = '0.5';
+  e.dataTransfer.effectAllowed = 'move';
+}
+function imgDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+function imgDrop(e, toIdx){
+  e.preventDefault();
+  if(_imgDragFrom === null || _imgDragFrom === toIdx) return;
+  const moved = _adminImgs.splice(_imgDragFrom, 1)[0];
+  _adminImgs.splice(toIdx, 0, moved);
+  _imgDragFrom = null;
+  renderAdminImgPreviews();
+}
+function imgDragEnd(e){
+  e.target.style.opacity = '';
+  _imgDragFrom = null;
 }
 
 function removeAdminImg(i){
@@ -3563,24 +3699,48 @@ function renderVariantPrices(){
   const raw = document.getElementById('fVariants')?.value.trim()||'';
   const grid = document.getElementById('variantPriceGrid');
   if(!grid) return;
+  const _ptype = document.getElementById('fType')?.value;
+  const isStock = _ptype === '現貨';
   const variants = raw ? raw.split(',').map(v=>v.trim()).filter(Boolean) : [];
   if(!variants.length){ grid.style.display='none'; grid.innerHTML=''; return; }
   grid.style.display='flex';
-  // Keep existing price inputs if already rendered
+  // 保留已輸入的價格與庫存
   const existing = {};
   grid.querySelectorAll('.vp-row').forEach(row=>{
     const n=row.dataset.v;
-    const inp=row.querySelector('.vp-price-inp');
-    if(n&&inp) existing[n]=inp.value;
+    const priceInp=row.querySelector('.vp-price-inp');
+    const stockInp=row.querySelector('.vp-stock-inp');
+    if(n){
+      existing[n] = {
+        price: priceInp?.value||'',
+        stock: stockInp?.value||''
+      };
+    }
   });
-  grid.innerHTML = '<div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價(留空表示使用售價)</div>' +
-    variants.map(v=>`
-      <div class="vp-row" data-v="${v}">
-        <span class="vp-name">${v}</span>
-        <span class="vp-lbl">NT$</span>
-        <input class="vp-price-inp" type="number" placeholder="同售價" value="${existing[v]||''}">
-      </div>`
-    ).join('');
+  const stockCol = isStock
+    ? '<span style="font-size:11px;color:var(--ink3);text-align:center">庫存</span>' : '';
+  grid.innerHTML =
+    '<div style="display:grid;grid-template-columns:'+(isStock?'1fr 80px 72px':'1fr 80px')+';gap:4px;align-items:center;font-size:11px;color:var(--ink3);margin-top:4px;padding:0 2px">'
+    +'<span>規格名稱</span><span>單獨定價</span>'+stockCol+'</div>'
+    + variants.map(v=>{
+      const ev = existing[v]||{};
+      return '<div class="vp-row" data-v="'+v+'" style="display:grid;grid-template-columns:'+(isStock?'1fr 80px 72px':'1fr 80px')+';gap:4px;align-items:center">'
+        +'<span class="vp-name" style="font-size:12px;font-weight:600;padding:2px 0">'+v+'</span>'
+        +'<div style="display:flex;align-items:center;gap:2px"><span class="vp-lbl">$</span><input class="vp-price-inp" type="number" placeholder="同售價" value="'+(ev.price||'')+'" style="width:100%;border:1px solid var(--border2);border-radius:4px;padding:4px 6px;font-size:12px;box-sizing:border-box"></div>'
+        +(isStock ? '<input class="vp-stock-inp" type="number" placeholder="0" min="0" value="'+(ev.stock||'')+'" style="width:100%;border:1px solid var(--border2);border-radius:4px;padding:4px 6px;font-size:12px;box-sizing:border-box">' : '')
+        +'</div>';
+    }).join('');
+}
+
+// 取得規格庫存對應
+function getVariantStocks(){
+  const result = {};
+  document.querySelectorAll('.vp-row').forEach(row=>{
+    const v = row.dataset.v;
+    const inp = row.querySelector('.vp-stock-inp');
+    if(v && inp) result[v] = parseInt(inp.value)||0;
+  });
+  return result;
 }
 
 function getVariantPrices(){
@@ -4090,6 +4250,9 @@ function editP(id){
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
   restoreVariantPrices(p.variantPrices||{});
   document.getElementById('fStatus').value=p.status;
+  // 商品說明
+  const fDesc2 = document.getElementById('fDesc');
+  if(fDesc2) fDesc2.value = p.description||'';
   // 現貨庫存欄位
   const _fStock = document.getElementById('fStock');
   const _fStockStatus = document.getElementById('fStockStatus');
@@ -4126,7 +4289,9 @@ async function saveProduct(){
     variants,
     status:document.getElementById('fStatus').value,
     emoji:selEmoji,isNew:true,cnt:0,
+    description: document.getElementById('fDesc')?.value.trim()||'',
     stock:     _ptype==='現貨' ? (parseInt(document.getElementById('fStock')?.value)||0) : 0,
+    variantStocks: _ptype==='現貨' ? getVariantStocks() : {},
     stockStatus: _ptype==='現貨' ? (document.getElementById('fStockStatus')?.value||'in_stock') : 'in_stock',
   };
   const btn = document.querySelector('.fsave');
@@ -4161,7 +4326,7 @@ function resetForm(){
   editingId=null;
   _adminImgs=[];
   renderAdminImgPreviews();
-  ['fName','fBrand','fLimit','fDeadline','fArrival','fVariants','fImgUrl','fDeposit'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['fName','fBrand','fLimit','fDeadline','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   document.getElementById('fType').value='預購';
@@ -4199,6 +4364,7 @@ async function renderOrderList(){
   _aoRenderStats();
   _aoRenderTabs();
   _aoRenderCards();
+  updatePaymentBell(); // 更新匯款通知鈴鐺
 }
 
 function _aoRenderStats(){
@@ -4394,6 +4560,7 @@ function _aoRenderCards(){
           <span>📱 ${o.phone||'—'}</span>
           <span>📧 ${o.user_email||''}</span>
           ${o.store?`<span>🚚 ${o.store}</span>`:''}
+          ${o.payment_code?`<span style="background:#fff4e5;color:#e67300;padding:1px 6px;border-radius:8px;font-weight:700">💳 末碼：${o.payment_code}</span>`:''}
         </div>
         <div style="font-size:12px;color:var(--ink3)">訂金 NT$${(o.price||0).toLocaleString()}</div>
       </div>
@@ -5311,6 +5478,174 @@ function copyScript(){
 }
 
 // ─── TOAST ────────────────────────────────────────────────
+// ─── 匯款回報 ─────────────────────────────────────────────
+let _payReportOrderId = null;
+
+function openPayReport(orderId){
+  _payReportOrderId = orderId;
+  const o = allOrdersCache.find(x=>x.id===orderId);
+  const sub = document.getElementById('payReportSub');
+  if(sub) sub.textContent = '訂單 #'+(o?.order_code||orderId);
+  const inp = document.getElementById('payCodeInput');
+  if(inp){ inp.value = ''; inp.focus(); }
+  document.getElementById('payReportModal').style.display = 'flex';
+}
+function closePayReport(){
+  document.getElementById('payReportModal').style.display = 'none';
+  _payReportOrderId = null;
+}
+async function submitPayReport(){
+  const code = document.getElementById('payCodeInput')?.value.trim();
+  if(!code || code.length < 4){ showToast('⚠️ 請輸入 4-5 位末碼'); return; }
+  const btn = document.querySelector('#payReportModal button:last-child');
+  if(btn){ btn.disabled=true; btn.textContent='提交中…'; }
+
+  // 存入 orders 的 payment_code 欄位（需在 Supabase 新增此欄位）
+  const {error} = await _sb.from('orders').update({payment_code: code}).eq('id', _payReportOrderId);
+  if(btn){ btn.disabled=false; btn.textContent='確認提交'; }
+  if(error){ showToast('❌ 提交失敗，請稍後再試'); return; }
+
+  // 更新本地快取
+  const o = allOrdersCache.find(x=>x.id===_payReportOrderId);
+  if(o) o.payment_code = code;
+
+  closePayReport();
+  renderOrdersList();
+  showToast('✅ 匯款末五碼已回報，我們將盡快確認！');
+}
+
+// ─── 管理員通知鈴鐺 ────────────────────────────────────────
+function updatePaymentBell(){
+  if(!isAdmin()) return;
+  // 找有 payment_code 但 status 還是 'new' 的訂單（待確認匯款）
+  const pending = _allAdminOrders.filter(o=>o.payment_code && o.status==='new');
+  const bell = document.getElementById('payBell');
+  if(bell){
+    bell.style.display = pending.length ? '' : 'none';
+    bell.textContent = pending.length > 9 ? '9+' : String(pending.length);
+  }
+}
+
+// ─── 客服浮動按鈕 ─────────────────────────────────────────
+let _csOpen = false;
+function toggleCsMenu(){
+  if(isAdmin()) return; // 管理員不顯示客服按鈕
+  _csOpen = !_csOpen;
+  const opts = document.getElementById('csOptions');
+  const btn  = document.getElementById('csBtnMain');
+  if(opts) opts.style.display = _csOpen ? 'flex' : 'none';
+  if(btn)  btn.style.transform = _csOpen ? 'rotate(45deg)' : '';
+}
+// CS Modal 內容設定
+const CS_CONFIGS = {
+  bug: {
+    title: '🐛 回報 Bug / 問題',
+    hint: '',
+    placeholder: '請描述問題：例如「加入購物車後頁面空白」、「圖片無法顯示」…\n建議附上：裝置（iPhone/Android/電腦）、瀏覽器、發生步驟',
+  },
+  payment: {
+    title: '💳 匯款末五碼回報',
+    hint: '📋 <b>預購須知提醒</b><br>・請於下單後 <b>48 小時內</b>完成匯款，逾時訂單自動取消<br>・匯款時請在備註欄填寫訂單編號<br>・若已在「我的訂單」頁面按「已匯款」並填寫末五碼，<b>無需再次聯絡</b>，我們會主動確認',
+    placeholder: '請提供：\n1. 訂單編號（例：ABC12345）\n2. 匯款帳號末五碼\n3. 匯款金額',
+  },
+  progress: {
+    title: '📦 詢問商品進度',
+    hint: '📋 <b>到貨時間說明</b><br>・商品頁標示的到貨月份為<b>日本官方出貨月份</b><br>・經海運、海關、商品檢驗等流程，<b>實際到台灣通常晚 1〜2 個月</b><br>・到貨後我們會主動 Email 通知，無需額外詢問<br>・如超過預估月份 2 個月以上仍未到，歡迎聯絡',
+    placeholder: '請提供：\n1. 訂單編號\n2. 商品名稱\n3. 您的疑問',
+  },
+  newproduct: {
+    title: '🌟 新品資訊詢問',
+    hint: '📋 <b>新品預購說明</b><br>・新品上架後會在 Facebook 社團公告<br>・歡迎追蹤我們的 Facebook 粉專掌握最新消息<br>・如有特定商品想詢問是否有代購計畫，歡迎留言',
+    placeholder: '請描述您想詢問的商品：\n例如「XX系列 XX角色 XX商品」',
+  },
+};
+
+function openCsModal(type){
+  _csOpen = false;
+  const opts = document.getElementById('csOptions');
+  if(opts) opts.style.display = 'none';
+  const mainBtn = document.getElementById('csBtnMain');
+  if(mainBtn) mainBtn.style.transform = '';
+
+  const cfg = CS_CONFIGS[type] || CS_CONFIGS.bug;
+  const titleEl = document.getElementById('csModalTitle');
+  const hintEl  = document.getElementById('csHintBox');
+  const textEl  = document.getElementById('bugText');
+  if(titleEl) titleEl.textContent = cfg.title;
+  if(hintEl){
+    if(cfg.hint){ hintEl.innerHTML = cfg.hint; hintEl.style.display = ''; }
+    else hintEl.style.display = 'none';
+  }
+  if(textEl){ textEl.value = ''; textEl.placeholder = cfg.placeholder||''; }
+  // 新品詢問才顯示連結欄位
+  const linkWrap = document.getElementById('csLinkWrap');
+  const linkInp  = document.getElementById('csLinkInput');
+  if(linkWrap) linkWrap.style.display = (type==='newproduct') ? '' : 'none';
+  if(linkInp)  linkInp.value = '';
+  // 清除照片預覽
+  const prevEl = document.getElementById('csImgPreview');
+  const fileEl = document.getElementById('csImgInput');
+  if(prevEl) prevEl.innerHTML = '';
+  if(fileEl) fileEl.value = '';
+  document.getElementById('bugModal').style.display = 'flex';
+}
+function handleCsImgChange(inp){
+  const prevEl = document.getElementById('csImgPreview');
+  if(!prevEl) return;
+  const files = Array.from(inp.files||[]);
+  if(!files.length){ prevEl.innerHTML=''; return; }
+  // 最多 4 張
+  const limited = files.slice(0,4);
+  prevEl.innerHTML = '';
+  limited.forEach((f,i)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const div = document.createElement('div');
+      div.style.cssText='position:relative;width:64px;height:64px;flex-shrink:0';
+      div.innerHTML='<img src="'+e.target.result+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
+        +'<button onclick="removeCsImg(this,'+i+')" style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>';
+      prevEl.appendChild(div);
+    };
+    reader.readAsDataURL(f);
+  });
+  if(files.length > 4) showToast('⚠️ 最多附上 4 張圖片');
+}
+function removeCsImg(btn, idx){
+  const prevEl = document.getElementById('csImgPreview');
+  if(prevEl && btn.parentElement) btn.parentElement.remove();
+  // 若全部移除，清空 file input
+  if(prevEl && !prevEl.children.length){
+    const fileEl = document.getElementById('csImgInput');
+    if(fileEl) fileEl.value='';
+  }
+}
+
+function openBugReport(){ openCsModal('bug'); }
+function closeBugReport(){
+  document.getElementById('bugModal').style.display = 'none';
+  const textEl = document.getElementById('bugText');
+  if(textEl) textEl.value = '';
+  const prevEl = document.getElementById('csImgPreview');
+  const fileEl = document.getElementById('csImgInput');
+  const linkEl = document.getElementById('csLinkInput');
+  if(prevEl) prevEl.innerHTML = '';
+  if(fileEl) fileEl.value = '';
+  if(linkEl) linkEl.value = '';
+}
+// 點 bug modal 背景關閉
+document.addEventListener('click', e=>{
+  const bugModal = document.getElementById('bugModal');
+  if(bugModal && e.target === bugModal) closeBugReport();
+  // 點其他地方關閉客服選單
+  if(_csOpen && !document.getElementById('csBtn')?.contains(e.target)){
+    _csOpen = false;
+    const opts = document.getElementById('csOptions');
+    if(opts) opts.style.display = 'none';
+    const btn = document.getElementById('csBtnMain');
+    if(btn) btn.style.transform = '';
+  }
+});
+
 let _t;
 function showToast(m){
   const t=document.getElementById('toast');
