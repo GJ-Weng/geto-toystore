@@ -382,8 +382,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .expand-btn.open{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 /* TOAST */
-.cs-opt{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:24px;color:#fff;font-size:13px;font-weight:600;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2);white-space:nowrap;transition:opacity .15s}
-.cs-opt:hover{opacity:.88}
+/* cs-opt removed: using FB Chat Plugin */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(8px);background:rgba(26,26,26,.92);color:#fff;font-size:13px;padding:10px 20px;border-radius:30px;opacity:0;transition:all .25s;z-index:700;pointer-events:none;white-space:nowrap;backdrop-filter:blur(8px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
@@ -1404,21 +1403,13 @@ textarea.fi{min-height:64px;resize:vertical}
   </div>
 </div>
 
-<!-- 客服浮動按鈕 -->
-<div id="csBtn" style="position:fixed;bottom:24px;right:20px;z-index:600;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-  <!-- 展開的選項 -->
-  <div id="csOptions" style="display:none;flex-direction:column;gap:8px;align-items:flex-end">
-    <div class="cs-opt" style="background:#888;cursor:pointer" onclick="openCsModal('bug')">🐛 回報 Bug / 問題</div>
-    <div class="cs-opt" style="background:var(--gold);cursor:pointer" onclick="openCsModal('payment')">💳 回報匯款末五碼</div>
-    <div class="cs-opt" style="background:#1a56c4;cursor:pointer" onclick="openCsModal('progress')">📦 詢問商品進度</div>
-    <div class="cs-opt" style="background:#7b5ea7;cursor:pointer" onclick="openCsModal('newproduct')">🌟 新品資訊詢問</div>
-  </div>
-  <!-- 主按鈕 -->
-  <button onclick="toggleCsMenu()" id="csBtnMain"
-    style="width:52px;height:52px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:22px;display:flex;align-items:center;justify-content:center;transition:transform .2s">
-    💬
-  </button>
-</div>
+<!-- Facebook Customer Chat Plugin -->
+<div id="fb-root"></div>
+
+<!-- 聯絡客服浮動按鈕（簡化版，適合手機）-->
+<button id="csFloatBtn" onclick="openCsModal('bug')"
+  style="position:fixed;bottom:80px;right:16px;z-index:500;width:48px;height:48px;border-radius:50%;background:#1877F2;color:#fff;border:none;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.25);font-size:20px;display:flex;align-items:center;justify-content:center;transition:transform .2s,opacity .2s"
+  title="聯絡客服">💬</button>
 
 <!-- 客服聯絡 Modal（含 hint）-->
 <div id="bugModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeBugReport()">
@@ -1432,15 +1423,13 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- hint 區 -->
     <div id="csHintBox" style="display:none;margin:12px 24px;background:#f0f7ff;border-left:3px solid #1a56c4;border-radius:0 8px 8px 0;padding:12px 14px;font-size:12px;color:#1a3a6b;line-height:1.8"></div>
     <!-- 聯絡按鈕 -->
-    <div style="padding:0 24px;margin-top:12px;display:flex;gap:8px">
-      <a href="https://m.me/wu.pei.xian.152149/" target="_blank"
-        style="flex:1;height:40px;background:#1877F2;color:#fff;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;text-decoration:none">
-        📘 FB Messenger
-      </a>
-      <a href="https://line.me/R/ti/p/@475vorns" target="_blank"
-        style="flex:1;height:40px;background:#06C755;color:#fff;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;text-decoration:none">
-        💚 LINE
-      </a>
+    <div style="padding:0 24px;margin-top:12px">
+      <button onclick="closeBugReport();(typeof FB!=='undefined'&&FB.CustomerChat)?FB.CustomerChat.show(true):window.open('https://m.me/wu.pei.xian.152149/','_blank')"
+        style="width:100%;height:44px;background:#1877F2;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s"
+        onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+        📘 開啟 Facebook Messenger 對話
+      </button>
+      <div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:6px">點擊後直接在右下角 Messenger 對話框傳訊息</div>
     </div>
     <div style="padding:0 24px 20px;margin-top:10px">
       <!-- 連結欄位（新品詢問才顯示）-->
@@ -3450,13 +3439,11 @@ function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   buildEmojiGrid();renderAdminList();renderOrderList();
   document.getElementById('ap').classList.add('open');
-  const csb = document.getElementById('csBtn');
-  if(csb) csb.style.display='none'; // 管理員後台隱藏客服按鈕
+  const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='none';
 }
 function closeAdmin(){
-  const csb = document.getElementById('csBtn');
-  if(csb) csb.style.display='';
   document.getElementById('ap').classList.remove('open');
+  const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='';
 }
 function swTab(n){
   [1,2,3,4,5,6].forEach(i=>{
@@ -5527,15 +5514,7 @@ function updatePaymentBell(){
 }
 
 // ─── 客服浮動按鈕 ─────────────────────────────────────────
-let _csOpen = false;
-function toggleCsMenu(){
-  if(isAdmin()) return; // 管理員不顯示客服按鈕
-  _csOpen = !_csOpen;
-  const opts = document.getElementById('csOptions');
-  const btn  = document.getElementById('csBtnMain');
-  if(opts) opts.style.display = _csOpen ? 'flex' : 'none';
-  if(btn)  btn.style.transform = _csOpen ? 'rotate(45deg)' : '';
-}
+let _csOpen = false; // FB Chat Plugin 取代原有客服按鈕
 // CS Modal 內容設定
 const CS_CONFIGS = {
   bug: {
@@ -5562,10 +5541,6 @@ const CS_CONFIGS = {
 
 function openCsModal(type){
   _csOpen = false;
-  const opts = document.getElementById('csOptions');
-  if(opts) opts.style.display = 'none';
-  const mainBtn = document.getElementById('csBtnMain');
-  if(mainBtn) mainBtn.style.transform = '';
 
   const cfg = CS_CONFIGS[type] || CS_CONFIGS.bug;
   const titleEl = document.getElementById('csModalTitle');
@@ -5636,14 +5611,7 @@ function closeBugReport(){
 document.addEventListener('click', e=>{
   const bugModal = document.getElementById('bugModal');
   if(bugModal && e.target === bugModal) closeBugReport();
-  // 點其他地方關閉客服選單
-  if(_csOpen && !document.getElementById('csBtn')?.contains(e.target)){
-    _csOpen = false;
-    const opts = document.getElementById('csOptions');
-    if(opts) opts.style.display = 'none';
-    const btn = document.getElementById('csBtnMain');
-    if(btn) btn.style.transform = '';
-  }
+
 });
 
 let _t;
@@ -5725,5 +5693,26 @@ setInterval(()=>{
   // hash 恢復在 syncProductsFromSupabase 後執行，確保 products 已載入
 })();
 </script>
+
+<!-- FB Messenger Customer Chat Plugin -->
+<script>
+  window.fbAsyncInit = function() {
+    FB.init({ xfbml: true, version: 'v18.0' });
+  };
+  (function(d, s, id){
+    var js, fjs = d.getElementsByTagName(s)[0];
+    if(d.getElementById(id)) return;
+    js = d.createElement(s); js.id = id;
+    js.src = 'https://connect.facebook.net/zh_TW/sdk/xfbml.customerchat.js';
+    fjs.parentNode.insertBefore(js, fjs);
+  }(document, 'script', 'facebook-jssdk'));
+</script>
+<div class="fb-customerchat"
+  attribution="biz_inbox"
+  page_id="100093454573209"
+  theme_color="#1B3A5C"
+  logged_in_greeting="嗨！有什麼可以幫助你的嗎？"
+  logged_out_greeting="嗨！有什麼可以幫助你的嗎？歡迎登入後留言！">
+</div>
 </body>
 </html>
