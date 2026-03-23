@@ -160,9 +160,9 @@ input,select,textarea{font-family:var(--font)}
 .dthumbs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 .dthumb{width:72px;height:72px;flex-shrink:0;cursor:pointer;background:#f4f4f4;border:2px solid transparent;border-radius:6px;transition:border-color .15s,opacity .15s;background-size:cover;background-position:center;background-repeat:no-repeat;overflow:hidden}
 .dthumb:hover{border-color:var(--ink3);opacity:.85}
-.dthumb.act{border-color:var(--ink)}
+.dthumb.act{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .dthumb:last-child{border-right:none}
-.dthumb:hover,.dthumb.act{background:var(--red-light)}
+/* 已移除會蓋掉 background-image 的 background 規則 */
 .dinfo{padding:4px 0}
 .dcat{font-size:13px;color:var(--ink3);margin-bottom:10px}
 .dname{font-size:22px;font-weight:700;color:var(--ink);line-height:1.4;margin-bottom:14px}
@@ -2435,6 +2435,8 @@ function renderShop(){
         +(_rem===0?'已售完':(_rem<=3?'僅剩 '+_rem+' 件':'庫存 '+_rem+' 件'))+'</div>'
       : '';
     let _btnHtml = '';
+    // 若 stock > 0 但 stockStatus 仍為 out_of_stock，自動修正（後台已補貨但快取未更新）
+    if(p.type==='現貨' && p.stockStatus==='out_of_stock' && p.stock > 0) p.stockStatus='in_stock';
     if(p.type==='現貨'&&p.stockStatus==='out_of_stock') _btnHtml='<div class="pbuy off">已售完</div>';
     else if(p.type==='現貨'&&p.stockStatus==='notify') _btnHtml='<div class="pbuy off" style="font-size:11px">缺貨 · 到貨通知</div>';
     else _btnHtml='<button class="pbuy" onclick="event.stopPropagation();openDetail(\'' + p.id + '\')">' +(p.type==='預購'?'立即預購':'立即購買')+'</button>';
@@ -2522,12 +2524,7 @@ function openDetail(id){
   const sid = String(id);
   const p=products.find(x=>String(x.id)===sid);
   if(!p) return;
-  // 若商品說明尚未載入（列表查詢略過 description），背景靜默補抓
-  if(p.description === undefined || p.description === null){
-    _sb.from('products').select('description').eq('id', p.id).single()
-      .then(({data})=>{ if(data) { p.description = data.description||''; } })
-      .catch(()=>{});
-  }
+  // 若商品說明尚未載入（列表查詢略過 description），先渲染再更新說明區
   currentProductId=id;
   selectedVariant=null;
   detailQty=1;
@@ -2609,6 +2606,29 @@ function openDetail(id){
   updateDetailBuyBtn(p);
   // 初始化 + 按鈕狀態(同步 chgDQty 邏輯)
   _syncPlusBtn(p);
+
+  // 若 description 尚未載入（列表查詢略過），非同步補抓後插入說明區塊
+  if(p.description === undefined || p.description === null){
+    _sb.from('products').select('description').eq('id', p.id).single()
+      .then(({data})=>{
+        if(!data) return;
+        p.description = data.description || '';
+        // 只有仍在同一商品詳情頁時才更新
+        if(String(currentProductId) !== String(p.id)) return;
+        const dMeta = document.getElementById('dMeta');
+        if(!dMeta) return;
+        // 找到說明區塊（data-role="desc"）並插入，避免重複
+        let descEl = dMeta.querySelector('[data-role="desc"]');
+        if(!descEl && p.description){
+          descEl = document.createElement('div');
+          descEl.setAttribute('data-role','desc');
+          descEl.style.cssText = 'margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--ink2);line-height:1.8;white-space:pre-wrap';
+          descEl.textContent = p.description;
+          dMeta.appendChild(descEl);
+        }
+      })
+      .catch(()=>{});
+  }
 
   // 管理員快速操作列
   const _bar = document.getElementById('adminDetailBar');
@@ -2697,6 +2717,10 @@ function updateDetailBuyBtn(p){
 
   // 2. 現貨：售完 / 庫存不足
   if(p.type==='現貨'){
+    // 若 stock > 0 但 stockStatus 仍為 out_of_stock，表示後台已補貨但快取未更新，自動修正
+    if(p.stockStatus==='out_of_stock' && p.stock > 0){
+      p.stockStatus = 'in_stock';
+    }
     if(p.stockStatus==='out_of_stock'){ _dis('已售完'); return; }
     if(p.stock>0){
       const _totalInCart = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
@@ -3314,7 +3338,7 @@ async function syncProductsFromSupabase(){
                       : (p.image_url ? [p.image_url] : []),
       variantPrices: p.variant_prices  || {},
       variantStocks: p.variant_stocks  || {},
-      description:   p.description    || '',
+      description:   p.description != null ? (p.description || '') : null, // null=尚未載入，''=空說明
       status:        p.status         || 'published',
       isNew:         p.is_new         || false,
       cnt:           p.order_count    || 0,
@@ -4496,18 +4520,15 @@ async function saveProduct(){
     showToast('❌ 儲存失敗：'+(err.message||'請確認 Supabase products 表格是否存在'));
     return;
   }
-  // sync back
-  try {
-    await syncProductsFromSupabase();
-  } catch(syncErr) {
-    console.warn('sync error after save:', syncErr);
-  }
+  // 先顯示成功，背景靜默 sync（避免等待 sync 造成 UI 卡頓）
   if(editingId){ showToast('✓ 已更新商品'); }
   else{ showToast('✓ 已新增商品'); }
   localStorage.removeItem('tf_p_ts'); // 清快取時間戳，強制下次 sync
   acRememberProduct();
   resetForm();renderAdminList();renderShop();
   swTab(2); // 儲存後自動切到商品列表
+  // 背景靜默更新（不阻塞 UI）
+  syncProductsFromSupabase().catch(e=>console.warn('background sync error:', e));
 }
 function resetForm(){
   editingId=null;
@@ -5199,10 +5220,25 @@ function markFwlClaimed(){
 }
 
 function resetFwlClaimed(){
-  if(!confirm('確定重置請款記錄？')) return;
-  localStorage.removeItem('fwl_claimed');
-  showToast('已重置');
-  renderFwlTab();
+  // 使用自訂確認，避免 confirm() 在某些環境被封鎖
+  const overlay = document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML='<div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.15)">'
+    +'<div style="font-size:16px;font-weight:700;margin-bottom:10px">確定重置請款記錄？</div>'
+    +'<div style="font-size:13px;color:#666;margin-bottom:20px">所有已標記的請款記錄將被清除，無法復原。</div>'
+    +'<div style="display:flex;gap:10px;justify-content:center">'
+    +'<button id="_fwlResetCancel" style="height:36px;padding:0 20px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:14px">取消</button>'
+    +'<button id="_fwlResetConfirm" style="height:36px;padding:0 20px;border:none;border-radius:8px;background:#e74c3c;color:#fff;cursor:pointer;font-size:14px;font-weight:700">確定重置</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#_fwlResetCancel').onclick  = ()=>overlay.remove();
+  overlay.querySelector('#_fwlResetConfirm').onclick = ()=>{
+    overlay.remove();
+    localStorage.removeItem('fwl_claimed');
+    showToast('已重置請款記錄');
+    renderFwlTab();
+  };
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 
 function renderFwlTab(){
