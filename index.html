@@ -318,18 +318,46 @@ textarea.fi{min-height:64px;resize:vertical}
 .admin-ftab.act span{opacity:1}
 
 /* ADMIN MOBILE */
-@media(max-width:600px){
-  .anav{padding:0 8px;gap:4px}
-  .anav>div:first-child span{font-size:12px}
-  .atab{height:28px;padding:0 10px;font-size:12px}
+@media(max-width:768px){
+  /* 後台 nav tab 可水平捲動 */
+  .anav{padding:0 8px;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .anav::-webkit-scrollbar{display:none}
+  .anav>div:first-child{flex-shrink:0}
+  .atab{height:32px;padding:0 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
+  /* 表單 */
   .aw{padding:12px}
-  .fc{padding:14px}
+  .fc{padding:12px}
   .fr{grid-template-columns:1fr!important}
-  .fr.c3{grid-template-columns:1fr!important}
-  .ao-stats{grid-template-columns:repeat(3,1fr)}
-  .ao-search input{width:140px}
-  .aiac{flex-wrap:wrap;gap:4px}
-  .aoc-actions{flex-wrap:wrap;gap:4px}
+  .fr.c3,.fr.c4{grid-template-columns:1fr 1fr!important}
+  /* 訂單管理 */
+  .ao-topbar{flex-wrap:wrap;gap:6px}
+  .ao-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;min-width:0}
+  .ao-tab{white-space:nowrap;flex-shrink:0}
+  .ao-search{width:100%;order:10}
+  .ao-search input{width:100%}
+  .ao-stats{grid-template-columns:repeat(3,1fr);gap:6px}
+  .ao-stat{padding:8px 6px}
+  .ao-stat-n{font-size:16px}
+  /* 訂單卡片 */
+  .aoc{font-size:12px}
+  .aoc-head{flex-wrap:wrap;gap:4px}
+  .aoc-actions{flex-wrap:wrap;gap:4px;padding:8px 12px 10px}
+  .aoc-btn{height:28px;padding:0 8px;font-size:11px}
+  .aoc-foot{gap:6px}
+  .aoc-cinfo{gap:6px;font-size:11px}
+  /* 商品列表 */
+  .ai{flex-direction:column!important;padding:10px!important}
+  .aiac{flex-wrap:wrap;gap:4px;margin-top:8px}
+  .ab{height:28px;padding:0 8px;font-size:11px}
+  .aim{width:60px!important;height:60px!important}
+  /* 到貨追蹤 / 頑瘋樂 */
+  .arrival-card{padding:10px}
+}
+@media(max-width:480px){
+  .atab{padding:0 8px;font-size:11px}
+  .ao-stats{grid-template-columns:repeat(2,1fr)}
+  .ao-stat-n{font-size:14px}
+  .fr.c3,.fr.c4{grid-template-columns:1fr!important}
 }
 
 /* PULSE ANIMATION */
@@ -910,19 +938,19 @@ textarea.fi{min-height:64px;resize:vertical}
     <div class="co-box">
       <div class="co-sec">訂購人資訊</div>
       <div class="co-field" id="coNameField">
-        <div class="co-lbl">姓名</div>
-        <div class="co-val" id="coNameVal">—</div>
+        <div class="co-lbl">姓名（本名）</div>
+        <input class="co-inp" id="coNameInp" placeholder="請填寫真實姓名" style="border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:var(--font)" oninput="coUpdateProfile()">
       </div>
       <div class="co-field" id="coPhoneField">
-        <div class="co-lbl">手機</div>
-        <div class="co-val" id="coPhoneVal">—</div>
+        <div class="co-lbl">手機號碼</div>
+        <input class="co-inp" id="coPhoneInp" placeholder="09xxxxxxxx" type="tel" style="border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:var(--font)" oninput="coUpdateProfile()">
       </div>
       <div class="co-field">
         <div class="co-lbl">Email</div>
         <div class="co-val" id="coEmailVal" style="font-size:14px;color:var(--red)">—</div>
       </div>
-      <div class="co-profile-warn" id="coProfileWarn">
-        ⚠️ 請先至 <span class="co-profile-link" onclick="goProfile('checkout')">個人資料</span> 填寫姓名及手機號碼，才能完成結帳。
+      <div class="co-profile-warn" id="coProfileWarn" style="display:none">
+        ⚠️ 請填寫姓名及手機號碼才能完成結帳
       </div>
       <div class="co-sep"></div>
       <div class="co-sec">配送方式</div>
@@ -2611,6 +2639,17 @@ function agreeTerms(){
 
 let selectedPickupLoc = '';
 
+// 結帳頁即時更新 profile
+function coUpdateProfile(){
+  const name  = document.getElementById('coNameInp')?.value.trim()||'';
+  const phone = document.getElementById('coPhoneInp')?.value.trim()||'';
+  userProfile.name  = name;
+  userProfile.phone = phone;
+  if(user?.email) saveProfileForUser(user.email, userProfile);
+  const warn = document.getElementById('coProfileWarn');
+  if(warn) warn.style.display = (!name||!phone) ? '' : 'none';
+}
+
 function selDelivery(v){
   selectedDelivery=v;
   document.getElementById('dopt-ship').classList.toggle('sel',v==='寄送');
@@ -2638,32 +2677,19 @@ function renderCheckoutPage(){
   const phone = userProfile.phone || '';
   const email = user?.email || '';
 
-  const nameEl  = document.getElementById('coNameVal');
-  const phoneEl = document.getElementById('coPhoneVal');
-  const warn    = document.getElementById('coProfileWarn');
+  // 填入 input 欄位
+  const nameInp  = document.getElementById('coNameInp');
+  const phoneInp = document.getElementById('coPhoneInp');
+  const emailEl  = document.getElementById('coEmailVal');
+  const warn     = document.getElementById('coProfileWarn');
   const submitBtn = document.getElementById('checkoutSubmitBtn');
 
-  if(nameEl){
-    nameEl.textContent = name||'尚未填寫 — 前往填寫';
-    nameEl.style.color = name?'':'' ;
-    nameEl.style.cursor = name?'':'pointer';
-    if(!name) nameEl.onclick = ()=>goProfile();
-    else nameEl.onclick = null;
-  }
-  if(phoneEl){
-    phoneEl.textContent = phone||'尚未填寫 — 前往填寫';
-    phoneEl.style.cursor = phone?'':'pointer';
-    if(!phone) phoneEl.onclick = ()=>goProfile();
-    else phoneEl.onclick = null;
-  }
-  document.getElementById('coEmailVal').textContent = email;
+  if(nameInp)  nameInp.value  = name;
+  if(phoneInp) phoneInp.value = phone;
+  if(emailEl)  emailEl.textContent = email;
+  if(warn)     warn.style.display = (!name || !phone) ? '' : 'none';
+  if(submitBtn) submitBtn.disabled = false;
 
-  const missing = !name || !phone;
-  if(warn) warn.classList.toggle('show', missing);
-  if(submitBtn){ submitBtn.disabled = missing; submitBtn.style.opacity = missing?'0.5':'1'; }
-
-  const dep = calcCartDeposit();
-  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
 
   // items detail(分現貨/預購分組)
   const _coStock = cart.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='現貨'; });
@@ -2719,9 +2745,19 @@ function genOrderNum(){
 }
 
 async function submitCheckoutOrder(){
+  // 先從結帳頁 input 更新 profile
+  const _nameInp  = document.getElementById('coNameInp')?.value.trim()||'';
+  const _phoneInp = document.getElementById('coPhoneInp')?.value.trim()||'';
+  if(_nameInp)  { userProfile.name=_nameInp;  if(user?.email) saveProfileForUser(user.email, userProfile); }
+  if(_phoneInp) { userProfile.phone=_phoneInp; if(user?.email) saveProfileForUser(user.email, userProfile); }
   const phone = userProfile.phone||'';
   const customerName = userProfile.name||user?.name||'';
-  if(!phone||!customerName){ showToast('⚠️ 請先至個人資料填寫姓名及手機'); goProfile(); return; }
+  if(!phone||!customerName){
+    const warn=document.getElementById('coProfileWarn');
+    if(warn) warn.style.display='';
+    document.getElementById('coNameInp')?.focus();
+    showToast('⚠️ 請填寫姓名及手機號碼'); return;
+  }
   // 自取必須選擇地點
   if(selectedDelivery==='自取' && !selectedPickupLoc){
     const warn = document.getElementById('pickupLocWarn');
@@ -4791,6 +4827,28 @@ async function aoMarkStockPaid(id){
 }
 
 // ─── 頑瘋樂自取請款統計 ──────────────────────────────────────
+// 頑瘋樂已請款記錄（存 localStorage，key = orderId）
+function getFwlClaimed(){ return JSON.parse(localStorage.getItem('fwl_claimed')||'[]'); }
+function setFwlClaimed(ids){ localStorage.setItem('fwl_claimed', JSON.stringify(ids)); }
+
+function markFwlClaimed(){
+  const pending = _allAdminOrders.filter(o=>
+    (o.store||'').includes('頑瘋樂') && o.status==='shipped'
+  );
+  const claimed = getFwlClaimed();
+  const newIds = [...new Set([...claimed, ...pending.map(o=>o.id)])];
+  setFwlClaimed(newIds);
+  showToast('✅ 已標記為請款完成');
+  renderFwlTab();
+}
+
+function resetFwlClaimed(){
+  if(!confirm('確定重置請款記錄？')) return;
+  localStorage.removeItem('fwl_claimed');
+  showToast('已重置');
+  renderFwlTab();
+}
+
 function renderFwlTab(){
   const wrap = document.getElementById('fwlWrap');
   if(!wrap) return;
@@ -4802,10 +4860,12 @@ function renderFwlTab(){
     return;
   }
 
-  // 分組統計
+  // 分組統計（已請款的 shipped 另外分組）
+  const _claimed = getFwlClaimed();
   const groups = {
     active:    fwlOrders.filter(o=>['new','paid','partial','pickup_ready'].includes(o.status)),
-    done:      fwlOrders.filter(o=>o.status==='shipped'),
+    done:      fwlOrders.filter(o=>o.status==='shipped' && !_claimed.includes(o.id)),
+    claimed:   fwlOrders.filter(o=>o.status==='shipped' && _claimed.includes(o.id)),
     cancelled: fwlOrders.filter(o=>o.status==='cancelled'),
   };
 
@@ -4815,37 +4875,44 @@ function renderFwlTab(){
     return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
   }, 0);
 
-  const _totalActive = calcTotal(groups.active);
-  const _totalDone   = calcTotal(groups.done);
-  const _allTotal    = calcTotal(fwlOrders.filter(o=>o.status!=='cancelled'));
-
-  // 待請款：已完成自取(shipped)
-  const _pendingClaim = groups.done;
-  const _pendingAmt   = _totalDone;
+  const _pendingAmt   = calcTotal(groups.done);
+  const _claimedAmt   = calcTotal(groups.claimed);
+  const _activeAmt    = calcTotal(groups.active);
+  const _allTotal     = calcTotal(fwlOrders.filter(o=>o.status!=='cancelled'));
 
   wrap.innerHTML =
+    // 操作按鈕
+    '<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">'
+    +'<button onclick="markFwlClaimed()" style="height:36px;padding:0 16px;background:#2e7d32;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer'
+    +(_pendingClaim.length?'':';opacity:.4;cursor:default')+'"'
+    +(_pendingClaim.length?'':' disabled')
+    +'>✅ 已請款（歸零 NT$'+_pendingAmt.toLocaleString()+'）</button>'
+    +'<span style="font-size:11px;color:var(--ink3)">將目前已完成自取的訂單標記為已請款</span>'
+    +'<button onclick="resetFwlClaimed()" style="margin-left:auto;height:28px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:11px;color:var(--ink3);background:var(--white);cursor:pointer">重置記錄</button>'
+    +'</div>'
+
     // 統計卡片
-    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
+    +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
     +'<div style="flex:1;min-width:140px;background:#eef7f1;border-radius:10px;padding:16px;text-align:center">'
     +'<div style="font-size:24px;font-weight:800;color:#2e7d32">NT$'+_pendingAmt.toLocaleString()+'</div>'
-    +'<div style="font-size:12px;color:#2e7d32;margin-top:4px">✅ 已完成(待請款)</div>'
+    +'<div style="font-size:12px;color:#2e7d32;margin-top:4px">✅ 待請款</div>'
     +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+_pendingClaim.length+' 筆</div>'
     +'</div>'
     +'<div style="flex:1;min-width:140px;background:#fff4e5;border-radius:10px;padding:16px;text-align:center">'
-    +'<div style="font-size:24px;font-weight:800;color:#e67300">NT$'+_totalActive.toLocaleString()+'</div>'
+    +'<div style="font-size:24px;font-weight:800;color:#e67300">NT$'+_activeAmt.toLocaleString()+'</div>'
     +'<div style="font-size:12px;color:#e67300;margin-top:4px">🕐 進行中</div>'
     +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+groups.active.length+' 筆</div>'
     +'</div>'
     +'<div style="flex:1;min-width:140px;background:var(--bg);border-radius:10px;padding:16px;text-align:center">'
-    +'<div style="font-size:24px;font-weight:800;color:var(--ink)">NT$'+_allTotal.toLocaleString()+'</div>'
-    +'<div style="font-size:12px;color:var(--ink3);margin-top:4px">📊 全部合計</div>'
-    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">(不含取消)共 '+(fwlOrders.length-groups.cancelled.length)+' 筆</div>'
+    +'<div style="font-size:22px;font-weight:800;color:var(--ink3)">NT$'+_claimedAmt.toLocaleString()+'</div>'
+    +'<div style="font-size:12px;color:var(--ink3);margin-top:4px">📋 已請款</div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">共 '+groups.claimed.length+' 筆</div>'
     +'</div>'
     +'</div>'
 
-    // 已完成訂單明細
+    // 待請款明細
     +(_pendingClaim.length
-      ? '<div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#2e7d32">✅ 已完成自取訂單</div>'
+      ? '<div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#2e7d32">✅ 待請款訂單</div>'
         +_pendingClaim.map(o=>{
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
           const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
@@ -4859,9 +4926,9 @@ function renderFwlTab(){
             +'<div style="font-size:15px;font-weight:700;color:#2e7d32">NT$'+total.toLocaleString()+'</div>'
             +'</div>';
         }).join('')
-      : '<div style="color:var(--ink3);font-size:13px;padding:12px 0">目前沒有已完成的自取訂單</div>')
+      : '<div style="color:var(--ink3);font-size:13px;padding:12px 0">目前沒有待請款訂單</div>')
 
-    // 進行中訂單
+    // 進行中
     +(groups.active.length
       ? '<div style="font-size:13px;font-weight:700;margin:16px 0 10px;color:#e67300">🕐 進行中訂單</div>'
         +groups.active.map(o=>{
@@ -4880,7 +4947,7 @@ function renderFwlTab(){
             +'<div style="font-size:15px;font-weight:700">NT$'+total.toLocaleString()+'</div>'
             +'</div>';
         }).join('')
-      : '');
+      : '')
 }
 
 // keep old name for compat
