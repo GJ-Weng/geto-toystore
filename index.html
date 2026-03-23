@@ -137,6 +137,7 @@ input,select,textarea{font-family:var(--font)}
 .pgb{min-width:34px;height:34px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--ink2);display:flex;align-items:center;justify-content:center;transition:all .15s}
 .pgb:hover{border-color:var(--ink2);color:var(--ink)}
 .pgb.act{background:var(--red);color:#fff;border-color:var(--red)}
+.pgb.disabled,.pgb:disabled{opacity:.35;cursor:default;pointer-events:none}
 
 /* ── DETAIL PAGE ── */
 .detailview{display:none;max-width:1360px;margin:0 auto;padding:20px}
@@ -856,7 +857,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="mtop">
         <button class="filter-btn" onclick="toggleSidebar()">☰ 分類篩選</button>
         <div class="rcount" id="rcount">共 0 件商品</div>
-        <select class="ssort" id="sortSel" onchange="renderShop()">
+        <select class="ssort" id="sortSel" onchange="currentPage=1;renderShop()">
           <option value="latest">最新上架</option>
           <option value="price_asc">價格低→高</option>
           <option value="price_desc">價格高→低</option>
@@ -1574,6 +1575,8 @@ let orders   = JSON.parse(localStorage.getItem('tf_o')||'[]');
 
 let filter='全部', subFilter='', editingId=null, selEmoji=EMOJIS[0], searchQ='';
 let currentProductId=null, selectedVariant=null, detailQty=1;
+let currentPage = 1;          // 目前分頁
+const PAGE_SIZE = 12;          // 每頁顯示商品數
 // 已成立訂單的商品(防止重複下單)
 // 已下單紀錄：{productId: {variant: qty}} 
 let orderedQtyMap = JSON.parse(localStorage.getItem('tf_ordered_v2')||'{}');
@@ -2299,7 +2302,7 @@ function renderDynamicFilter(listId, items, pubList){
   });
 }
 function setFilter(f,el){
-  filter=f;subFilter='';
+  filter=f;subFilter='';currentPage=1;
   document.querySelectorAll('.si').forEach(x=>x.classList.remove('act'));
   document.querySelectorAll('.ssub a').forEach(x=>x.classList.remove('act'));
   if(el) el.classList.add('act');
@@ -2307,7 +2310,7 @@ function setFilter(f,el){
   if(window.innerWidth<=880) closeSidebar();
 }
 function setSubFilter(f){
-  subFilter=f;
+  subFilter=f;currentPage=1;
   document.querySelectorAll('.ssub a').forEach(x=>x.classList.toggle('act',x.textContent.trim()===f));
   renderShop();
 }
@@ -2334,6 +2337,7 @@ function renderBrandFilter(pub){
 function setBrandFilter(brand){
   // 把 subFilter 用在廠牌
   subFilter = brand;
+  currentPage = 1;
   // 清除其他 active
   document.querySelectorAll('.ssub a').forEach(x=>x.classList.remove('act'));
   // 找對應的 a 並 highlight
@@ -2351,6 +2355,7 @@ function toggleGrp(g){
 }
 function onSearch(){
   searchQ=document.getElementById('searchInput').value.trim();
+  currentPage=1;
   const btn=document.getElementById('searchClearBtn');
   if(btn) btn.style.display=searchQ?'block':'none';
   renderShop();
@@ -2358,6 +2363,7 @@ function onSearch(){
 function clearSearch(){
   document.getElementById('searchInput').value='';
   searchQ='';
+  currentPage=1;
   const btn=document.getElementById('searchClearBtn');
   if(btn) btn.style.display='none';
   renderShop();
@@ -2385,9 +2391,19 @@ function renderShop(){
     grid.innerHTML=_msg;
     document.getElementById('pagination').innerHTML='';return;
   }
-  // ── 全局圖片 URL 快取(防閃爍核心)─────────────────────────────────────
-  list.forEach(p=>{ if(p.imageUrl) window._imgCache = window._imgCache||{}, window._imgCache[p.id]=p.imageUrl; });
-  const _newHtml = list.map(p=>{
+  // ── 確保 currentPage 在合理範圍內 ──────────────────────────────────
+  const totalPages = Math.ceil(list.length / PAGE_SIZE);
+  if(currentPage < 1) currentPage = 1;
+  if(currentPage > totalPages) currentPage = totalPages || 1;
+
+  // ── 截取當前頁的商品 ──────────────────────────────────────────────
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageList  = list.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // ── 全局圖片 URL 快取(防閃爍核心)───────────────────────────────────
+  pageList.forEach(p=>{ if(p.imageUrl){ window._imgCache = window._imgCache||{}; window._imgCache[p.id]=p.imageUrl; } });
+
+  const _newHtml = pageList.map(p=>{
     const fav    = favs.map(String).includes(String(p.id));
     const bt     = p.type==='預購'?'預購':p.type==='現貨'?'現貨':'';
     const bc     = p.type==='預購'?'pre':p.type==='現貨'?'stk':'';
@@ -2406,7 +2422,7 @@ function renderShop(){
     else _btnHtml='<button class="pbuy" onclick="event.stopPropagation();openDetail(\'' + p.id + '\')">' +(p.type==='預購'?'立即預購':'立即購買')+'</button>';
     return '<div class="pcard'+ (_exp?' expired':'')+'" data-pid="'+p.id+'" onclick="openDetail(\'' + p.id + '\')">'
       +'<div class="piw">'
-      +'<img src="'+_src+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r2) var(--r2) 0 0">'
+      +'<img src="'+_src+'" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r2) var(--r2) 0 0">'
       +(bt?'<div class="pbadge '+bc+'">'+bt+'</div>':'')
       +(_isNew?'<div class="pbadge-new">NEW</div>':'')
       +(_exp&&bt?'<div class="pbadge sold">已結單</div>':'')
@@ -2428,19 +2444,51 @@ function renderShop(){
       +'</div>'
       +'</div></div>';
   }).join('');
-  // 比對是否真的有變化（加入 filter 狀態確保切換分類時一定更新）
-  const _sig = filter+'|'+subFilter+'|'+_newHtml.length+'|'+_newHtml.slice(0,32);
+
+  // 比對是否真的有變化（加入 page、filter 狀態確保切換時一定更新）
+  const _sig = filter+'|'+subFilter+'|'+currentPage+'|'+_newHtml.length+'|'+_newHtml.slice(0,32);
   if(grid.dataset.sig !== _sig){
     grid.innerHTML = _newHtml;
     grid.dataset.sig = _sig;
   }
-    // pagination
-  const pg=Math.ceil(list.length/9);
-  if(pg<=1){document.getElementById('pagination').innerHTML='';return;}
-  let h='';
-  for(let i=1;i<=Math.min(pg,7);i++) h+=`<button class="pgb${i===1?' act':''}">${i}</button>`;
-  if(pg>7) h+=`<span style="padding:0 4px;color:var(--ink3)">…</span>`;
-  document.getElementById('pagination').innerHTML=h;
+
+  // ── 分頁按鈕（有 onclick 的真實分頁）────────────────────────────────
+  const pgEl = document.getElementById('pagination');
+  if(totalPages <= 1){ pgEl.innerHTML=''; return; }
+
+  let h = '';
+  // 上一頁
+  h += `<button class="pgb${currentPage===1?' disabled':''}" onclick="gotoPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+
+  // 頁碼邏輯：最多顯示 7 個按鈕，超過以「…」省略
+  const _showPage = (i) => `<button class="pgb${i===currentPage?' act':''}" onclick="gotoPage(${i})">${i}</button>`;
+  if(totalPages <= 7){
+    for(let i=1;i<=totalPages;i++) h += _showPage(i);
+  } else {
+    h += _showPage(1);
+    if(currentPage > 4) h += `<span style="padding:0 4px;color:var(--ink3)">…</span>`;
+    const _from = Math.max(2, currentPage-2);
+    const _to   = Math.min(totalPages-1, currentPage+2);
+    for(let i=_from;i<=_to;i++) h += _showPage(i);
+    if(currentPage < totalPages-3) h += `<span style="padding:0 4px;color:var(--ink3)">…</span>`;
+    h += _showPage(totalPages);
+  }
+
+  // 下一頁
+  h += `<button class="pgb${currentPage===totalPages?' disabled':''}" onclick="gotoPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+  pgEl.innerHTML = h;
+}
+
+// ── 分頁跳頁函式 ──────────────────────────────────────────────────────
+function gotoPage(n){
+  const list = getVis();
+  const totalPages = Math.ceil(list.length / PAGE_SIZE);
+  if(n < 1 || n > totalPages) return;
+  currentPage = n;
+  renderShop();
+  // 滾動回商品區頂端
+  const grid = document.getElementById('productGrid');
+  if(grid) grid.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 // ─── DETAIL PAGE ─────────────────────────────────────────
@@ -3186,8 +3234,14 @@ async function syncProductsFromSupabase(){
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = controller ? setTimeout(()=>controller.abort(), 8000) : null;
   try {
-    const res = await _sb.from('products').select('*').order('created_at',{ascending:false})
-      .abortSignal(controller?.signal);
+    // 使用 signal option 而非 .abortSignal() 鏈式調用（相容性更好）
+    const queryPromise = _sb.from('products').select('*').order('created_at',{ascending:false});
+    const res = controller
+      ? await Promise.race([
+          queryPromise,
+          new Promise((_,rej)=>controller.signal.addEventListener('abort',()=>rej(new Error('timeout'))))
+        ])
+      : await queryPromise;
     if(timer) clearTimeout(timer);
     const data = res.data;
     const errMsg = res.error?.message || res.error?.details || null;
@@ -4996,7 +5050,7 @@ async function sendStatusEmail(o, newStatus){
       <th style="padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #eee">數量</th>
       <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #eee">小計</th>
     </tr></thead>
-    <tbody>${_adjustItems.map(it=>`
+    <tbody>${items.map(it=>`
       <tr>
         <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
         <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${it.qty||1}</td>
