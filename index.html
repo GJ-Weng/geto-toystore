@@ -1410,8 +1410,6 @@ textarea.fi{min-height:64px;resize:vertical}
   </div>
 </div>
 
-<!-- Facebook Customer Chat Plugin -->
-<div id="fb-root"></div>
 
 <!-- 聯絡客服浮動按鈕（簡化版，適合手機）-->
 <div id="csFloatBtn" style="position:fixed;bottom:80px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
@@ -1431,7 +1429,7 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <!-- 聯絡按鈕 -->
     <div style="padding:16px 24px 20px">
-      <button onclick="closeBugReport();(typeof FB!=='undefined'&&FB.CustomerChat)?FB.CustomerChat.show(true):window.open('https://m.me/getotoy','_blank')"
+      <button onclick="closeBugReport();if(window.$crisp){$crisp.push(['do','chat:open'])}else{window.open('https://m.me/getotoy','_blank')}"
         style="width:100%;height:48px;background:#1877F2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s"
         onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
         📘 開啟 Messenger 聯絡我們
@@ -1498,7 +1496,7 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- 底部按鈕 -->
     <div style="padding:12px 24px 16px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px">
       <button onclick="closeFaq()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:8px;font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">好的，了解！</button>
-      <button onclick="closeFaq();(typeof FB!=='undefined'&&FB.CustomerChat)?FB.CustomerChat.show(true):window.open('https://m.me/getotoy','_blank')"
+      <button onclick="closeFaq();if(window.$crisp){$crisp.push(['do','chat:open'])}else{window.open('https://m.me/getotoy','_blank')}"
         style="flex:1;height:42px;background:#1877F2;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
         📘 還有問題？聯絡我們
       </button>
@@ -5703,25 +5701,7 @@ setInterval(()=>{
 })();
 </script>
 
-<!-- FB Messenger Customer Chat Plugin -->
-<script>
-  window.fbAsyncInit = function() {
-    FB.init({ xfbml: true, version: 'v18.0' });
-  };
-  (function(d, s, id){
-    var js, fjs = d.getElementsByTagName(s)[0];
-    if(d.getElementById(id)) return;
-    js = d.createElement(s); js.id = id;
-    js.src = 'https://connect.facebook.net/zh_TW/sdk/xfbml.customerchat.js';
-    fjs.parentNode.insertBefore(js, fjs);
-  }(document, 'script', 'facebook-jssdk'));
-</script>
-<div class="fb-customerchat"
-  attribution="biz_inbox"
-  page_id="100093454573209"
-  theme_color="#1B3A5C"
-  logged_in_greeting="嗨！有什麼可以幫助你的嗎？"
-  logged_out_greeting="嗨！有什麼可以幫助你的嗎？歡迎登入後留言！">
-</div>
+<!-- Crisp 即時客服 -->
+<script type="text/javascript">window.$crisp=[];window.CRISP_WEBSITE_ID="542612b8-cccd-418e-b9e5-053cc6659c4a";(function(){d=document;s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();</script>
 </body>
 </html>
