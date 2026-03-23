@@ -1563,7 +1563,7 @@ function isDeadlinePassed(deadline){
 }
 
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
-const _CACHE_TTL = 60; // 快取有效秒數(60秒內不重複 sync)
+const _CACHE_TTL = 300; // 快取有效秒數（5分鐘內不強制重新 sync）
 function _isCacheFresh(){
   const ts = parseInt(localStorage.getItem('tf_p_ts')||'0');
   return (Date.now() - ts) < _CACHE_TTL * 1000;
@@ -3230,56 +3230,69 @@ const _sb = window.supabase.createClient('https://zmglfuzeplmfyfcwnqpd.supabase.
 
 // ─── 從 Supabase 同步商品 ─────────────────────────────────
 async function syncProductsFromSupabase(){
-  // 8 秒超時保護
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = controller ? setTimeout(()=>controller.abort(), 8000) : null;
   try {
-    // 使用 signal option 而非 .abortSignal() 鏈式調用（相容性更好）
-    const queryPromise = _sb.from('products').select('*').order('created_at',{ascending:false});
-    const res = controller
-      ? await Promise.race([
-          queryPromise,
-          new Promise((_,rej)=>controller.signal.addEventListener('abort',()=>rej(new Error('timeout'))))
-        ])
-      : await queryPromise;
-    if(timer) clearTimeout(timer);
-    const data = res.data;
-    const errMsg = res.error?.message || res.error?.details || null;
-    if(errMsg){ console.warn('商品讀取失敗，使用本地資料:', errMsg); renderShop(); return; }
-    // sync 成功：清除任何可能殘留的舊測試資料
-    if(data){
-      // 轉換欄位格式(Supabase snake_case → JS camelCase)
-      products = data.map(p=>({
-        id:        p.id,
-        name:      p.name||'',
-        brand:     p.brand||'',
-        price:     p.price||0,
-        deposit:   p.deposit||0,
-        limit:     p.limit_qty||'',
-        type:      p.type||'預購',
-        deadline:  p.deadline||'',
-        arrival:   p.arrival||'',
-        ip:        p.ip||'',
-        form:      p.form||'',
-        variants:  p.variants||[],
-        emoji:     p.emoji||'🧸',
-        imageUrl:    p.image_url||'',
-        imageUrls:   Array.isArray(p.image_urls)&&p.image_urls.length ? p.image_urls : (p.image_url ? [p.image_url] : []),
-        variantPrices: p.variant_prices||{},
-        variantStocks: p.variant_stocks||{},
-        description: p.description||'',
-        status:    p.status||'published',
-        isNew:     p.is_new||false,
-        cnt:       p.order_count||0,
-        stock:      p.stock||0,
-        stockStatus:p.stock_status||'in_stock',
-      }));
-      localStorage.setItem('tf_p', JSON.stringify(products));
-      localStorage.setItem('tf_p_ts', String(Date.now())); // 更新快取時間戳
-      }
-    renderShop(); updCounts(); // 無論有無資料都更新畫面
-    _restoreHashPage(); // sync 完成後嘗試恢復 hash 頁面
-  } catch(e){ console.warn('syncProducts error:', e); renderShop(); }
+    // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
+    const { data, error } = await _sb
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if(error){
+      console.warn('商品讀取失敗:', error.message || error);
+      showToast('⚠️ 商品載入失敗：' + (error.message || '請確認 Supabase 權限設定'));
+      renderShop();
+      return;
+    }
+
+    if(!Array.isArray(data)){
+      console.warn('syncProducts: 回傳資料格式異常', data);
+      renderShop();
+      return;
+    }
+
+    // 轉換欄位格式 (Supabase snake_case → JS camelCase)
+    products = data.map(p => ({
+      id:           p.id,
+      name:         p.name         || '',
+      brand:        p.brand        || '',
+      price:        p.price        || 0,
+      deposit:      p.deposit      || 0,
+      limit:        p.limit_qty    || '',
+      type:         p.type         || '預購',
+      deadline:     p.deadline     || '',
+      arrival:      p.arrival      || '',
+      ip:           p.ip           || '',
+      form:         p.form         || '',
+      variants:     p.variants     || [],
+      emoji:        p.emoji        || '🧸',
+      imageUrl:     p.image_url    || '',
+      imageUrls:    Array.isArray(p.image_urls) && p.image_urls.length
+                      ? p.image_urls
+                      : (p.image_url ? [p.image_url] : []),
+      variantPrices: p.variant_prices  || {},
+      variantStocks: p.variant_stocks  || {},
+      description:   p.description    || '',
+      status:        p.status         || 'published',
+      isNew:         p.is_new         || false,
+      cnt:           p.order_count    || 0,
+      stock:         p.stock          || 0,
+      stockStatus:   p.stock_status   || 'in_stock',
+    }));
+
+    try{
+      localStorage.setItem('tf_p',    JSON.stringify(products));
+      localStorage.setItem('tf_p_ts', String(Date.now()));
+    } catch(storErr){ console.warn('localStorage write error:', storErr); }
+
+    renderShop();
+    updCounts();
+    _restoreHashPage();
+
+  } catch(e){
+    console.warn('syncProducts 例外:', e);
+    showToast('⚠️ 商品載入失敗，請重新整理頁面');
+    renderShop();
+  }
 }
 
 // 根據 URL hash 恢復頁面(在 products 載入後呼叫)
@@ -5721,11 +5734,8 @@ if(products.length){
 }
 
 // ── 背景同步 ─────────────────────────────────────────────────────
-if(products.length && _isCacheFresh()){
-  setTimeout(syncProductsFromSupabase, 3000); // 有新鮮快取 → 3秒後靜默更新
-} else {
-  syncProductsFromSupabase(); // 無快取或過期 → 立即 sync
-}
+// 無論是否有快取，一律從 Supabase 拉取最新商品（確保 60+ 件商品都能顯示）
+syncProductsFromSupabase();
 
 // 每小時重新整理商品顯示(結單自動下架)
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
