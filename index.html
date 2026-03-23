@@ -1621,6 +1621,15 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   const _ejsCfg = JSON.parse(localStorage.getItem('tf_ejs')||'{}');
   if(_ejsCfg.publicKey) Object.assign(emailjsConfig, _ejsCfg);
 
+  // 按實際 dep 比例重算各商品訂金（首購50%時，item.deposit來自商品設定，需重新分配）
+  const _storedDepTotal = items.reduce((s,i)=>s+(i.deposit||0),0);
+  const _adjustItems = items.map(i=>({
+    ...i,
+    deposit: (_storedDepTotal>0 && i.deposit>0)
+      ? Math.round(i.deposit * dep / _storedDepTotal)
+      : (i.deposit||0)
+  }));
+
   if(!emailjsConfig.publicKey || !emailjsConfig.serviceId || !emailjsConfig.templateId){
     console.warn('❌ EmailJS 未設定或設定遺失，跳過寄信', {
       publicKey: !!emailjsConfig.publicKey,
@@ -1652,16 +1661,18 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   </table>`;
 
   // 金額摘要
+  // 分別計算現貨合計與預購合計
+  const _emailStockTotal = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return p&&p.type==='現貨'; }).reduce((s,i)=>s+(i.price||0),0);
+  const _emailPreTotal   = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return !p||p.type!=='現貨'; }).reduce((s,i)=>s+(i.price||0),0);
+
   const amountHtml = hasDeposit
-    ? `<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0">
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:6px">
-          <span>商品合計</span><span>NT$ ${total.toLocaleString()}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b">
-          <span>應付訂金</span><span>NT$ ${dep.toLocaleString()}</span>
-        </div>
-        <div style="font-size:12px;color:#888;margin-top:6px">尾款 NT$ ${tail.toLocaleString()} 於取貨時支付</div>
-      </div>`
+    ? '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0">'
+      +(_emailStockTotal>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:4px"><span>📦 現貨合計</span><span>NT$ '+_emailStockTotal.toLocaleString()+'</span></div>':'')
+      +(_emailPreTotal>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:4px"><span>🕐 預購合計</span><span>NT$ '+_emailPreTotal.toLocaleString()+'</span></div>':'')
+      +'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;border-top:1px solid #f0d8a8;padding-top:8px;margin:4px 0 6px"><span>商品合計</span><span>NT$ '+total.toLocaleString()+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b"><span>應付訂金</span><span>NT$ '+dep.toLocaleString()+'</span></div>'
+      +(tail>0?'<div style="font-size:12px;color:#888;margin-top:6px">預購尾款 NT$ '+tail.toLocaleString()+' 於到貨時支付</div>':'')
+      +'</div>'
     : `<div style="background:#eef7f1;border-radius:8px;padding:14px 16px;margin:12px 0">
         <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#2e7d32">
           <span>訂單總金額</span><span>NT$ ${total.toLocaleString()}</span>
@@ -2457,10 +2468,11 @@ function openDetail(id){
   const dMainEl = document.getElementById('dMainImg');
   dMainEl.innerHTML=`<img src="${_mainImg}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
 
-  // Thumbnails：有幾張圖顯示幾張，沒圖就不顯示縮圖
+  // Thumbnails：過濾空字串，只顯示有效圖片
   const dThumbs = document.getElementById('dThumbs');
-  if(_imgs.length > 1){
-    dThumbs.innerHTML = _imgs.map((src,i)=>{
+  const _validImgs = _imgs.filter(s=>s&&s.trim());
+  if(_validImgs.length > 1){
+    dThumbs.innerHTML = _validImgs.map((src,i)=>{
       const _s = src.replace(/'/g,'%27');
       return '<div class="dthumb'+(i===0?' act':'')+'" onclick="selDetailImg(this,\''+_s+'\')" style="background-image:url(\''+_s+'\')"></div>';
     }).join('');
@@ -3520,7 +3532,14 @@ function swTab(n){
     }
   }
   if(n===3) renderOrderList();
-  if(n===6) renderFwlTab();
+  if(n===6){
+    // 確保訂單資料已載入
+    if(!_allAdminOrders.length){
+      renderOrderList().then(()=>renderFwlTab()).catch(()=>renderFwlTab());
+    } else {
+      renderFwlTab();
+    }
+  }
   if(n===4) loadSettings();
   if(n===5) renderArrivalTracker();
 }
@@ -4615,7 +4634,8 @@ function _aoRenderCards(){
           try{_it=JSON.parse(o.note||'[]');}catch(e){}
           if(!Array.isArray(_it)||!_it.length) _it=[{price:o.price,deposit:0}];
           const _tot = _it.reduce((s,i)=>s+(i.price||0),0);
-          const _dep = _it.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+          // o.price = 實際收取的訂金（比 items.deposit 更準確，尤其首購50%時）
+          const _dep = o.price || _it.reduce((s,i)=>s+(i.deposit||0),0);
           const _tail= _tot-_dep;
           return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="display:flex;gap:16px;font-size:12px">
@@ -4965,7 +4985,7 @@ async function sendStatusEmail(o, newStatus){
       <th style="padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #eee">數量</th>
       <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #eee">小計</th>
     </tr></thead>
-    <tbody>${items.map(it=>`
+    <tbody>${_adjustItems.map(it=>`
       <tr>
         <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
         <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${it.qty||1}</td>
@@ -5066,7 +5086,7 @@ function renderFwlTab(){
   if(!wrap) return;
 
   // 篩選：自取地點包含「頑瘋樂」的訂單
-  const fwlOrders = _allAdminOrders.filter(o=>(o.store||'').includes('頑瘋樂'));
+  const fwlOrders = _allAdminOrders.filter(o=>{ const s=o.store||''; return s.includes('頑瘋樂')||s.includes('七張-頑瘋樂')||s.includes('七張頑瘋樂'); });
   if(!fwlOrders.length){
     wrap.innerHTML='<div style="text-align:center;padding:48px;color:var(--ink3)"><div style="font-size:32px;margin-bottom:10px">🏪</div><div>目前沒有頑瘋樂自取訂單</div></div>';
     return;
