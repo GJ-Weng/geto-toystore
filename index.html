@@ -46,7 +46,10 @@ input,select,textarea{font-family:var(--font)}
 .lay{max-width:1400px;margin:0 auto;padding:24px 28px;display:flex;gap:24px;align-items:flex-start;width:100%}
 
 /* SIDEBAR */
-.sb{width:var(--sw);flex-shrink:0;background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;position:sticky;top:70px}
+.sb{width:var(--sw);flex-shrink:0;background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;position:sticky;top:70px;max-height:calc(100vh - 90px);display:flex;flex-direction:column}
+.sb-scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.sb-scroll::-webkit-scrollbar{width:4px}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 .si{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;transition:background .15s;border-left:3px solid transparent;font-size:14px;color:var(--ink2)}
 .si:hover{background:var(--bg)}
 .si.act{background:var(--red-light);color:var(--red);border-left-color:var(--red);font-weight:700}
@@ -818,7 +821,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <span style="font-size:14px;font-weight:700;color:var(--ink)">分類篩選</span>
         <button onclick="closeSidebar()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 10px;border-radius:8px;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
-      <div class="sb-inner">
+      <div class="sb-inner sb-scroll">
         <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
         <div class="si" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
         <div class="ssep"></div>
@@ -2264,21 +2267,26 @@ function updCounts(){
   if(_closedRow) _closedRow.style.display = _admin ? '' : 'none';
   if(_closedSep) _closedSep.style.display  = _admin ? '' : 'none';
   // 動態更新 IP / 商品類型 / 廠牌
-  renderDynamicFilter('ipList',   [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort());
-  renderDynamicFilter('typeList', [...new Set(pub.map(p=>p.form).filter(Boolean))].sort());
+  renderDynamicFilter('ipList',   [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort(), pub);
+  renderDynamicFilter('typeList', [...new Set(pub.map(p=>p.form).filter(Boolean))].sort(), pub);
   renderBrandFilter(pub);
 }
 
-function renderDynamicFilter(listId, items){
+function renderDynamicFilter(listId, items, pubList){
   const el = document.getElementById(listId);
   if(!el) return;
   if(!items.length){ el.innerHTML='<a style="color:var(--ink3);cursor:default;font-size:12px">(暫無)</a>'; return; }
-  el.innerHTML = items.map(v=>
-    `<a onclick="setSubFilter('${v.replace(/'/g,"&#39;")}')">${v}</a>`
-  ).join('');
-  el.querySelectorAll('a').forEach(a=>
-    a.classList.toggle('act', a.textContent.trim()===subFilter)
-  );
+  el.innerHTML = items.map(v=>{
+    const cnt = pubList ? pubList.filter(p=>p.ip===v||p.form===v).length : 0;
+    return `<a onclick="setSubFilter('${v.replace(/'/g,"&#39;")}')" style="display:flex;justify-content:space-between;align-items:center">`
+      +`<span>${v}</span>`
+      +(cnt>0?`<span style="font-size:10px;color:var(--ink3);margin-left:4px;flex-shrink:0">${cnt}</span>`:'')
+      +`</a>`;
+  }).join('');
+  el.querySelectorAll('a').forEach(a=>{
+    const name = a.querySelector('span:first-child')?.textContent.trim()||a.textContent.trim();
+    a.classList.toggle('act', name===subFilter);
+  });
 }
 function setFilter(f,el){
   filter=f;subFilter='';
@@ -2410,8 +2418,8 @@ function renderShop(){
       +'</div>'
       +'</div></div>';
   }).join('');
-  // 比對是否真的有變化(用字串長度+前32字元快速比較)
-  const _sig = _newHtml.length+'|'+_newHtml.slice(0,32);
+  // 比對是否真的有變化（加入 filter 狀態確保切換分類時一定更新）
+  const _sig = filter+'|'+subFilter+'|'+_newHtml.length+'|'+_newHtml.slice(0,32);
   if(grid.dataset.sig !== _sig){
     grid.innerHTML = _newHtml;
     grid.dataset.sig = _sig;
@@ -2826,6 +2834,9 @@ function renderCheckoutPage(){
   if(warn)     warn.style.display = (!name || !phone) ? '' : 'none';
   if(submitBtn) submitBtn.disabled = false;
 
+  // ── 計算總金額與訂金（這兩個變數在本函式內使用）──────────────────────
+  const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
+  const dep   = calcCartDeposit();
 
   // items detail(分現貨/預購分組)
   const _coStock = cart.filter(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p&&p.type==='現貨'; });
@@ -3179,6 +3190,7 @@ async function syncProductsFromSupabase(){
         imageUrls:   Array.isArray(p.image_urls)&&p.image_urls.length ? p.image_urls : (p.image_url ? [p.image_url] : []),
         variantPrices: p.variant_prices||{},
         variantStocks: p.variant_stocks||{},
+        description: p.description||'',
         status:    p.status||'published',
         isNew:     p.is_new||false,
         cnt:       p.order_count||0,
