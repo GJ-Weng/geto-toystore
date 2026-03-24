@@ -5208,14 +5208,19 @@ function getFwlClaimed(){ return JSON.parse(localStorage.getItem('fwl_claimed')|
 function setFwlClaimed(ids){ localStorage.setItem('fwl_claimed', JSON.stringify(ids)); }
 
 function markFwlClaimed(){
-  const pending = _allAdminOrders.filter(o=>
-    (o.store||'').includes('頑瘋樂') && o.status==='shipped'
-  );
+  // 只標記「目前顯示在待請款」的訂單（shipped + 未 claimed）
+  const _claimed = getFwlClaimed();
+  const pending = _allAdminOrders.filter(o=>{
+    const s = o.store||'';
+    const isFwl = s.includes('頑瘋樂') || s.includes('七張-頑瘋樂') || s.includes('七張頑瘋樂');
+    const isShipped = o.status === 'shipped';
+    const notClaimed = !_claimed.includes(String(o.id));
+    return isFwl && isShipped && notClaimed;
+  });
   if(!pending.length){ showToast('⚠️ 目前沒有待請款訂單'); return; }
-  const claimed = getFwlClaimed(); // already string[]
-  const newIds = [...new Set([...claimed, ...pending.map(o=>String(o.id))])];
+  const newIds = [...new Set([..._claimed, ...pending.map(o=>String(o.id))])];
   setFwlClaimed(newIds);
-  showToast('✅ 已標記 ' + pending.length + ' 筆為請款完成');
+  showToast('✅ 已標記 ' + pending.length + ' 筆為已請款');
   renderFwlTab();
 }
 
@@ -5225,7 +5230,7 @@ function resetFwlClaimed(){
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML='<div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.15)">'
     +'<div style="font-size:16px;font-weight:700;margin-bottom:10px">確定重置請款記錄？</div>'
-    +'<div style="font-size:13px;color:#666;margin-bottom:20px">所有已標記的請款記錄將被清除，無法復原。</div>'
+    +'<div style="font-size:13px;color:#666;margin-bottom:20px">所有已標記的請款記錄將被清除。<br><span style="font-size:12px;color:#e74c3c">清除後這些訂單會回到「待請款」，無法復原。</span></div>'
     +'<div style="display:flex;gap:10px;justify-content:center">'
     +'<button id="_fwlResetCancel" style="height:36px;padding:0 20px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:14px">取消</button>'
     +'<button id="_fwlResetConfirm" style="height:36px;padding:0 20px;border:none;border-radius:8px;background:#e74c3c;color:#fff;cursor:pointer;font-size:14px;font-weight:700">確定重置</button>'
@@ -5247,6 +5252,7 @@ function renderFwlTab(){
 
   // 篩選：自取地點包含「頑瘋樂」的訂單
   const fwlOrders = _allAdminOrders.filter(o=>{ const s=o.store||''; return s.includes('頑瘋樂')||s.includes('七張-頑瘋樂')||s.includes('七張頑瘋樂'); });
+
   if(!fwlOrders.length){
     wrap.innerHTML='<div style="text-align:center;padding:48px;color:var(--ink3)"><div style="font-size:32px;margin-bottom:10px">🏪</div><div>目前沒有頑瘋樂自取訂單</div></div>';
     return;
@@ -5281,7 +5287,11 @@ function renderFwlTab(){
     +(_pendingClaim.length?'':' disabled')
     +'>✅ 已請款（歸零 NT$'+_pendingAmt.toLocaleString()+'）</button>'
     +'<span style="font-size:11px;color:var(--ink3)">將目前已完成自取的訂單標記為已請款</span>'
-    +'<button onclick="resetFwlClaimed()" style="margin-left:auto;height:28px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:11px;color:var(--ink3);background:var(--white);cursor:pointer">重置記錄</button>'
+    +'<button onclick="resetFwlClaimed()" '
+    +(groups.claimed.length ? '' : 'disabled ')
+    +'style="margin-left:auto;height:28px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:11px;color:var(--ink3);background:var(--white);cursor:pointer'
+    +(groups.claimed.length ? '' : ';opacity:.4;cursor:not-allowed')
+    +'" title="'+(groups.claimed.length ? '清除已請款標記，讓訂單回到待請款' : '目前沒有已標記的請款記錄可重置')+'">重置記錄</button>'
     +'</div>'
 
     // 統計卡片
@@ -5319,7 +5329,7 @@ function renderFwlTab(){
             +'<div style="font-size:15px;font-weight:700;color:#2e7d32">NT$'+total.toLocaleString()+'</div>'
             +'</div>';
         }).join('')
-      : '<div style="color:var(--ink3);font-size:13px;padding:12px 0">目前沒有待請款訂單</div>')
+      : '<div style="color:var(--ink3);font-size:13px;padding:12px 0">🎉 目前沒有待請款訂單<br><span style="font-size:11px">所有已完成自取的訂單均已標記為請款完成。</span></div>')
 
     // 進行中
     +(groups.active.length
