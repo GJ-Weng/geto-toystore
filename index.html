@@ -1703,7 +1703,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   if(_ejsCfg.publicKey) Object.assign(emailjsConfig, _ejsCfg);
 
   // 按實際 dep 比例重算各商品訂金（首購50%時，item.deposit來自商品設定，需重新分配）
-  const _storedDepTotal = items.reduce((s,i)=>s+(i.deposit||0),0);
+  const _storedDepTotal = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
   const _adjustItems = items.map(i=>({
     ...i,
     deposit: (_storedDepTotal>0 && i.deposit>0)
@@ -2231,8 +2231,8 @@ function renderOrdersList(){
       items=[{product_emoji:o.product_emoji,product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price}];
     }
     const si = oStatusInfo(o.status);
-    const dep = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
-    const realTotal = items.reduce((s,i)=>s+(i.price||0),0);
+    const dep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
+    const realTotal = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
     const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="order-card" onclick="openOrderDetail(${o.id})">
       <div class="order-card-head">
@@ -2284,8 +2284,8 @@ function openOrderDetail(orderId){
     items=[{product_emoji:o.product_emoji,product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price}];
   }
   const si = oStatusInfo(o.status);
-  const dep = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
-  const total = items.reduce((s,i)=>s+(i.price||0),0);
+  const dep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
+  const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
   const tail = total - dep;
   const canCancel = (o.status==='new');
   const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
@@ -3268,7 +3268,7 @@ async function submitCheckoutOrder(){
     }
     return items.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); if(!p) return s; return s+(getProductDeposit(p))*ci.qty; },0);
   };
-  const _makeItems = (items) => items.map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); const vp=getVariantPrice(p,ci.variant); return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp*ci.qty,deposit:getProductDeposit(p)*ci.qty}; });
+  const _makeItems = (items) => items.map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); const vp=getVariantPrice(p,ci.variant); return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:getProductDeposit(p)}; }); // price/deposit 存單價，總價 = price * qty
   const _makeRecord = (items, dep, orderNum, label) => ({
     product_name: items.map(i=>i.product_name).join(' / ')+(label?' ['+label+']':''),
     product_emoji: items[0]?.product_emoji||'',
@@ -4870,7 +4870,7 @@ function _aoRenderStats(){
     let items=[];
     try{items=JSON.parse(o.note||'[]');}catch(e){}
     if(!Array.isArray(items)||!items.length) return s+(o.price||0);
-    return s+items.reduce((ss,i)=>ss+(i.price||0),0);
+    return s+items.reduce((ss,i)=>ss+(i.price||0)*(i.qty||1),0);
   },0);
 
   document.getElementById('aoStats').innerHTML=`
@@ -5058,7 +5058,7 @@ function _aoRenderCards(){
           let _it=[];
           try{_it=JSON.parse(o.note||'[]');}catch(e){}
           if(!Array.isArray(_it)||!_it.length) _it=[{price:o.price,deposit:0}];
-          const _tot = _it.reduce((s,i)=>s+(i.price||0),0);
+          const _tot = _it.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
           // o.price = 實際收取的訂金（比 items.deposit 更準確，尤其首購50%時）
           const _dep = o.price || _it.reduce((s,i)=>s+(i.deposit||0),0);
           const _tail= _tot-_dep;
@@ -5139,8 +5139,8 @@ function openPostModal(orderId){
   // 帶入訂單資訊
   let items=[];
   try{ items=JSON.parse(o.note||'[]'); }catch(e){}
-  const total = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep   = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const dep   = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
   const tail  = Math.max(0, total - dep);
 
   document.getElementById('postModalSub').textContent =
@@ -5328,7 +5328,7 @@ function searchCustomer(){
     const cancelled  = g.orders.filter(o=>o.status==='cancelled');
     const totalSpent = completed.reduce((s,o)=>{
       let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-      return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
+      return s + (items.reduce((ss,i)=>ss+(i.price||0)*(i.qty||1),0) || o.price||0);
     },0);
     const totalDeposit = g.orders.filter(o=>['paid','partial','shipped'].includes(o.status))
       .reduce((s,o)=>s+(o.price||0),0);
@@ -5364,7 +5364,7 @@ function searchCustomer(){
           const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-          const total=items.reduce((s,i)=>s+(i.price||0),0)||o.price||0;
+          const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||o.price||0;
           return `<div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-family:monospace;font-size:12px;color:var(--ink2)">#${o.order_code||o.id}</span>
             <span style="font-size:11px;background:${si.bg};color:${si.color};padding:1px 7px;border-radius:10px;font-weight:600">${si.label}</span>
@@ -5386,8 +5386,8 @@ async function sendStatusEmail(o, newStatus){
   if(!Array.isArray(items)||!items.length){
     items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
   }
-  const total = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep   = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const dep   = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
   const tail  = total - dep;
 
   // 依狀態決定信件內容
@@ -5555,7 +5555,7 @@ function renderFwlTab(){
   // 計算各組總金額
   const calcTotal = (orders) => orders.reduce((s,o)=>{
     let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-    return s + (items.reduce((ss,i)=>ss+(i.price||0),0) || o.price||0);
+    return s + (items.reduce((ss,i)=>ss+(i.price||0)*(i.qty||1),0) || o.price||0);
   }, 0);
 
   const _pendingClaim = groups.done;   // 待請款訂單列表
@@ -5603,7 +5603,7 @@ function renderFwlTab(){
       ? '<div style="font-size:13px;font-weight:700;margin-bottom:10px;color:#2e7d32">✅ 待請款訂單</div>'
         +_pendingClaim.map(o=>{
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-          const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
+          const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||0;
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #2e7d32">'
             +'<div style="flex:1">'
@@ -5621,7 +5621,7 @@ function renderFwlTab(){
       ? '<div style="font-size:13px;font-weight:700;margin:16px 0 10px;color:#e67300">🕐 進行中訂單</div>'
         +groups.active.map(o=>{
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-          const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
+          const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||0;
           const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #f9b84b">'
@@ -5644,7 +5644,7 @@ function renderFwlTab(){
         +'<div style="margin-top:8px">'
         +groups.claimed.map(o=>{
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
-          const total=items.reduce((s,i)=>s+(i.price||0),0)||0;
+          const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||0;
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:8px;margin-bottom:6px;border-left:3px solid #ccc;opacity:.75">'
             +'<div style="flex:1">'
@@ -6027,8 +6027,8 @@ async function doSendShipEmail(orderId){
   let items=[];
   try{items=JSON.parse(o.note||'[]');}catch(e){}
   if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
-  const totalAmt = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep      = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const totalAmt = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const dep      = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
   const tail     = totalAmt - dep;
 
   const btn = document.querySelector('#shipEmailOverlay .script-copy');
@@ -6081,8 +6081,8 @@ function openMyshipModal(orderId){
     items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
   }
 
-  const total   = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep     = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
+  const total   = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const dep     = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
   const tail    = total - dep; // 尾款 = 顧客需在賣場付的金額
   const custName= o.customer_name||'顧客';
   const shopName= `${custName} 訂單#${o.id}`;
@@ -6199,8 +6199,8 @@ function gen711Script(orderId){
     items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:0}];
   }
 
-  const totalAmt   = items.reduce((s,i)=>s+(i.price||0),0);
-  const depositAmt = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
+  const totalAmt   = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const depositAmt = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
   const tailAmt    = totalAmt - depositAmt;
   const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
