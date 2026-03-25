@@ -803,6 +803,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <a onclick="goHome()">商品</a>
       <a onclick="openCart()">購物車</a>
       <a onclick="goOrders()">我的訂單</a>
+      <a onclick="goFavs()" id="navFavsLink" style="display:none">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
     </div>
     <div class="nsearch">
       <input id="searchInput" type="text" placeholder="搜尋商品名稱..." oninput="onSearch()">
@@ -1035,6 +1036,14 @@ textarea.fi{min-height:64px;resize:vertical}
 
 
 <!-- ORDERS VIEW -->
+<!-- FAVOURITES VIEW -->
+<div class="fullview" id="favsView">
+  <div class="fv-toprow">
+    <h1 class="fv-title">我的收藏 <span id="favsCount" style="font-weight:400;font-size:16px;color:var(--ink3)"></span></h1>
+  </div>
+  <div id="favsListWrap"></div>
+</div>
+
 <div class="fullview" id="ordersView">
   <div class="fv-toprow">
     <h1 class="fv-title">我的訂單</h1>
@@ -1856,7 +1865,7 @@ function persist(){
 // ─── VIEWS ────────────────────────────────────────────────
 function showView(name, pushHistory){
   document.getElementById('shopView').classList.toggle('hide', name!=='shopView');
-  ['detailView','cartView','checkoutView','confirmView','ordersView','profileView'].forEach(id=>{
+  ['detailView','cartView','checkoutView','confirmView','ordersView','profileView','favsView'].forEach(id=>{
     document.getElementById(id).classList.toggle('show', id===name);
   });
   window.scrollTo(0,0);
@@ -1865,7 +1874,7 @@ function showView(name, pushHistory){
     const _hashMap = {
       shopView:'', detailView:'product', cartView:'cart',
       checkoutView:'checkout', confirmView:'confirm',
-      ordersView:'orders', profileView:'profile'
+      ordersView:'orders', profileView:'profile', favsView:'favs'
     };
     const _hash = _hashMap[name]||'';
     const _newHash = _hash ? '#'+_hash+(name==='detailView'&&currentProductId?'/'+currentProductId:'') : '';
@@ -1885,6 +1894,7 @@ window.addEventListener('popstate', (e)=>{
   } else if(_hash==='#cart'){ showView('cartView',false); renderCartPage(); }
   else if(_hash==='#orders'){ showView('ordersView',false); loadOrders(); }
   else if(_hash==='#profile'){ showView('profileView',false); renderProfile(); }
+  else if(_hash==='#favs'){ showView('favsView',false); renderFavsPage(); }
   else { showView('shopView',false); renderShop(); }
 });
 function showShop(){ showView('shopView'); renderShop(); }
@@ -2001,6 +2011,121 @@ function goOrders(){
   ordersTabFilter='all';
   showView('ordersView');
   loadOrders();
+}
+
+function goFavs(){
+  if(!user){ openAuth(); return; }
+  showView('favsView');
+  renderFavsPage();
+}
+
+function renderFavsPage(){
+  const wrap = document.getElementById('favsListWrap');
+  const countEl = document.getElementById('favsCount');
+  if(!wrap) return;
+
+  // 取目前有效的收藏（過濾掉已下架的商品）
+  const favIds = favs.map(String);
+  const favProducts = products.filter(p => favIds.includes(String(p.id)));
+
+  // 更新計數
+  if(countEl) countEl.textContent = favProducts.length ? `（${favProducts.length} 件）` : '';
+
+  if(!favProducts.length){
+    wrap.innerHTML = `
+      <div style="text-align:center;padding:60px 20px;color:var(--ink3)">
+        <div style="font-size:48px;margin-bottom:12px">♡</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:6px">還沒有收藏的商品</div>
+        <div style="font-size:13px;margin-bottom:20px">瀏覽商品時點愛心就能收藏</div>
+        <button onclick="goHome()" style="height:40px;padding:0 24px;background:var(--red);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer">去逛逛</button>
+      </div>`;
+    return;
+  }
+
+  // 渲染收藏商品 — 使用和訂單頁相同的卡片風格
+  wrap.innerHTML = favProducts.map(p => {
+    const img = p.imageUrl || PLACEHOLDER_IMG;
+    const isSoldOut = (p.type==='現貨' && p.stockStatus==='out_of_stock' && p.stock===0);
+    const isDeadline = (p.type==='預購' && isDeadlinePassed(p.deadline));
+    const expired = isSoldOut || isDeadline;
+    const badgeText = p.type==='預購' ? '預購' : '現貨';
+    const badgeCls  = p.type==='預購' ? 'pre' : 'stk';
+    const priceRange = getPriceRange(p);
+    const priceHtml = priceRange.min !== priceRange.max
+      ? `NT$ ${priceRange.min.toLocaleString()} – ${priceRange.max.toLocaleString()}`
+      : `NT$ ${priceRange.min.toLocaleString()}`;
+
+    return `
+    <div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border);align-items:flex-start">
+      <!-- 圖片 -->
+      <div onclick="openDetail('${p.id}')" style="width:88px;height:88px;flex-shrink:0;border-radius:var(--r);overflow:hidden;background:var(--bg);cursor:pointer;border:1px solid var(--border);position:relative">
+        <div class="img-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#bbb;pointer-events:none">圖片載入中…</div>
+        <img src="${img}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s"
+          onload="this.style.opacity=1;const p=this.parentElement;if(p){const s=p.querySelector('.img-loading');if(s)s.style.display='none'}"
+          onerror="this.src=PLACEHOLDER_IMG;this.style.opacity=1">
+        ${expired?'<div style="position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">'+(isDeadline?'已結單':'已售完')+'</div>':''}
+      </div>
+      <!-- 資訊 -->
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:3px">${p.brand||''}</div>
+        <div onclick="openDetail('${p.id}')" style="font-size:14px;font-weight:600;color:var(--ink);line-height:1.4;cursor:pointer;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${p.name}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--red);margin-bottom:6px">${priceHtml}</div>
+        <!-- 按鈕列 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          ${!expired ? `<button onclick="addFavToCart('${p.id}')" style="height:32px;padding:0 16px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer">${p.type==='預購'?'立即預購':'加入購物車'}</button>` : `<span style="font-size:12px;color:var(--ink3);padding:6px 0">${isDeadline?'預購已結單':'商品已售完'}</span>`}
+          <button onclick="removeFav('${p.id}')" style="height:32px;padding:0 12px;border:1px solid var(--border2);border-radius:var(--r);font-size:12px;color:var(--ink3);background:var(--white);cursor:pointer">移除收藏</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addFavToCart(id){
+  const p = products.find(x=>String(x.id)===String(id));
+  if(!p) return;
+  // 有規格選擇的商品，直接進商品頁
+  if(p.variants && p.variants.length > 0){
+    openDetail(id);
+    showToast('請先選擇規格再加入購物車');
+    return;
+  }
+  // 無規格直接加購
+  const exists = cart.find(x=>String(x.id)===String(id)&&!x.variant);
+  if(exists){
+    exists.qty++;
+  } else {
+    cart.push({id:p.id, qty:1, variant:'單一規格', name:p.name, emoji:p.emoji||'🧸', imageUrl:p.imageUrl||'', price:p.price||0, type:p.type, deposit:getProductDeposit(p)});
+  }
+  persist(); updBadge();
+  showToast(`✅ 已加入購物車：${p.name.slice(0,16)}…`);
+}
+
+function removeFav(id){
+  favs = favs.filter(x=>String(x)!==String(id));
+  try{ localStorage.setItem('tf_f',JSON.stringify(favs)); }catch(e){}
+  // 更新側邊欄收藏數
+  const sbFav = document.getElementById('sbFav');
+  const pub = products.filter(p=>p.status!=='hidden');
+  if(sbFav) sbFav.textContent = favs.filter(id2=>pub.find(p=>String(p.id)===String(id2))).length;
+  // 更新 nav badge
+  updateNavFavsBadge();
+  renderFavsPage();
+  showToast('已移除收藏');
+}
+
+function updateNavFavsBadge(){
+  const link = document.getElementById('navFavsLink');
+  const badge = document.getElementById('navFavsBadge');
+  const pub = products.filter(p=>p.status!=='hidden');
+  const count = favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length;
+  if(link){
+    // 登入後才顯示
+    link.style.display = user ? '' : 'none';
+  }
+  if(badge){
+    badge.textContent = count || '';
+    badge.style.display = count ? '' : 'none';
+  }
 }
 
 async function loadOrders(){ await _sbReady;
@@ -2898,6 +3023,7 @@ function toggleDetailFav(){
   if(!user){openAuth();return;}
   if(favs.map(String).includes(String(currentProductId))) favs=favs.filter(x=>String(x)!==String(currentProductId));
   else favs.push(currentProductId);
+  updateNavFavsBadge();
   persist();
   updateDetailFavBtn();
   updCounts();
@@ -3651,7 +3777,7 @@ async function logout(){ await _sbReady;
 
 function renderAuth(){
   const el=document.getElementById('authArea');
-  if(!user){el.innerHTML=`<button class="nbtnp" onclick="openAuth()">登入</button>`;return;}
+  if(!user){el.innerHTML=`<button class="nbtnp" onclick="openAuth()">登入</button>`;updateNavFavsBadge();return;}
   const name = user.name||user.email||'用戶';
   const photo = user.photo||null;
   el.innerHTML=`
@@ -3664,11 +3790,13 @@ function renderAuth(){
         ${isAdmin()?`<div class="umi" onclick="openAdmin();closeUMenu()">⚙️ 商品管理</div>`:''}
         <div class="umi" onclick="goProfile();closeUMenu()">👤 個人資料</div>
         <div class="umi" onclick="goOrders();closeUMenu()">📦 我的訂單</div>
+        <div class="umi" onclick="goFavs();closeUMenu()">♡ 我的收藏</div>
         <div class="umi" onclick="setFilter('我的收藏',document.querySelector('.si:nth-child(2)'));closeUMenu()">❤️ 我的收藏</div>
         <hr class="usep">
         <div class="umi" onclick="logout()">↩ 登出</div>
       </div>
     </div>`;
+  updateNavFavsBadge();
 }
 function toggleUMenu(){document.getElementById('um')?.classList.toggle('open');}
 function closeUMenu(){document.getElementById('um')?.classList.remove('open');}
