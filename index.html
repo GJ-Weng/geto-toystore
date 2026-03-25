@@ -1299,7 +1299,25 @@ textarea.fi{min-height:64px;resize:vertical}
         <div id="bsItemsWrap"></div>
         <!-- 操作列 -->
         <div id="bsActions" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px">已選 <span id="bsSelectedCount">0</span> 件商品</div>
+          <!-- 勾選商品明細 -->
+          <div style="font-size:12px;font-weight:700;color:var(--ink3);letter-spacing:.5px;margin-bottom:8px">已勾選商品</div>
+          <div id="bsSelectedDetail" style="background:var(--bg);border-radius:8px;padding:4px 0;margin-bottom:12px"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--white);border:1px solid var(--border2);border-radius:8px;margin-bottom:14px">
+            <div>
+              <span style="font-size:12px;color:var(--ink3)">商品合計</span>
+              <span style="font-size:13px;font-weight:600;color:var(--ink);margin-left:8px" id="bsTotalAmt">NT$0</span>
+            </div>
+            <div>
+              <span style="font-size:12px;color:var(--ink3)">應付尾款</span>
+              <span style="font-size:15px;font-weight:700;color:var(--red);margin-left:8px" id="bsTailAmt">NT$0</span>
+            </div>
+            <div>
+              <span style="font-size:12px;color:var(--ink3)">共</span>
+              <span style="font-size:13px;font-weight:600;color:var(--ink);margin-left:4px" id="bsSelectedCount">0</span>
+              <span style="font-size:12px;color:var(--ink3)">件</span>
+            </div>
+          </div>
+          <!-- 按鈕列 -->
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="bsGenScript()" style="height:36px;padding:0 18px;border:1px solid #f0b429;background:#fffbea;color:#946800;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">📦 賣貨便腳本</button>
             <button onclick="bsOpenShipModal()" style="height:36px;padding:0 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 寄送賣貨便連結</button>
@@ -5717,9 +5735,39 @@ function bsToggleItem(e, key){
 
 function bsUpdateActions(){
   const actions = document.getElementById('bsActions');
-  const cnt = document.getElementById('bsSelectedCount');
   if(actions) actions.style.display = _bsSelected.size ? '' : 'none';
-  if(cnt) cnt.textContent = _bsSelected.size;
+  if(!_bsSelected.size) return;
+
+  const selected = bsGetSelectedItems();
+
+  // 更新計數
+  const totalQty = selected.reduce((s,{item})=>s+(item.qty||1),0);
+  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
+  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
+  const tail     = totalAmt - totalDep;
+
+  const cnt  = document.getElementById('bsSelectedCount');
+  const tAmt = document.getElementById('bsTotalAmt');
+  const tTail= document.getElementById('bsTailAmt');
+  if(cnt)   cnt.textContent   = totalQty;
+  if(tAmt)  tAmt.textContent  = 'NT$' + totalAmt.toLocaleString();
+  if(tTail) tTail.textContent = 'NT$' + tail.toLocaleString();
+
+  // 更新明細列表
+  const detail = document.getElementById('bsSelectedDetail');
+  if(detail){
+    detail.innerHTML = selected.map(({order,item})=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}</div>
+          <div style="font-size:11px;color:var(--ink3)">訂單 #${order.order_code||order.id}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px">
+          <div style="font-size:13px;font-weight:600">NT$${(item.price||0).toLocaleString()}</div>
+          ${(item.deposit||0)>0?'<div style="font-size:11px;color:var(--ink3)">訂金 NT$'+(item.deposit||0).toLocaleString()+'</div>':''}
+        </div>
+      </div>`).join('');
+  }
 }
 
 // 取得已勾選的商品資料
@@ -5759,32 +5807,7 @@ async function bsGenScript(){
   // 商品名稱（所有勾選商品合併）
   const prodName = selected.map(({item})=>`${item.product_name||''}${item.variant?' ('+item.variant+')':''}×${item.qty||1}`).join('、').slice(0,60);
 
-  const script = `// ===== Geto玩具屋 賣貨便自動填寫腳本（批次出貨）=====
-// 顧客：${custName}｜訂單：#${orderNums}｜尾款 NT$${tail.toLocaleString()}
-// 請在 https://seller.7-11.com.tw/cgdm/add 頁面的 Console 貼上此腳本
-
-(function(){
-  var nameEl = document.getElementById('Cgdm_Name');
-  if(nameEl){ nameEl.value = ${JSON.stringify(shopName)}; nameEl.dispatchEvent(new Event('input')); }
-  var rdoDuring = document.getElementById('rdoDuring_0');
-  if(rdoDuring){ rdoDuring.click(); }
-  var isPrivate = document.getElementById('isPrivate');
-  if(isPrivate){ isPrivate.click(); }
-  var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');
-  if(prodNameEl){ prodNameEl.value = ${JSON.stringify(prodName)}; prodNameEl.dispatchEvent(new Event('input')); }
-  var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');
-  if(priceEl){ priceEl.value = '${tail}'; priceEl.dispatchEvent(new Event('change')); }
-  var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');
-  if(invEl){ invEl.value = '${totalQty}'; invEl.dispatchEvent(new Event('change')); }
-  var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');
-  if(maxEl){ maxEl.value = '${totalQty}'; maxEl.dispatchEvent(new Event('change')); }
-  var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');
-  if(minEl){ minEl.value = '1'; minEl.dispatchEvent(new Event('change')); }
-  var normalEl = document.getElementById('normal_1');
-  if(normalEl){ normalEl.click(); }
-  console.log('✅ 賣貨便賣場已自動填寫！');
-  alert('✅ 填寫完成！\n\n賣場名稱：${shopName}\n金額：NT$${tail.toLocaleString()}\n數量：${totalQty}件\n\n請確認後按下儲存賣場！');
-})();`;
+  const script = buildMyshipScript(shopName, prodName, tail, totalQty, custName, orderNums);
 
   // 顯示腳本 modal（複用現有 ms-overlay 樣式）
   const existing = document.querySelector('.ms-overlay');
@@ -5797,7 +5820,7 @@ async function bsGenScript(){
     '<div class="ms-title">📦 批次出貨：賣貨便腳本</div>'+
     '<div class="ms-sub">顧客：'+custName+'　訂單：#'+orderNums+'　尾款 NT$'+tail.toLocaleString()+'　共 '+totalQty+' 件</div>'+
     '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
-    '<a href="https://seller.7-11.com.tw/cgdm/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
+    '<a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
     '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
     '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
     '<div class="ms-code" id="msCode"></div>'+
@@ -6059,6 +6082,50 @@ async function doSendShipEmail(orderId){
 }
 
 // ─── MYSHIP 賣貨便賣場腳本產生 ───────────────────────────
+
+// 共用：產生安全的賣貨便 console 腳本（所有變數用 JSON.stringify 保護）
+function buildMyshipScript(shopName, prodName, tail, totalQty, custName, orderRef){
+  // 用 JSON.stringify 確保所有字串安全（含特殊字符、中文、引號）
+  const sShopName = JSON.stringify(shopName);
+  const sProdName = JSON.stringify(prodName);
+  const sTail     = JSON.stringify(String(tail));
+  const sQty      = JSON.stringify(String(totalQty));
+  const sAlert    = JSON.stringify(
+    '✅ 填寫完成！\n\n賣場名稱：' + shopName +
+    '\n金額：NT$' + Number(tail).toLocaleString() +
+    '\n數量：' + totalQty + '件\n\n請確認後按下儲存賣場！'
+  );
+
+  return [
+    '// ===== Geto玩具屋 賣貨便自動填寫腳本 =====',
+    '// 顧客：' + (custName||'') + '　訂單：' + (orderRef||'') + '　尾款 NT$' + Number(tail).toLocaleString(),
+    '// 請在 https://myship.7-11.com.tw/fast/add 頁面的 Console 貼上此腳本',
+    '',
+    '(function(){',
+    '  var nameEl = document.getElementById("Cgdm_Name");',
+    '  if(nameEl){ nameEl.value = ' + sShopName + '; nameEl.dispatchEvent(new Event("input")); }',
+    '  var rdoDuring = document.getElementById("rdoDuring_0");',
+    '  if(rdoDuring){ rdoDuring.click(); }',
+    '  var isPrivate = document.getElementById("isPrivate");',
+    '  if(isPrivate){ isPrivate.click(); }',
+    '  var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');',
+    '  if(prodNameEl){ prodNameEl.value = ' + sProdName + '; prodNameEl.dispatchEvent(new Event("input")); }',
+    '  var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');',
+    '  if(priceEl){ priceEl.value = ' + sTail + '; priceEl.dispatchEvent(new Event("change")); }',
+    '  var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');',
+    '  if(invEl){ invEl.value = ' + sQty + '; invEl.dispatchEvent(new Event("change")); }',
+    '  var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');',
+    '  if(maxEl){ maxEl.value = ' + sQty + '; maxEl.dispatchEvent(new Event("change")); }',
+    '  var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');',
+    '  if(minEl){ minEl.value = "1"; minEl.dispatchEvent(new Event("change")); }',
+    '  var normalEl = document.getElementById("normal_1");',
+    '  if(normalEl){ normalEl.click(); }',
+    '  alert(' + sAlert + ');',
+    '})();'
+  ].join('\n');
+}
+
+
 function openMyshipModal(orderId){
   const o = _allAdminOrders.find(x=>x.id===orderId);
   if(!o){ showToast('找不到訂單'); return; }
@@ -6080,57 +6147,7 @@ function openMyshipModal(orderId){
   const totalQty = items.reduce((s,i)=>s+(i.qty||1),0);
 
   // 產生賣貨便 console 腳本
-  const script = `// ===== Geto玩具屋 賣貨便自動填寫腳本 =====
-// 訂單 #${o.id}｜${custName}｜尾款 NT$${tail.toLocaleString()}
-// 請在 https://seller.7-11.com.tw/cgdm/add 頁面的 Console 貼上此腳本
-
-(function(){
-  // 設定賣場名稱
-  var nameEl = document.getElementById('Cgdm_Name');
-  if(nameEl){ nameEl.value = ${JSON.stringify(shopName)}; nameEl.dispatchEvent(new Event('input')); }
-
-  // 選擇「限時」或「永久」→ 選永久
-  var rdoDuring = document.getElementById('rdoDuring_0');
-  if(rdoDuring){ rdoDuring.click(); }
-
-  // 設為私密賣場(只傳連結給顧客)
-  var isPrivate = document.getElementById('isPrivate');
-  if(isPrivate){ isPrivate.click(); }
-
-  // 商品名稱
-  var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');
-  if(prodNameEl){ prodNameEl.value = ${JSON.stringify(prodName)}; prodNameEl.dispatchEvent(new Event('input')); }
-
-  // 規格(留空，用預設)
-  // var specEl = document.querySelector('[name="specification.Cgds_Spec[1]"]');
-
-  // 價格(尾款)
-  var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');
-  if(priceEl){ priceEl.value = '${tail}'; priceEl.dispatchEvent(new Event('change')); }
-
-  // 庫存數量(等於訂單數量)
-  var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');
-  if(invEl){ invEl.value = '${totalQty}'; invEl.dispatchEvent(new Event('change')); }
-
-  // 每人限購(等於訂單數量)
-  var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');
-  if(maxEl){ maxEl.value = '${totalQty}'; maxEl.dispatchEvent(new Event('change')); }
-
-  // 最低下單(1件)
-  var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');
-  if(minEl){ minEl.value = '1'; minEl.dispatchEvent(new Event('change')); }
-
-  // 確認上架狀態
-  var normalEl = document.getElementById('normal_1');
-  if(normalEl){ normalEl.click(); }
-
-  console.log('✅ 賣貨便賣場已自動填寫！');
-  console.log('賣場名稱：' + ${JSON.stringify(shopName)});
-  console.log('商品：' + ${JSON.stringify(prodName)});
-  console.log('尾款金額：NT$${tail.toLocaleString()}');
-  console.log('數量：${totalQty}件');
-  alert('✅ 填寫完成！\n\n賣場名稱：${shopName}\n金額：NT$${tail.toLocaleString()}\n數量：${totalQty}件\n\n請確認後按下儲存賣場！');
-})();`;
+  const script = buildMyshipScript(shopName, prodName, tail, totalQty, custName, '#'+o.id);
 
   // 建立 modal
   const overlay = document.createElement('div');
@@ -6142,7 +6159,7 @@ function openMyshipModal(orderId){
     '<div class="ms-title">📦 建立賣貨便賣場</div>'+
     '<div class="ms-sub">訂單 #'+o.id+'｜'+custName+'｜尾款 NT$'+tail.toLocaleString()+'</div>'+
     '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
-    '<a href="https://seller.7-11.com.tw/cgdm/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
+    '<a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
     '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
     '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
     '<div class="ms-code" id="msCode"></div>'+
