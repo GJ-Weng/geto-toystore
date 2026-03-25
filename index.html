@@ -3603,10 +3603,31 @@ async function syncProductsFromSupabase(){
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
     const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,image_urls,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
-    const { data, error } = await _sb
-      .from('products')
-      .select(LISTING_COLS)
-      .order('created_at', { ascending: false });
+
+    // 10 秒強制 timeout，避免網路不穩時骨架屏永遠轉
+    const _abort = new AbortController();
+    const _abortTimer = setTimeout(() => _abort.abort(), 10000);
+
+    let data, error;
+    try {
+      ({ data, error } = await _sb
+        .from('products')
+        .select(LISTING_COLS)
+        .order('created_at', { ascending: false })
+        .abortSignal(_abort.signal));
+    } catch(fetchErr) {
+      clearTimeout(_abortTimer);
+      // 請求被中斷（timeout 或網路斷線）
+      if(fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('abort')) {
+        console.warn('[sync] 商品載入逾時，使用快取');
+      } else {
+        console.warn('[sync] 商品載入失敗:', fetchErr?.message);
+      }
+      // 有快取就顯示快取，沒有就顯示錯誤
+      renderShop();
+      return;
+    }
+    clearTimeout(_abortTimer);
 
     if(error){
       console.warn('商品讀取失敗:', error.message || error);
