@@ -6157,20 +6157,18 @@ function gen711Script(orderId){
   const orderCode = o.order_code || ordNum;
   const storeName = (o.customer_name||'顧客') + ' 預購#' + orderCode;
 
-  // 單一商品：總尾款金額，庫存1，顧客只付一次
-  // 商品名稱組合所有品項
-  const productNames = items.map(it =>
-    (it.product_name||'') + (it.variant ? ' ' + it.variant : '') + ' x' + (it.qty||1)
-  ).join(' / ');
-  const singleProduct = [{
-    name:  productNames.slice(0, 60),
-    qty:   1,
-    price: payAmt   // 總尾款(或總金額)，顧客付一次
-  }];
+  // 每個商品獨立一筆，數量依照訂購數量，價格為該商品尾款
+  const perItemProducts = items.map(it => {
+    const itTotal = it.price  || 0;
+    const itDep   = it.deposit|| 0;
+    const itTail  = itTotal - itDep;
+    const itPay   = itTail > 0 ? itTail : itTotal;
+    const pName   = ((it.product_name||'') + (it.variant ? ' ' + it.variant : '')).slice(0, 60);
+    return { name: pName, qty: it.qty || 1, price: itPay };
+  });
 
   // === 腳本內容(在 myship 頁面執行)===
-  // 注意：這段腳本裡不能有任何模板字串 ${} 以外的反引號
-  const storesData = JSON.stringify([{ name: storeName, products: singleProduct }], null, 2);
+  const storesData = JSON.stringify([{ name: storeName, products: perItemProducts }], null, 2);
 
   const scriptLines = [
     '// ======= Geto玩具屋 賣貨便建單腳本 =======',
@@ -6246,8 +6244,8 @@ function gen711Script(orderId){
   overlay.innerHTML = '<div class="script-modal">'
     + '<h3>📦 賣貨便建單腳本</h3>'
     + '<p><b>顧客：' + (o.customer_name||'—') + '</b>　訂單 #' + ordNum + '<br>'
-    + '商品：' + (items[0].product_name||'').slice(0,30) + '　規格：' + (items[0].variant||'—') + '<br>'
-    + '應付：<b style="color:var(--red)">NT$ ' + payAmt.toLocaleString() + '</b></p>'
+    + items.map(it=>'• '+(it.product_name||'').slice(0,20)+(it.variant?' '+it.variant:'')+'　×'+( it.qty||1)+'　尾款 NT$'+((it.price||0)-(it.deposit||0)>0?(it.price||0)-(it.deposit||0):(it.price||0)).toLocaleString()).join('<br>')
+    + '<br>合計尾款：<b style="color:var(--red)">NT$ ' + payAmt.toLocaleString() + '</b></p>'
     + '<div class="script-steps">'
     + '<b>步驟：</b><br>'
     + '1. 先登入並開啟 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a><br>'
