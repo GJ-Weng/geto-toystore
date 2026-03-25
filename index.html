@@ -3513,7 +3513,7 @@ async function syncProductsFromSupabase(){
     await _sbReady;
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
-    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at'; // image_urls 懶載入，避免 base64 造成查詢超時
+    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,image_urls,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
       .from('products')
       .select(LISTING_COLS)
@@ -3548,7 +3548,9 @@ async function syncProductsFromSupabase(){
       variants:     p.variants     || [],
       emoji:        p.emoji        || '🧸',
       imageUrl:     p.image_url    || '',
-      imageUrls:    p.image_url ? [p.image_url] : [], // 列表頁只用主圖，多圖進商品頁才載入
+      imageUrls:    Array.isArray(p.image_urls) && p.image_urls.length
+                      ? p.image_urls.filter(u=>u&&!u.startsWith('data:')) // 過濾 base64，避免快取超限
+                      : (p.image_url ? [p.image_url] : []),
       variantPrices: p.variant_prices  || {},
       variantStocks: p.variant_stocks  || {},
       description:   p.description != null ? (p.description || '') : null, // null=尚未載入，''=空說明
@@ -4716,9 +4718,25 @@ function editP(id){
   document.getElementById('fIP').value=p.ip||'';
   document.getElementById('fForm').value=p.form||'';
   document.getElementById('fVariants').value=(p.variants||[]).join(',');
-  // 載入圖片陣列
+  // 載入圖片陣列（image_urls 不在 LISTING_COLS，需額外查詢）
   _adminImgs = Array.isArray(p.imageUrls)&&p.imageUrls.length ? [...p.imageUrls] : (p.imageUrl ? [p.imageUrl] : []);
   renderAdminImgPreviews();
+  // 背景補查完整 image_urls
+  if(_sb && p.id && (!p.imageUrls || p.imageUrls.length <= 1)){
+    _sb.from('products').select('image_urls,image_url').eq('id', p.id).single()
+      .then(({data})=>{
+        if(data){
+          const allUrls = Array.isArray(data.image_urls) && data.image_urls.length
+            ? data.image_urls
+            : (data.image_url ? [data.image_url] : []);
+          if(allUrls.length > _adminImgs.length){
+            p.imageUrls = allUrls;
+            _adminImgs = [...allUrls];
+            renderAdminImgPreviews();
+          }
+        }
+      }).catch(()=>{});
+  }
   const fImg=document.getElementById('fImgUrl');
   if(fImg) fImg.value='';
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
