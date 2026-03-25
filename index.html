@@ -1157,6 +1157,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <button class="atab" id="t4" onclick="swTab(4)">匯款設定</button>
       <button class="atab" id="t5" onclick="swTab(5)">📦 到貨追蹤</button>
       <button class="atab" id="t6" onclick="swTab(6)">🏪 頑瘋樂請款</button>
+      <button class="atab" id="t7" onclick="swTab(7)">🚚 批次出貨</button>
       <!-- 匯款通知鈴鐺 -->
       <div style="position:relative;margin-left:4px">
         <button onclick="swTab(3);aoSetTab('new')" style="width:34px;height:34px;border:none;background:none;font-size:20px;cursor:pointer;position:relative" title="待確認匯款">🔔</button>
@@ -1277,6 +1278,29 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
 
     <!-- TAB 6: 頑瘋樂請款 -->
+    <div id="tab7" style="display:none">
+      <div style="padding:16px 0">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px">批次出貨</div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:16px">選擇顧客，勾選要出貨的商品，開賣貨便連結並寄信通知</div>
+        <!-- 顧客選擇 -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <select id="bsCustomerSel" style="height:36px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--white);color:var(--ink);min-width:200px;flex:1" onchange="bsSelectCustomer(this.value)">
+            <option value="">-- 選擇顧客 --</option>
+          </select>
+          <span id="bsCustomerEmail" style="font-size:12px;color:var(--ink3)"></span>
+        </div>
+        <!-- 顧客的商品列表 -->
+        <div id="bsItemsWrap"></div>
+        <!-- 操作列 -->
+        <div id="bsActions" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">已選 <span id="bsSelectedCount">0</span> 件商品</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="bsOpenShipModal()" style="height:36px;padding:0 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 開賣貨便＋寄信</button>
+            <button onclick="bsMarkPartial()" style="height:36px;padding:0 18px;border:1px solid #7c3aed;background:#f5f3ff;color:#7c3aed;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">部分出貨（不寄信）</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="tab6" style="display:none">
       <div id="fwlWrap"></div>
     </div>
@@ -3854,7 +3878,7 @@ function closeAdmin(){
   const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='';
 }
 function swTab(n){
-  [1,2,3,4,5,6].forEach(i=>{
+  [1,2,3,4,5,6,7].forEach(i=>{
     const t=document.getElementById('t'+i); if(t) t.classList.toggle('act',i===n);
     const tb=document.getElementById('tab'+i); if(tb) tb.style.display=i===n?'':'none';
   });
@@ -3870,6 +3894,7 @@ function swTab(n){
     }
   }
   if(n===3) renderOrderList();
+  if(n===7) renderBatchShip();
   if(n===6){
     // 確保訂單資料已載入
     if(!_allAdminOrders.length){
@@ -5579,6 +5604,282 @@ function renderFwlTab(){
 async function markShipped(id){ await aoUpdateStatus(id,'shipped'); }
 
 // ─── 寄賣場連結給顧客 ─────────────────────────────────────
+// ─── 批次出貨 ─────────────────────────────────────────────
+let _bsSelected = new Set(); // "orderId:itemIndex" 格式
+
+function renderBatchShip(){
+  // 確保訂單資料已載入
+  if(!_allAdminOrders.length){
+    renderOrderList().then(()=>_bsRender()).catch(()=>_bsRender());
+  } else {
+    _bsRender();
+  }
+}
+
+function _bsRender(){
+  const sel = document.getElementById('bsCustomerSel');
+  if(!sel) return;
+
+  // 建立顧客清單（有進行中訂單的顧客）
+  const activeOrders = _allAdminOrders.filter(o=>['paid','partial'].includes(o.status) && !o.store?.includes('自取'));
+  const customerMap = {};
+  activeOrders.forEach(o=>{
+    const key = o.user_email||o.customer_name||String(o.id);
+    if(!customerMap[key]) customerMap[key] = { name: o.customer_name||'', email: o.user_email||'', orders:[] };
+    customerMap[key].orders.push(o);
+  });
+
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- 選擇顧客 --</option>' +
+    Object.entries(customerMap).map(([key,c])=>`<option value="${key}">${c.name||c.email} (${c.orders.length}筆訂單)</option>`).join('');
+  if(prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
+
+  window._bsCustomerMap = customerMap;
+  _bsSelected = new Set();
+  if(sel.value) bsSelectCustomer(sel.value);
+  else { document.getElementById('bsItemsWrap').innerHTML=''; document.getElementById('bsActions').style.display='none'; }
+}
+
+function bsSelectCustomer(key){
+  const emailEl = document.getElementById('bsCustomerEmail');
+  const wrap = document.getElementById('bsItemsWrap');
+  _bsSelected = new Set();
+  bsUpdateActions();
+
+  if(!key){ wrap.innerHTML=''; if(emailEl) emailEl.textContent=''; return; }
+
+  const c = window._bsCustomerMap?.[key];
+  if(!c){ wrap.innerHTML=''; return; }
+  if(emailEl) emailEl.textContent = c.email;
+
+  // 列出所有訂單和商品
+  wrap.innerHTML = c.orders.map(o=>{
+    let items=[];
+    try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+    if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:o.price,product_id:null}];
+
+    const statusLabel = {paid:'已成立',partial:'部分出貨'}[o.status]||o.status;
+    const statusColor = {paid:'#1a56c4',partial:'#6b3fc5'}[o.status]||'#888';
+
+    return `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:10px 14px;background:var(--bg);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700">訂單 #${o.order_code||o.id}</span>
+        <span style="font-size:11px;font-weight:700;color:${statusColor};background:${statusColor}18;padding:2px 8px;border-radius:10px">${statusLabel}</span>
+        <span style="font-size:12px;color:var(--ink3);margin-left:auto">${o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):''}</span>
+      </div>
+      ${items.map((it,idx)=>{
+        const prod = products.find(p=>String(p.id)===String(it.product_id));
+        const bsKey = o.id+':'+idx;
+        const isShipped = it.shipped===true;
+        return `<label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--border);cursor:${isShipped?'default':'pointer'};opacity:${isShipped?0.5:1};background:var(--white)" ${isShipped?'':'onclick="bsToggleItem(event,''+bsKey+'')"'}>
+          <input type="checkbox" id="bs_${bsKey}" ${isShipped?'disabled checked':''}
+            style="width:18px;height:18px;accent-color:var(--gold);flex-shrink:0;cursor:${isShipped?'default':'pointer'}"
+            onchange="bsToggleItem(event,'${bsKey}')" onclick="event.stopPropagation()">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">×${it.qty||1}　NT$${(it.price||0).toLocaleString()}${prod?.arrival?' ・ 📦 到貨 '+prod.arrival:''}</div>
+          </div>
+          ${isShipped?'<span style="font-size:11px;color:#2e7d32;font-weight:600">✓ 已出貨</span>':''}
+        </label>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+function bsToggleItem(e, key){
+  e.stopPropagation();
+  const cb = document.getElementById('bs_'+key);
+  if(!cb || cb.disabled) return;
+  if(e.target !== cb) cb.checked = !cb.checked;
+  if(cb.checked) _bsSelected.add(key);
+  else _bsSelected.delete(key);
+  bsUpdateActions();
+}
+
+function bsUpdateActions(){
+  const actions = document.getElementById('bsActions');
+  const cnt = document.getElementById('bsSelectedCount');
+  if(actions) actions.style.display = _bsSelected.size ? '' : 'none';
+  if(cnt) cnt.textContent = _bsSelected.size;
+}
+
+// 取得已勾選的商品資料
+function bsGetSelectedItems(){
+  const result = []; // { order, item, itemIdx }
+  _bsSelected.forEach(key=>{
+    const [ordId, idxStr] = key.split(':');
+    const o = _allAdminOrders.find(x=>String(x.id)===ordId);
+    if(!o) return;
+    let items=[];
+    try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+    if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:o.price}];
+    const idx = parseInt(idxStr);
+    if(items[idx]) result.push({ order:o, item:items[idx], itemIdx:idx, items });
+  });
+  return result;
+}
+
+// 部分出貨（不寄信）
+async function bsMarkPartial(){
+  if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
+  await _sbReady;
+  const selected = bsGetSelectedItems();
+
+  // 依訂單分組，標記各商品為 shipped=true
+  const orderGroups = {};
+  selected.forEach(({order,itemIdx,items})=>{
+    if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
+    orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
+  });
+
+  let errCount = 0;
+  for(const [ordId, {order, items}] of Object.entries(orderGroups)){
+    // 判斷是否全部出貨
+    const allShipped = items.every(it=>it.shipped===true);
+    const newStatus = allShipped ? 'shipped' : 'partial';
+    const {error} = await _sb.from('orders').update({ note: JSON.stringify(items), status: newStatus }).eq('id', parseInt(ordId));
+    if(error){ errCount++; console.warn('更新訂單失敗:', error); continue; }
+    // 更新本地快取
+    const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
+    if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
+  }
+
+  if(errCount) showToast(`⚠️ ${errCount} 筆訂單更新失敗`);
+  else showToast(`✅ 已標記 ${selected.length} 件商品為部分出貨`);
+
+  _bsSelected = new Set();
+  _bsRender();
+}
+
+// 開賣貨便 + 寄信
+function bsOpenShipModal(){
+  if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
+  const selected = bsGetSelectedItems();
+  const custKey = document.getElementById('bsCustomerSel')?.value;
+  const cust = window._bsCustomerMap?.[custKey];
+  if(!cust?.email){ showToast('⚠️ 此顧客沒有 Email'); return; }
+
+  const existing = document.getElementById('bsShipModal');
+  if(existing) existing.remove();
+
+  // 整理要顯示的商品清單 HTML
+  const itemsListHtml = selected.map(({order,item})=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+      <div>
+        <div style="font-size:13px;font-weight:500">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}</div>
+        <div style="font-size:11px;color:#888">訂單 #${order.order_code||order.id}</div>
+      </div>
+      <div style="font-size:13px;font-weight:600">NT$${(item.price||0).toLocaleString()}</div>
+    </div>`).join('');
+
+  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
+  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
+  const tail = totalAmt - totalDep;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'bsShipModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML = `
+    <div style="background:var(--white);border-radius:12px;width:480px;max-width:94vw;max-height:90vh;overflow-y:auto">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:16px;font-weight:700">📧 開賣貨便＋寄信通知</div>
+        <button onclick="document.getElementById('bsShipModal').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--ink3)">✕</button>
+      </div>
+      <div style="padding:20px">
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:4px">寄給</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:16px">${cust.name} ・ ${cust.email}</div>
+
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">已選商品</div>
+        <div style="background:var(--bg);border-radius:8px;padding:4px 12px;margin-bottom:16px">${itemsListHtml}</div>
+
+        <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:13px">
+          <span style="color:var(--ink3)">商品合計</span><span style="font-weight:600">NT$${totalAmt.toLocaleString()}</span>
+        </div>
+
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">賣貨便賣場連結</div>
+        <input id="bsShipUrl" class="fi" placeholder="https://myship.7-11.com.tw/..." style="margin-bottom:16px;width:100%">
+
+        <button onclick="bsDoSendShipEmail()" style="width:100%;height:42px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">📧 寄送連結給顧客</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('bsShipUrl')?.focus(), 100);
+
+  // 存起來供 doSend 使用
+  window._bsPendingSend = { selected, cust, totalAmt, totalDep, tail };
+}
+
+async function bsDoSendShipEmail(){
+  const url = document.getElementById('bsShipUrl')?.value.trim();
+  if(!url||!url.startsWith('http')){ showToast('⚠️ 請貼入正確的賣貨便連結'); return; }
+  if(!emailjsConfig.publicKey){ showToast('⚠️ EmailJS 未設定'); return; }
+
+  const {selected, cust, totalAmt, totalDep, tail} = window._bsPendingSend||{};
+  if(!selected?.length){ showToast('資料錯誤，請重試'); return; }
+  await _sbReady;
+
+  const btn = document.querySelector('#bsShipModal button:last-child');
+  if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
+
+  // 整理 Email 內容
+  const itemsEmailHtml = selected.map(({order,item})=>`
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #eee">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}<br><span style="font-size:11px;color:#888">訂單 #${order.order_code||order.id}</span></td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(item.price||0).toLocaleString()}</td>
+    </tr>`).join('');
+
+  try{
+    emailjs.init({ publicKey: emailjsConfig.publicKey });
+    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+      to_name:        cust.name||'顧客',
+      to_email:       cust.email,
+      order_num:      selected.map(({order})=>order.order_code||order.id).join('、'),
+      subject_status: '商品已到貨，賣場已建立',
+      header_title:   '🛒 您的商品已到貨，賣場已建立！',
+      header_sub:     `${cust.name||'您'} 您好！以下商品已到貨，賣場已建立，請點連結完成付款。`,
+      items_html:     `<table style="width:100%;border-collapse:collapse">${itemsEmailHtml}</table>`,
+      amount_html:    `<div style="background:#e8f0fc;border-radius:8px;padding:14px 16px;margin:12px 0">
+        <div style="font-size:13px;color:#666;margin-bottom:6px">商品合計 NT$${totalAmt.toLocaleString()}　已付訂金 NT$${totalDep.toLocaleString()}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:16px;font-weight:700;color:#1a56c4">應付尾款</span>
+          <span style="font-size:20px;font-weight:700;color:#c0392b">NT$${tail.toLocaleString()}</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin:16px 0">
+        <a href="${url}" style="display:inline-block;background:#ee7700;color:#fff;padding:12px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none">前往付款 →</a>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:center">連結：${url}</div>`,
+      bank_html:      '',
+      reminder_html:  `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;font-size:12px;color:#856404">⚠️ 請儘快完成付款，連結有效期限請參考賣貨便說明。</div>`,
+      delivery:       selected[0]?.order?.store||'',
+      phone:          cust.email,
+    });
+
+    // 標記商品為已出貨並更新訂單狀態
+    const orderGroups = {};
+    selected.forEach(({order,itemIdx,items})=>{
+      if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
+      orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
+    });
+    for(const [ordId, {items}] of Object.entries(orderGroups)){
+      const allShipped = items.every(it=>it.shipped===true);
+      const newStatus = allShipped ? 'shipped' : 'partial';
+      await _sb.from('orders').update({ note:JSON.stringify(items), status:newStatus }).eq('id', parseInt(ordId));
+      const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
+      if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
+    }
+
+    document.getElementById('bsShipModal')?.remove();
+    showToast('✅ 已寄出賣場連結給 ' + cust.email);
+    _bsSelected = new Set();
+    _bsRender();
+  } catch(err){
+    if(btn){ btn.disabled=false; btn.textContent='📧 寄送連結給顧客'; }
+    showToast('❌ 寄信失敗：'+(err?.text||err?.message||'請確認 EmailJS 設定'));
+  }
+}
+
 function sendShipEmail(orderId){
   const o = _allAdminOrders.find(x=>x.id===orderId);
   if(!o){ showToast('找不到訂單'); return; }
