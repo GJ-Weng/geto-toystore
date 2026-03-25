@@ -1819,7 +1819,7 @@ let selectedDelivery = '寄送';
 // ─── USER PROFILE ────────────────────────────────────────
 let userProfile = { name:'', phone:'', trusted:false }; // 登入後依 email 載入
 
-function loadProfileForUser(email){
+async function loadProfileForUser(email){ await _sbReady;
   if(!email){ userProfile={name:'',phone:'',trusted:false}; return; }
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
   userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
@@ -2354,6 +2354,7 @@ function confirmCancelOrder(orderId){
 }
 
 async function doCancelOrder(orderId, btn){
+  await _sbReady;
   btn.disabled=true; btn.textContent='處理中...';
   // 取消前先讀訂單內容，以便恢復庫存
   const _cancelOrder = allOrdersCache.find(x=>x.id===orderId);
@@ -3176,6 +3177,7 @@ function genOrderNum(){
 }
 
 async function submitCheckoutOrder(){
+  await _sbReady;
   // 先從結帳頁 input 更新 profile
   const _nameInp  = document.getElementById('coNameInp')?.value.trim()||'';
   const _phoneInp = document.getElementById('coPhoneInp')?.value.trim()||'';
@@ -5055,7 +5057,7 @@ function closePostModal(){
   _postModalOrderId = null;
 }
 
-async function saveShippingAddr(){
+async function saveShippingAddr(){ await _sbReady;
   if(!_postModalOrderId) return;
   const addr = document.getElementById('postAddrDisplay').value.trim();
   if(!addr){ showToast('⚠️ 請輸入地址'); return; }
@@ -5929,7 +5931,7 @@ function closePayReport(){
   document.getElementById('payReportModal').style.display = 'none';
   _payReportOrderId = null;
 }
-async function submitPayReport(){
+async function submitPayReport(){ await _sbReady;
   const code = document.getElementById('payCodeInput')?.value.trim();
   if(!code || code.length < 4){ showToast('⚠️ 請輸入 4-5 位末碼'); return; }
   const btn = document.querySelector('#payReportModal button:last-child');
