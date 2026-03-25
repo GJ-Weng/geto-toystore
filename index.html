@@ -1238,7 +1238,7 @@ textarea.fi{min-height:64px;resize:vertical}
               ondragleave="this.classList.remove('drag-over')"
               ondrop="onImgDrop(event)"
               onclick="document.getElementById('fImgFile').click()">
-              🖼️ 拖拉圖片到這裡，或點此選擇
+              🖼️ 拖拉圖片到這裡 ／ 點此選擇 ／ Ctrl+V 貼上
             </div>
             <div class="img-hint">可貼網址按 Enter、從電腦選取、或直接拖拉圖片（第一張為主圖）</div>
             <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
@@ -4063,6 +4063,27 @@ function onImgUrlKeydown(e){
   document.getElementById('fImgUrl').value='';
   renderAdminImgPreviews();
 }
+
+// 監聽全域貼上事件（在後台編輯商品時可直接 Ctrl+V 貼上圖片）
+document.addEventListener('paste', function(e){
+  // 只在後台編輯表單可見時作用
+  const form = document.getElementById('adminForm');
+  if(!form || form.style.display==='none') return;
+  const items = e.clipboardData?.items;
+  if(!items) return;
+  const imageFiles = [];
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      const file = item.getAsFile();
+      if(file) imageFiles.push(file);
+    }
+  }
+  if(imageFiles.length > 0){
+    e.preventDefault();
+    onImgFileChange({ files: imageFiles });
+    showToast('📋 已貼上 ' + imageFiles.length + ' 張圖片');
+  }
+});
 
 function onImgDrop(e){
   e.preventDefault();
