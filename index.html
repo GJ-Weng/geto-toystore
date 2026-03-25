@@ -2226,7 +2226,7 @@ function updateNavFavsBadge(){
   }
 }
 
-async function loadOrders(){ await _sbReady;
+async function loadOrders(){ try{ await _sbReady; }catch(e){ return; } if(!_sb) return;
   const wrap = document.getElementById('ordersListWrap');
   wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink3)">載入中…</div>';
 
@@ -3572,9 +3572,19 @@ function closeOrderModal(){}
 
 // ─── SUPABASE ──────────────────────────────────────────────
 let _sb = null;
-const _sbReady = new Promise(resolve => {
+const _sbReady = new Promise((resolve, reject) => {
+  // 最多等 8 秒，超時就放棄（避免網路差時永遠卡住）
+  const _timeout = setTimeout(() => {
+    console.warn('[supabase] 載入超時，嘗試重新載入頁面');
+    // 有快取就先顯示快取內容，不要白畫面
+    if(typeof renderShop === 'function') try{ renderShop(); }catch(e){}
+    if(typeof renderAuth === 'function') try{ renderAuth(); }catch(e){}
+    reject(new Error('supabase load timeout'));
+  }, 8000);
+
   const _tryInit = () => {
     if (window.supabase) {
+      clearTimeout(_timeout);
       _sb = window.supabase.createClient(
         'https://zmglfuzeplmfyfcwnqpd.supabase.co',
         'sb_publishable_8oYMVwCu6yGy-FFMcYINRQ_F89dHuzY'
@@ -3588,7 +3598,8 @@ const _sbReady = new Promise(resolve => {
 // ─── 從 Supabase 同步商品 ─────────────────────────────────
 async function syncProductsFromSupabase(){
   try {
-    await _sbReady;
+    await _sbReady.catch(()=>{}); // timeout 時靜默跳過
+    if(!_sb) return; // 沒有 _sb 就不繼續
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
     const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,image_urls,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
@@ -3867,7 +3878,7 @@ function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); try{localSt
 function openAuth(){document.getElementById('authModal').classList.add('open');}
 function closeAuth(){document.getElementById('authModal').classList.remove('open');}
 
-async function loginWithGoogle(){ await _sbReady;
+async function loginWithGoogle(){ try{ await _sbReady; }catch(e){ showToast('⚠️ 網路連線異常，請重新整理'); return; } if(!_sb) return;
   try {
     // 先試 popup(不跳頁，體驗更好)
     const {error} = await _sb.auth.signInWithOAuth({
@@ -6224,7 +6235,11 @@ setInterval(()=>{
 
 // 頁面載入：先讓 Supabase 確認登入狀態，再 renderAuth
 (async()=>{
-  await _sbReady;  // 等 supabase async 載入完畢
+  try{ await _sbReady; }catch(e){
+    // supabase 載入超時：顯示快取商品，不顯示登入狀態
+    renderAuth(); updBadge(); return;
+  }
+  if(!_sb){ renderAuth(); updBadge(); return; }
   const {data:{session}} = await _sb.auth.getSession();
   if(session?.user){
     const u = session.user;
