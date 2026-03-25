@@ -5813,7 +5813,7 @@ function bsGenScript(){
     + '<p><b>顧客：' + custName + '</b>　訂單：#' + orderNums + '<br>共 ' + selected.length + ' 件商品　尾款：<b style="color:var(--red)">NT$ ' + totalTail.toLocaleString() + '</b></p>'
     + '<div class="script-steps"><b>步驟：</b><br>1. 先登入並開啟 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a><br>2. 點下方「📋 複製腳本」<br>3. F12 → Console → 打 allow pasting → Enter<br>4. 貼上腳本 → Enter<br>5. Console 出現購買連結 → 傳給顧客！</div>'
     + '<div class="script-box" id="scriptContent">' + script.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
-    + '<div class="script-btns"><button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button><button class="script-close" onclick="document.getElementById('scriptOverlay').remove()">關閉</button></div></div>';
+    + '<div class="script-btns"><button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button><button class="script-close" onclick="this.closest(\'.script-overlay\').remove()">關閉</button></div></div>';
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
   overlay._scriptText = script;
@@ -6259,7 +6259,7 @@ function gen711Script(orderId){
     + '<div class="script-box" id="scriptContent">' + script.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
     + '<div class="script-btns">'
     + '<button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>'
-    + '<button class="script-close" onclick="document.getElementById(\'scriptOverlay\').remove()">關閉</button>'
+    + '<button class="script-close" onclick="this.closest('.script-overlay').remove()">關閉</button>'
     + '</div></div>';
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
