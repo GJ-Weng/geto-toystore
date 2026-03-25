@@ -1,7 +1,6 @@
-const CACHE_NAME = 'geto-v1';
+const CACHE_NAME = 'geto-v2';
 const STATIC_ASSETS = ['/index.html', '/manifest.json'];
 
-// 安裝：快取靜態資源
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
@@ -9,7 +8,6 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
-// 啟動：清除舊快取
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -19,18 +17,17 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// 攔截請求策略
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Supabase API 請求：永遠走網路（不快取動態資料）
-  if (url.hostname.includes('supabase.co') && url.pathname.includes('/rest/')) {
+  // ── Supabase 所有請求：永遠走網路，絕不快取 ──
+  if (url.hostname.includes('supabase.co')) {
     e.respondWith(fetch(e.request));
     return;
   }
 
-  // Supabase Storage 圖片：Cache First（快取優先，有快取直接用）
-  if (url.hostname.includes('supabase.co') && url.pathname.includes('/storage/')) {
+  // ── CDN（supabase.min.js、fonts 等）：Cache First ──
+  if (url.hostname.includes('cdn.jsdelivr.net') || url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('fonts.googleapis.com')) {
     e.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
         const cached = await cache.match(e.request);
@@ -43,14 +40,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // index.html：Stale-while-revalidate（先回快取，背景更新）
+  // ── index.html：Stale-while-revalidate ──
   if (url.pathname === '/' || url.pathname.endsWith('index.html')) {
     e.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
         const cached = await cache.match(e.request);
-        const fetchPromise = fetch(e.request).then(response => {
-          if (response.ok) cache.put(e.request, response.clone());
-          return response;
+        const fetchPromise = fetch(e.request).then(res => {
+          if (res.ok) cache.put(e.request, res.clone());
+          return res;
         }).catch(() => cached);
         return cached || fetchPromise;
       })
@@ -58,20 +55,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // CDN 資源（fonts、supabase.min.js 等）：Cache First
-  if (url.hostname.includes('cdn.jsdelivr.net') || url.hostname.includes('fonts.g')) {
-    e.respondWith(
-      caches.open(CACHE_NAME).then(async cache => {
-        const cached = await cache.match(e.request);
-        if (cached) return cached;
-        const response = await fetch(e.request);
-        if (response.ok) cache.put(e.request, response.clone());
-        return response;
-      })
-    );
-    return;
-  }
-
-  // 其他：直接走網路
+  // ── 其他（manifest 等）：網路優先 ──
   e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });
