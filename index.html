@@ -1743,24 +1743,24 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
         <tr>
           <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
           <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${it.qty}</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ ${(it.price||0).toLocaleString()}</td>
-          ${hasDeposit?`<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px;color:${it.deposit>0?'#c0392b':'#aaa'}">${it.deposit>0?'NT$ '+it.deposit.toLocaleString()+'/件':'—'}</td>`:''}
+          <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ ${((it.price||0)*(it.qty||1)).toLocaleString()}</td>
+          ${hasDeposit?`<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px;color:${it.deposit>0?'#c0392b':'#aaa'}">${it.deposit>0?'NT$ '+((it.deposit||0)*(it.qty||1)).toLocaleString()+'（'+it.deposit+'/件）':'—'}</td>`:''}
         </tr>`).join('')}
     </tbody>
   </table>`;
 
   // 金額摘要
   // 分別計算現貨合計與預購合計
-  const _emailStockTotal = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return p&&p.type==='現貨'; }).reduce((s,i)=>s+(i.price||0),0);
-  const _emailPreTotal   = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return !p||p.type!=='現貨'; }).reduce((s,i)=>s+(i.price||0),0);
+  const _emailStockTotal = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return p&&p.type==='現貨'; }).reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const _emailPreTotal   = _adjustItems.filter(i=>{ const p=products.find(x=>String(x.id)===String(i.product_id)); return !p||p.type!=='現貨'; }).reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
 
   const amountHtml = hasDeposit
     ? '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0">'
       +(_emailStockTotal>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:4px"><span>📦 現貨合計</span><span>NT$ '+_emailStockTotal.toLocaleString()+'</span></div>':'')
       +(_emailPreTotal>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:4px"><span>🕐 預購合計</span><span>NT$ '+_emailPreTotal.toLocaleString()+'</span></div>':'')
       +'<div style="display:flex;justify-content:space-between;font-size:13px;color:#666;border-top:1px solid #f0d8a8;padding-top:8px;margin:4px 0 6px"><span>商品合計</span><span>NT$ '+total.toLocaleString()+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b"><span>應付訂金</span><span>NT$ '+dep.toLocaleString()+'</span></div>'
-      +(tail>0?'<div style="font-size:12px;color:#888;margin-top:6px">預購尾款 NT$ '+tail.toLocaleString()+' 於到貨時支付</div>':'')
+      +'<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b"><span>本次應付訂金</span><span>NT$ '+dep.toLocaleString()+'</span></div>'
+      +(tail>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:#888;margin-top:6px"><span>📦 到貨時付尾款</span><span>NT$ '+tail.toLocaleString()+'</span></div>':'')
       +'</div>'
     : `<div style="background:#eef7f1;border-radius:8px;padding:14px 16px;margin:12px 0">
         <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#2e7d32">
