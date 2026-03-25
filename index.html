@@ -4143,7 +4143,7 @@ async function onImgFileChange(input){
 
       const { data, error } = await _sb.storage
         .from('product-images')
-        .upload(fileName, file, { upsert: false, contentType: file.type });
+        .upload(fileName, file, { upsert: false, contentType: file.type, cacheControl: '604800' });
 
       if(error){ showToast('❌ 上傳失敗：'+error.message); continue; }
 
