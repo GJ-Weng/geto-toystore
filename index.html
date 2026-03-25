@@ -3630,13 +3630,15 @@ async function syncProductsFromSupabase(_retryCount=0){
     clearTimeout(_abortTimer);
 
     if(error){
-      console.warn('商品讀取失敗:', error.message || error);
-      // statement timeout：自動重試最多 2 次（間隔 1.5 秒）
-      if(_retryCount < 2 && (error.message||'').includes('timeout')){
-        console.log('[sync] 重試第 ' + (_retryCount+1) + ' 次...');
+      const _errMsg = error.message || error.details || JSON.stringify(error) || '';
+      console.warn('商品讀取失敗:', _errMsg);
+      // 任何錯誤都自動重試最多 2 次（間隔 1.5 秒）
+      if(_retryCount < 2){
+        console.log('[sync] 重試第 ' + (_retryCount+1) + ' 次... 原因:', _errMsg.slice(0,60));
         setTimeout(()=>syncProductsFromSupabase(_retryCount+1), 1500);
         return;
       }
+      // 重試 2 次都失敗才顯示錯誤
       showToast('⚠️ 商品載入失敗，請稍後重試');
       renderShop();
       return;
