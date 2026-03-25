@@ -1295,7 +1295,8 @@ textarea.fi{min-height:64px;resize:vertical}
         <div id="bsActions" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
           <div style="font-size:13px;font-weight:600;margin-bottom:10px">已選 <span id="bsSelectedCount">0</span> 件商品</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button onclick="bsOpenShipModal()" style="height:36px;padding:0 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 開賣貨便＋寄信</button>
+            <button onclick="bsGenScript()" style="height:36px;padding:0 18px;border:1px solid #f0b429;background:#fffbea;color:#946800;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">📦 賣貨便腳本</button>
+            <button onclick="bsOpenShipModal()" style="height:36px;padding:0 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 寄送賣貨便連結</button>
             <button onclick="bsMarkPartial()" style="height:36px;padding:0 18px;border:1px solid #7c3aed;background:#f5f3ff;color:#7c3aed;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">部分出貨（不寄信）</button>
           </div>
         </div>
@@ -5723,7 +5724,78 @@ function bsGetSelectedItems(){
 }
 
 // 部分出貨（不寄信）
-async function bsMarkPartial(){
+async function bsGenScript(){
+  if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
+  const selected = bsGetSelectedItems();
+  const custKey = document.getElementById('bsCustomerSel')?.value;
+  const cust = window._bsCustomerMap?.[custKey];
+
+  // 合計尾款與數量（跨訂單）
+  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
+  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
+  const tail     = totalAmt - totalDep;
+  const totalQty = selected.reduce((s,{item})=>s+(item.qty||1),0);
+
+  // 賣場名稱：顧客名稱 + 所有訂單編號
+  const orderNums = [...new Set(selected.map(({order})=>order.order_code||order.id))].join('、');
+  const custName  = cust?.name || selected[0]?.order?.customer_name || '顧客';
+  const shopName  = custName + ' 訂單#' + orderNums;
+
+  // 商品名稱（所有勾選商品合併）
+  const prodName = selected.map(({item})=>`${item.product_name||''}${item.variant?' ('+item.variant+')':''}×${item.qty||1}`).join('、').slice(0,60);
+
+  const script = `// ===== Geto玩具屋 賣貨便自動填寫腳本（批次出貨）=====
+// 顧客：${custName}｜訂單：#${orderNums}｜尾款 NT$${tail.toLocaleString()}
+// 請在 https://seller.7-11.com.tw/cgdm/add 頁面的 Console 貼上此腳本
+
+(function(){
+  var nameEl = document.getElementById('Cgdm_Name');
+  if(nameEl){ nameEl.value = ${JSON.stringify(shopName)}; nameEl.dispatchEvent(new Event('input')); }
+  var rdoDuring = document.getElementById('rdoDuring_0');
+  if(rdoDuring){ rdoDuring.click(); }
+  var isPrivate = document.getElementById('isPrivate');
+  if(isPrivate){ isPrivate.click(); }
+  var prodNameEl = document.querySelector('[name="product.Cgdd_Product_Name[1]"]');
+  if(prodNameEl){ prodNameEl.value = ${JSON.stringify(prodName)}; prodNameEl.dispatchEvent(new Event('input')); }
+  var priceEl = document.querySelector('[name="specification.Cgds_Price[1]"]');
+  if(priceEl){ priceEl.value = '${tail}'; priceEl.dispatchEvent(new Event('change')); }
+  var invEl = document.querySelector('[name="specification.Cgds_Inventory[1]"]');
+  if(invEl){ invEl.value = '${totalQty}'; invEl.dispatchEvent(new Event('change')); }
+  var maxEl = document.querySelector('[name="product.Cgdd_Product_MaxOrder[1]"]');
+  if(maxEl){ maxEl.value = '${totalQty}'; maxEl.dispatchEvent(new Event('change')); }
+  var minEl = document.querySelector('[name="product.Cgdd_Product_MinOrder[1]"]');
+  if(minEl){ minEl.value = '1'; minEl.dispatchEvent(new Event('change')); }
+  var normalEl = document.getElementById('normal_1');
+  if(normalEl){ normalEl.click(); }
+  console.log('✅ 賣貨便賣場已自動填寫！');
+  alert('✅ 填寫完成！\n\n賣場名稱：${shopName}\n金額：NT$${tail.toLocaleString()}\n數量：${totalQty}件\n\n請確認後按下儲存賣場！');
+})();`;
+
+  // 顯示腳本 modal（複用現有 ms-overlay 樣式）
+  const existing = document.querySelector('.ms-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'ms-overlay';
+  const modalDiv = document.createElement('div');
+  modalDiv.className = 'ms-modal';
+  modalDiv.innerHTML =
+    '<div class="ms-title">📦 批次出貨：賣貨便腳本</div>'+
+    '<div class="ms-sub">顧客：'+custName+'　訂單：#'+orderNums+'　尾款 NT$'+tail.toLocaleString()+'　共 '+totalQty+' 件</div>'+
+    '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
+    '<a href="https://seller.7-11.com.tw/cgdm/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
+    '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
+    '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
+    '<div class="ms-code" id="msCode"></div>'+
+    '<button class="ms-copy-btn" id="msCopyBtn" onclick="copyMyshipScript()">📋 複製腳本</button>'+
+    '<button class="ms-close-btn" onclick="this.closest('.ms-overlay').remove()">關閉</button>';
+  modalDiv.querySelector('#msCode').textContent = script;
+  overlay.appendChild(modalDiv);
+  overlay._script = script;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+
+function bsMarkPartial(){
   if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
   await _sbReady;
   const selected = bsGetSelectedItems();
@@ -5785,7 +5857,7 @@ function bsOpenShipModal(){
   overlay.innerHTML = `
     <div style="background:var(--white);border-radius:12px;width:480px;max-width:94vw;max-height:90vh;overflow-y:auto">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:16px;font-weight:700">📧 開賣貨便＋寄信通知</div>
+        <div style="font-size:16px;font-weight:700">📧 寄送賣貨便連結通知</div>
         <button onclick="document.getElementById('bsShipModal').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--ink3)">✕</button>
       </div>
       <div style="padding:20px">
