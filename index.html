@@ -6259,7 +6259,7 @@ function gen711Script(orderId){
     + '<div class="script-box" id="scriptContent">' + script.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
     + '<div class="script-btns">'
     + '<button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>'
-    + '<button class="script-close" onclick="this.closest('.script-overlay').remove()">關閉</button>'
+    + '<button class="script-close" onclick="this.closest(\'.script-overlay\').remove()">關閉</button>'
     + '</div></div>';
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
