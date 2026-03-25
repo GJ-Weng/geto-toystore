@@ -2882,7 +2882,9 @@ function _syncPlusBtn(p){
   const _orderedQty=getOrderedQty(currentProductId,v);
   const inCart=cart.filter(x=>String(x.id)===String(currentProductId)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
   const _limitRemain=maxQty===Infinity?999:Math.max(0,maxQty-inCart-_orderedQty);
-  const _stockRemain=(p.type==='現貨'&&p.stock>0)?Math.max(0,p.stock-cart.filter(x=>String(x.id)===String(currentProductId)).reduce((s,x)=>s+x.qty,0)):999;
+  const _v2 = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
+  const _vRem2 = getVariantStockRemaining(p, _v2);
+  const _stockRemain = _vRem2 !== null ? _vRem2 : 999;
   const maxAdd=Math.min(_limitRemain,_stockRemain);
   const plusBtn=document.querySelector('[onclick="chgDQty(1)"]');
   if(plusBtn){
@@ -2929,10 +2931,9 @@ function updateDetailBuyBtn(p){
       p.stockStatus = 'in_stock';
     }
     if(p.stockStatus==='out_of_stock'){ _dis('已售完'); return; }
-    if(p.stock>0){
-      const _totalInCart = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
-      if(_totalInCart >= p.stock){ _dis('庫存已全數加入購物車'); return; }
-    }
+    // 檢查規格庫存（優先）或總庫存
+    const _vRem = getVariantStockRemaining(p, v);
+    if(_vRem !== null && _vRem <= 0){ _dis('庫存已全數加入購物車'); return; }
   }
 
   // 3. 規格未選
@@ -2966,6 +2967,33 @@ function updateDetailBuyBtn(p){
     _en(_label);
   }
 }
+// 取得特定規格的剩餘庫存（扣掉購物車已有的）
+// 回傳 null = 不限制，回傳數字 = 剩餘數量
+function getVariantStockRemaining(p, variant){
+  if(!p || p.type !== '現貨') return null;
+  const v = variant && variant !== '單一規格' ? variant : '';
+
+  // 優先用規格庫存
+  if(p.variantStocks && Object.keys(p.variantStocks).length > 0){
+    const vKey = v || Object.keys(p.variantStocks)[0];
+    const vStock = p.variantStocks[vKey];
+    if(vStock != null && vStock > 0){
+      const inCart = cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
+      return Math.max(0, vStock - inCart);
+    }
+    // 規格有設定但數量為 0 → 該規格缺貨
+    if(vStock != null && vStock === 0) return 0;
+  }
+
+  // 沒有規格庫存，用總庫存
+  if(p.stock > 0){
+    const inCart = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
+    return Math.max(0, p.stock - inCart);
+  }
+
+  return null; // 沒設庫存 = 不限制
+}
+
 function addDetailToCart(){
   if(!user){openAuth();return;}
   const p=products.find(x=>String(x.id)===String(currentProductId));
@@ -2974,12 +3002,14 @@ function addDetailToCart(){
     showToast('⚠️ 此商品已結單，無法預購');
     return;
   }
-  // 現貨庫存檢查
+  // 現貨庫存檢查（規格庫存優先）
   if(p.type==='現貨'){
     if(p.stockStatus==='out_of_stock'){ showToast('⚠️ 此商品目前缺貨'); return; }
-    if(p.stock>0){
-      const _inCartNow = cart.filter(x=>String(x.id)===String(currentProductId)).reduce((s,x)=>s+x.qty,0);
-      if(_inCartNow + detailQty > p.stock){ showToast('⚠️ 庫存不足，僅剩 '+(p.stock-_inCartNow)+' 件'); return; }
+    const _v = selectedVariant && selectedVariant !== '單一規格' ? selectedVariant : '';
+    const _vRem = getVariantStockRemaining(p, _v);
+    if(_vRem !== null){
+      if(_vRem <= 0){ showToast('⚠️ 此規格庫存已售完'); return; }
+      if(detailQty > _vRem){ showToast('⚠️ 庫存不足，此規格僅剩 '+_vRem+' 件'); return; }
     }
   }
   const v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
