@@ -5787,7 +5787,7 @@ async function bsGenScript(){
     '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
     '<div class="ms-code" id="msCode"></div>'+
     '<button class="ms-copy-btn" id="msCopyBtn" onclick="copyMyshipScript()">📋 複製腳本</button>'+
-    '<button class="ms-close-btn" onclick="this.closest('.ms-overlay').remove()">關閉</button>';
+    '<button class="ms-close-btn" onclick="this.closest(\'.ms-overlay\').remove()">關閉</button>';
   modalDiv.querySelector('#msCode').textContent = script;
   overlay.appendChild(modalDiv);
   overlay._script = script;
