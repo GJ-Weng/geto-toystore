@@ -1233,7 +1233,14 @@ textarea.fi{min-height:64px;resize:vertical}
               <button type="button" class="img-upload-btn" onclick="document.getElementById('fImgFile').click()">📁 從電腦上傳</button>
               <input type="file" id="fImgFile" accept="image/*" multiple style="display:none" onchange="onImgFileChange(this)">
             </div>
-            <div class="img-hint">可貼網址按 Enter、或從電腦選取多張圖（第一張為主圖）</div>
+            <div class="img-drop-zone" id="imgDropZone"
+              ondragover="event.preventDefault();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="onImgDrop(event)"
+              onclick="document.getElementById('fImgFile').click()">
+              🖼️ 拖拉圖片到這裡，或點此選擇
+            </div>
+            <div class="img-hint">可貼網址按 Enter、從電腦選取、或直接拖拉圖片（第一張為主圖）</div>
             <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
           </div>
         </div></div>
@@ -4055,6 +4062,15 @@ function onImgUrlKeydown(e){
   _adminImgs.push(url);
   document.getElementById('fImgUrl').value='';
   renderAdminImgPreviews();
+}
+
+function onImgDrop(e){
+  e.preventDefault();
+  document.getElementById('imgDropZone')?.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer?.files||[]).filter(f=>f.type.startsWith('image/'));
+  if(!files.length){ showToast('⚠️ 請拖入圖片檔案'); return; }
+  // 建立假的 input 物件傳給 onImgFileChange
+  onImgFileChange({ files });
 }
 
 async function onImgFileChange(input){
