@@ -3600,32 +3600,14 @@ async function syncProductsFromSupabase(_retryCount=0){
   try {
     await _sbReady.catch(()=>{}); // timeout 時靜默跳過
     if(!_sb) return; // 沒有 _sb 就不繼續
-    // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
     const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,image_urls,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
 
-    // 10 秒強制 timeout（用 Promise.race，相容所有 supabase-js 版本）
-    let data, error;
-    try {
-      const _fetchPromise = _sb
-        .from('products')
-        .select(LISTING_COLS)
-        .order('created_at', { ascending: false });
-      const _timeoutPromise = new Promise((_, rej) =>
-        setTimeout(() => rej(new Error('fetch_timeout')), 10000)
-      );
-      ({ data, error } = await Promise.race([_fetchPromise, _timeoutPromise]));
-    } catch(fetchErr) {
-      // 請求逾時或網路中斷，自動重試最多 2 次
-      if(_retryCount < 2){
-        console.log('[sync] 請求中斷，重試第 ' + (_retryCount+1) + ' 次... 原因:', fetchErr?.message);
-        setTimeout(()=>syncProductsFromSupabase(_retryCount+1), 1500);
-        return;
-      }
-      console.warn('[sync] 商品載入失敗（已重試 2 次）:', fetchErr?.message);
-      renderShop();
-      return;
-    }
+    // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
+    const { data, error } = await _sb
+      .from('products')
+      .select(LISTING_COLS)
+      .order('created_at', { ascending: false });
 
     if(error){
       const _errMsg = error.message || error.details || JSON.stringify(error) || '';
