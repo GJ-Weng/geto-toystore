@@ -5778,8 +5778,8 @@ function bsUpdateActions(){
   if(!_bsSelected.size) return;
   const selected = bsGetSelectedItems();
   const totalQty = selected.reduce((s,{item})=>s+(item.qty||1),0);
-  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
-  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
+  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0)*(item.qty||1),0);
+  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0)*(item.qty||1),0);
   const tail     = totalAmt - totalDep;
   const cnt   = document.getElementById('bsSelectedCount');
   const tAmt  = document.getElementById('bsTotalAmt');
@@ -5796,8 +5796,8 @@ function bsUpdateActions(){
           <div style="font-size:11px;color:var(--ink3)">訂單 #${order.order_code||order.id}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:12px">
-          <div style="font-size:13px;font-weight:600">NT$${(item.price||0).toLocaleString()}</div>
-          ${(item.deposit||0)>0?'<div style="font-size:11px;color:var(--ink3)">訂金 NT$'+(item.deposit||0).toLocaleString()+'</div>':''}
+          <div style="font-size:13px;font-weight:600">NT$${((item.price||0)*(item.qty||1)).toLocaleString()}</div>
+          ${(item.deposit||0)>0?'<div style="font-size:11px;color:var(--ink3)">訂金 NT$'+((item.deposit||0)*(item.qty||1)).toLocaleString()+'</div>':''}
         </div>
       </div>`).join('');
   }
@@ -5827,8 +5827,8 @@ function bsGenScript(){
   const orderNums = [...new Set(selected.map(({order})=>order.order_code||order.id))].join('、');
   const storeName = custName + ' 預購#' + orderNums;
   const bsProds = selected.map(({order,item}) => {
-    const itemTail = (item.price||0) - (item.deposit||0);
-    const payAmt   = itemTail > 0 ? itemTail : (item.price||0);
+    const itemTail = ((item.price||0) - (item.deposit||0)) * (item.qty||1);
+    const payAmt   = itemTail > 0 ? itemTail : (item.price||0)*(item.qty||1);
     const pName = ((item.product_name||'') + (item.variant?' '+item.variant:'') + ' x'+(item.qty||1)).slice(0,60);
     return { name: pName, qty: 1, price: payAmt };
   });
@@ -5884,7 +5884,7 @@ function bsGenScript(){
   const script = scriptLines.join('\n');
   const existing = document.getElementById('scriptOverlay');
   if(existing) existing.remove();
-  const totalTail = selected.reduce((s,{item})=>s+(item.price||0)-(item.deposit||0),0);
+  const totalTail = selected.reduce((s,{item})=>s+((item.price||0)-(item.deposit||0))*(item.qty||1),0);
   const overlay = document.createElement('div');
   overlay.className = 'script-overlay';
   overlay.id = 'scriptOverlay';
@@ -5931,8 +5931,8 @@ function bsOpenShipModal(){
   if(!cust?.email){ showToast('⚠️ 此顧客沒有 Email'); return; }
   const existing = document.getElementById('bsShipModal');
   if(existing) existing.remove();
-  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
-  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
+  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0)*(item.qty||1),0);
+  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0)*(item.qty||1),0);
   const tail = totalAmt - totalDep;
   const itemsListHtml = selected.map(({order,item})=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
