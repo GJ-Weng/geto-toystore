@@ -4123,20 +4123,47 @@ function onImgUrlKeydown(e){
   renderAdminImgPreviews();
 }
 
-function onImgFileChange(input){
+async function onImgFileChange(input){
   const files = Array.from(input.files||[]);
   if(!files.length) return;
-  let loaded=0;
-  files.forEach(file=>{
-    if(file.size > 1.5*1024*1024){ showToast('⚠️ 圖片請壓縮至 1.5MB 以內：'+file.name); return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      _adminImgs.push(e.target.result);
-      loaded++;
-      if(loaded===files.length) renderAdminImgPreviews();
-    };
-    reader.readAsDataURL(file);
-  });
+
+  // 顯示上傳中狀態
+  const btn = document.querySelector('.img-upload-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 上傳中…'; }
+
+  let uploaded = 0;
+  for(const file of files){
+    if(file.size > 5*1024*1024){ showToast('⚠️ 圖片請壓縮至 5MB 以內：'+file.name); continue; }
+
+    try{
+      await _sbReady;
+      // 產生唯一檔名：時間戳 + 隨機碼 + 副檔名
+      const ext = file.name.split('.').pop().toLowerCase() || 'jpg';
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+
+      const { data, error } = await _sb.storage
+        .from('product-images')
+        .upload(fileName, file, { upsert: false, contentType: file.type });
+
+      if(error){ showToast('❌ 上傳失敗：'+error.message); continue; }
+
+      // 取得公開 CDN URL
+      const { data: urlData } = _sb.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+
+      _adminImgs.push(urlData.publicUrl);
+      uploaded++;
+    } catch(e){
+      showToast('❌ 上傳錯誤：'+e.message);
+    }
+  }
+
+  if(btn){ btn.disabled=false; btn.innerHTML='📁 從電腦上傳'; }
+  if(uploaded > 0){
+    showToast(`✅ 已上傳 ${uploaded} 張圖片`);
+    renderAdminImgPreviews();
+  }
   input.value='';
 }
 
