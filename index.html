@@ -1615,7 +1615,7 @@ textarea.fi{min-height:64px;resize:vertical}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" onerror="this.remove();var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js';document.head.appendChild(s)"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js" defer></script>
 <script>
 // ─── EMOJIS & HELPERS ────────────────────────────────────
@@ -1660,7 +1660,7 @@ const _CACHE_VERSION = 'v3';
 })();
 
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
-const _CACHE_TTL = 600; // 快取有效秒數（10分鐘內的快取視為新鮮，可直接使用）
+const _CACHE_TTL = 1800; // 快取有效秒數（30分鐘內的快取視為新鮮，可直接使用）
 function _isCacheFresh(){
   const ts = parseInt(localStorage.getItem('tf_p_ts')||'0');
   return (Date.now() - ts) < _CACHE_TTL * 1000;
@@ -3515,8 +3515,14 @@ function closeOrderModal(){}
 // ─── SUPABASE ──────────────────────────────────────────────
 let _sb = null;
 const _sbReady = new Promise(resolve => {
+  // 10 秒內未載入就放棄等待，讓頁面顯示快取內容
+  const _giveUp = setTimeout(() => {
+    console.warn('[sbReady] supabase.min.js 載入超時，使用快取模式');
+    resolve(null);
+  }, 5000);
   const _tryInit = () => {
     if (window.supabase) {
+      clearTimeout(_giveUp);
       _sb = window.supabase.createClient(
         'https://zmglfuzeplmfyfcwnqpd.supabase.co',
         'sb_publishable_8oYMVwCu6yGy-FFMcYINRQ_F89dHuzY'
@@ -3531,6 +3537,7 @@ const _sbReady = new Promise(resolve => {
 async function syncProductsFromSupabase(){
   try {
     await _sbReady;
+    if(!_sb){ renderShop(); return; } // supabase 未載入，顯示快取
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
     const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,image_urls,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
@@ -6457,11 +6464,10 @@ try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 // ── Stale-while-revalidate：快取有效 → 立刻顯示，背景安靜更新 ────────
 const _cacheValid = products.length && localStorage.getItem('tf_p_ver')===_CACHE_VERSION && _isCacheFresh();
 if(_cacheValid){
-  // 快取新鮮：先顯示快取，100ms 後靜默同步（不卡畫面）
+  // 快取新鮮（30分鐘內）：直接用快取，不做背景 sync，節省 egress
   setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
-  setTimeout(syncProductsFromSupabase, 100);
 } else {
-  // 無快取或過期：先顯示骨架屏（renderShop 已處理），立刻 sync
+  // 快取過期或沒有快取：從 Supabase 拉最新資料
   syncProductsFromSupabase();
 }
 
@@ -6498,6 +6504,7 @@ setInterval(()=>{
 // 頁面載入：先讓 Supabase 確認登入狀態，再 renderAuth
 (async()=>{
   await _sbReady;
+  if(!_sb){ renderAuth(); updBadge(); updateNavFavsBadge(); return; }
   const {data:{session}} = await _sb.auth.getSession();
   if(session?.user){
     const u = session.user;
