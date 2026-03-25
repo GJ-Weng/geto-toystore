@@ -3588,10 +3588,35 @@ async function syncProductsFromSupabase(){
     }));
 
     try{
-      localStorage.setItem('tf_p',     JSON.stringify(products));
+      // 輕量化再存（移除 base64 圖片，只保留 CDN URL）
+      const _cacheProds = products.map(p=>{
+        const _url  = p.imageUrl  && !p.imageUrl.startsWith('data:')  ? p.imageUrl  : '';
+        const _urls = Array.isArray(p.imageUrls) ? p.imageUrls.filter(u=>u&&!u.startsWith('data:')) : [];
+        // description 通常最大，快取不存（進商品頁才懶載入）
+        const {description, ...rest} = p;
+        return {...rest, imageUrl:_url, imageUrls:_urls};
+      });
+      const _cacheStr = JSON.stringify(_cacheProds);
+      // 超過 3MB 則進一步精簡（只留列表頁需要的欄位）
+      if(_cacheStr.length > 3 * 1024 * 1024){
+        const _minProds = _cacheProds.map(p=>({
+          id:p.id, name:p.name, brand:p.brand, price:p.price, deposit:p.deposit,
+          type:p.type, deadline:p.deadline, arrival:p.arrival, ip:p.ip, form:p.form,
+          status:p.status, isNew:p.isNew, stockStatus:p.stockStatus, stock:p.stock,
+          variants:p.variants, variantPrices:p.variantPrices, variantStocks:p.variantStocks,
+          imageUrl:p.imageUrl, imageUrls:p.imageUrls, emoji:p.emoji, cnt:p.cnt,
+          limit:p.limit
+        }));
+        localStorage.setItem('tf_p', JSON.stringify(_minProds));
+      } else {
+        localStorage.setItem('tf_p', _cacheStr);
+      }
       localStorage.setItem('tf_p_ts',  String(Date.now()));
-      localStorage.setItem('tf_p_ver', _CACHE_VERSION); // 更新快取版本
-    } catch(storErr){ console.warn('localStorage write error:', storErr); }
+      localStorage.setItem('tf_p_ver', _CACHE_VERSION);
+    } catch(storErr){
+      console.warn('localStorage write error:', storErr.name);
+      // 寫入失敗也不影響畫面，商品已在記憶體裡
+    }
 
     console.log('[Supabase sync] 商品載入完成，共 ' + products.length + ' 件（已上架：' + products.filter(p=>p.status==='published').length + ' 件）');
     renderShop();
@@ -5799,445 +5824,28 @@ async function bsGenScript(){
   const selected = bsGetSelectedItems();
   const custKey = document.getElementById('bsCustomerSel')?.value;
   const cust = window._bsCustomerMap?.[custKey];
+  const custName = cust?.name || selected[0]?.order?.customer_name || '顧客';
 
-  // 合計尾款與數量（跨訂單）
-  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
-  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
-  const tail     = totalAmt - totalDep;
-  const totalQty = selected.reduce((s,{item})=>s+(item.qty||1),0);
-
+  // 每個商品獨立一筆（每件商品 qty=1，各自的尾款）
   // 賣場名稱：顧客名稱 + 所有訂單編號
   const orderNums = [...new Set(selected.map(({order})=>order.order_code||order.id))].join('、');
-  const custName  = cust?.name || selected[0]?.order?.customer_name || '顧客';
-  const shopName  = custName + ' 訂單#' + orderNums;
+  const storeName = custName + ' 預購#' + orderNums;
 
-  // 商品名稱（所有勾選商品合併）
-  const prodName = selected.map(({item})=>`${item.product_name||''}${item.variant?' ('+item.variant+')':''}×${item.qty||1}`).join('、').slice(0,60);
-
-  const script = buildMyshipScript(shopName, prodName, tail, totalQty, custName, orderNums);
-
-  // 顯示腳本 modal（複用現有 ms-overlay 樣式）
-  const existing = document.querySelector('.ms-overlay');
-  if(existing) existing.remove();
-  const overlay = document.createElement('div');
-  overlay.className = 'ms-overlay';
-  const modalDiv = document.createElement('div');
-  modalDiv.className = 'ms-modal';
-  modalDiv.innerHTML =
-    '<div class="ms-title">📦 批次出貨：賣貨便腳本</div>'+
-    '<div class="ms-sub">顧客：'+custName+'　訂單：#'+orderNums+'　尾款 NT$'+tail.toLocaleString()+'　共 '+totalQty+' 件</div>'+
-    '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
-    '<a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
-    '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
-    '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
-    '<div class="ms-code" id="msCode"></div>'+
-    '<button class="ms-copy-btn" id="msCopyBtn" onclick="copyMyshipScript()">📋 複製腳本</button>'+
-    '<button class="ms-close-btn" onclick="this.closest(\'.ms-overlay\').remove()">關閉</button>';
-  modalDiv.querySelector('#msCode').textContent = script;
-  overlay.appendChild(modalDiv);
-  overlay._script = script;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-}
-
-async function bsMarkPartial(){
-  if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
-  await _sbReady;
-  const selected = bsGetSelectedItems();
-
-  // 依訂單分組，標記各商品為 shipped=true
-  const orderGroups = {};
-  selected.forEach(({order,itemIdx,items})=>{
-    if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
-    orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
+  // 每個勾選商品獨立產生一個 product entry
+  const products = selected.map(({order, item}) => {
+    const itemTotal = item.price || 0;
+    const itemDep   = item.deposit || 0;
+    const itemTail  = itemTotal - itemDep;
+    const payAmt    = itemTail > 0 ? itemTail : itemTotal;
+    const pName = ((item.product_name||'') + (item.variant ? ' ' + item.variant : '') + ' x' + (item.qty||1)).slice(0, 60);
+    return { name: pName, qty: 1, price: payAmt };
   });
 
-  let errCount = 0;
-  for(const [ordId, {order, items}] of Object.entries(orderGroups)){
-    // 判斷是否全部出貨
-    const allShipped = items.every(it=>it.shipped===true);
-    const newStatus = allShipped ? 'shipped' : 'partial';
-    const {error} = await _sb.from('orders').update({ note: JSON.stringify(items), status: newStatus }).eq('id', parseInt(ordId));
-    if(error){ errCount++; console.warn('更新訂單失敗:', error); continue; }
-    // 更新本地快取
-    const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
-    if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
-  }
-
-  if(errCount) showToast(`⚠️ ${errCount} 筆訂單更新失敗`);
-  else showToast(`✅ 已標記 ${selected.length} 件商品為部分出貨`);
-
-  _bsSelected = new Set();
-  _bsRender();
-}
-
-// 開賣貨便 + 寄信
-function bsOpenShipModal(){
-  if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
-  const selected = bsGetSelectedItems();
-  const custKey = document.getElementById('bsCustomerSel')?.value;
-  const cust = window._bsCustomerMap?.[custKey];
-  if(!cust?.email){ showToast('⚠️ 此顧客沒有 Email'); return; }
-
-  const existing = document.getElementById('bsShipModal');
-  if(existing) existing.remove();
-
-  // 整理要顯示的商品清單 HTML
-  const itemsListHtml = selected.map(({order,item})=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
-      <div>
-        <div style="font-size:13px;font-weight:500">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}</div>
-        <div style="font-size:11px;color:#888">訂單 #${order.order_code||order.id}</div>
-      </div>
-      <div style="font-size:13px;font-weight:600">NT$${(item.price||0).toLocaleString()}</div>
-    </div>`).join('');
-
-  const totalAmt = selected.reduce((s,{item})=>s+(item.price||0),0);
-  const totalDep = selected.reduce((s,{item})=>s+(item.deposit||0),0);
-  const tail = totalAmt - totalDep;
-
-  const overlay = document.createElement('div');
-  overlay.id = 'bsShipModal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.innerHTML = `
-    <div style="background:var(--white);border-radius:12px;width:480px;max-width:94vw;max-height:90vh;overflow-y:auto">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:16px;font-weight:700">📧 寄送賣貨便連結通知</div>
-        <button onclick="document.getElementById('bsShipModal').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--ink3)">✕</button>
-      </div>
-      <div style="padding:20px">
-        <div style="font-size:13px;color:var(--ink3);margin-bottom:4px">寄給</div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:16px">${cust.name} ・ ${cust.email}</div>
-
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px">已選商品</div>
-        <div style="background:var(--bg);border-radius:8px;padding:4px 12px;margin-bottom:16px">${itemsListHtml}</div>
-
-        <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:13px">
-          <span style="color:var(--ink3)">商品合計</span><span style="font-weight:600">NT$${totalAmt.toLocaleString()}</span>
-        </div>
-
-        <div style="font-size:13px;font-weight:600;margin-bottom:6px">賣貨便賣場連結</div>
-        <input id="bsShipUrl" class="fi" placeholder="https://myship.7-11.com.tw/..." style="margin-bottom:16px;width:100%">
-
-        <button onclick="bsDoSendShipEmail()" style="width:100%;height:42px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">📧 寄送連結給顧客</button>
-      </div>
-    </div>`;
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-  setTimeout(()=>document.getElementById('bsShipUrl')?.focus(), 100);
-
-  // 存起來供 doSend 使用
-  window._bsPendingSend = { selected, cust, totalAmt, totalDep, tail };
-}
-
-async function bsDoSendShipEmail(){
-  const url = document.getElementById('bsShipUrl')?.value.trim();
-  if(!url||!url.startsWith('http')){ showToast('⚠️ 請貼入正確的賣貨便連結'); return; }
-  if(!emailjsConfig.publicKey){ showToast('⚠️ EmailJS 未設定'); return; }
-
-  const {selected, cust, totalAmt, totalDep, tail} = window._bsPendingSend||{};
-  if(!selected?.length){ showToast('資料錯誤，請重試'); return; }
-  await _sbReady;
-
-  const btn = document.querySelector('#bsShipModal button:last-child');
-  if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
-
-  // 整理 Email 內容
-  const itemsEmailHtml = selected.map(({order,item})=>`
-    <tr>
-      <td style="padding:8px;border-bottom:1px solid #eee">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}<br><span style="font-size:11px;color:#888">訂單 #${order.order_code||order.id}</span></td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(item.price||0).toLocaleString()}</td>
-    </tr>`).join('');
-
-  try{
-    emailjs.init({ publicKey: emailjsConfig.publicKey });
-    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
-      to_name:        cust.name||'顧客',
-      to_email:       cust.email,
-      order_num:      selected.map(({order})=>order.order_code||order.id).join('、'),
-      subject_status: '商品已到貨，賣場已建立',
-      header_title:   '🛒 您的商品已到貨，賣場已建立！',
-      header_sub:     `${cust.name||'您'} 您好！以下商品已到貨，賣場已建立，請點連結完成付款。`,
-      items_html:     `<table style="width:100%;border-collapse:collapse">${itemsEmailHtml}</table>`,
-      amount_html:    `<div style="background:#e8f0fc;border-radius:8px;padding:14px 16px;margin:12px 0">
-        <div style="font-size:13px;color:#666;margin-bottom:6px">商品合計 NT$${totalAmt.toLocaleString()}　已付訂金 NT$${totalDep.toLocaleString()}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:16px;font-weight:700;color:#1a56c4">應付尾款</span>
-          <span style="font-size:20px;font-weight:700;color:#c0392b">NT$${tail.toLocaleString()}</span>
-        </div>
-      </div>
-      <div style="text-align:center;margin:16px 0">
-        <a href="${url}" style="display:inline-block;background:#ee7700;color:#fff;padding:12px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none">前往付款 →</a>
-      </div>
-      <div style="font-size:12px;color:#888;text-align:center">連結：${url}</div>`,
-      bank_html:      '',
-      reminder_html:  `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;font-size:12px;color:#856404">⚠️ 請儘快完成付款，連結有效期限請參考賣貨便說明。</div>`,
-      delivery:       selected[0]?.order?.store||'',
-      phone:          cust.email,
-    });
-
-    // 標記商品為已出貨並更新訂單狀態
-    const orderGroups = {};
-    selected.forEach(({order,itemIdx,items})=>{
-      if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
-      orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
-    });
-    for(const [ordId, {items}] of Object.entries(orderGroups)){
-      const allShipped = items.every(it=>it.shipped===true);
-      const newStatus = allShipped ? 'shipped' : 'partial';
-      await _sb.from('orders').update({ note:JSON.stringify(items), status:newStatus }).eq('id', parseInt(ordId));
-      const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
-      if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
-    }
-
-    document.getElementById('bsShipModal')?.remove();
-    showToast('✅ 已寄出賣場連結給 ' + cust.email);
-    _bsSelected = new Set();
-    _bsRender();
-  } catch(err){
-    if(btn){ btn.disabled=false; btn.textContent='📧 寄送連結給顧客'; }
-    showToast('❌ 寄信失敗：'+(err?.text||err?.message||'請確認 EmailJS 設定'));
-  }
-}
-
-function sendShipEmail(orderId){
-  const o = _allAdminOrders.find(x=>x.id===orderId);
-  if(!o){ showToast('找不到訂單'); return; }
-  if(!o.user_email){ showToast('⚠️ 此訂單沒有顧客 Email'); return; }
-
-  // 彈出輸入視窗，讓店家貼入剛建立的賣場連結
-  const existing = document.getElementById('shipEmailOverlay');
-  if(existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'script-overlay';
-  overlay.id = 'shipEmailOverlay';
-  overlay.innerHTML = `
-    <div class="script-modal" style="max-width:440px">
-      <h3>📧 寄賣場連結給顧客</h3>
-      <p>
-        <b>${o.customer_name||'顧客'}</b>　${o.user_email}<br>
-        訂單 #${o.id}
-      </p>
-      <div class="co-field" style="margin-bottom:14px">
-        <div class="co-lbl" style="margin-bottom:6px">貼上賣貨便賣場連結</div>
-        <input id="shipUrlInput" class="co-inp" placeholder="https://myship.7-11.com.tw/cart/confirm/GM..." style="width:100%">
-      </div>
-      <div class="script-steps">
-        執行腳本後，從 Console 複製連結貼到上方，<br>再點「寄送」，顧客會收到一封含連結的通知信。
-      </div>
-      <div class="script-btns" style="margin-top:14px">
-        <button class="script-copy" onclick="doSendShipEmail(${o.id})">📧 寄送連結</button>
-        <button class="script-close" onclick="document.getElementById('shipEmailOverlay').remove()">取消</button>
-      </div>
-    </div>`;
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-  setTimeout(()=>document.getElementById('shipUrlInput')?.focus(), 100);
-}
-
-async function doSendShipEmail(orderId){
-  const o = _allAdminOrders.find(x=>x.id===orderId);
-  const url = document.getElementById('shipUrlInput')?.value.trim();
-  if(!url || !url.startsWith('http')){ showToast('⚠️ 請貼入正確的連結'); return; }
-  if(!emailjsConfig.publicKey){ showToast('⚠️ EmailJS 未設定'); return; }
-
-  let items=[];
-  try{items=JSON.parse(o.note||'[]');}catch(e){}
-  if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
-  const totalAmt = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep      = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
-  const tail     = totalAmt - dep;
-
-  const btn = document.querySelector('#shipEmailOverlay .script-copy');
-  if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
-
-  try{
-    emailjs.init({ publicKey: emailjsConfig.publicKey });
-    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
-      to_name:        o.customer_name||'顧客',
-      to_email:       o.user_email,
-      order_num:      String(o.id),
-      subject_status: '賣場已建立，請前往付款',
-      header_title:   '🛒 您的專屬賣場已建立！',
-      header_sub:     `${o.customer_name||'您'} 您好！您的訂單尾款賣場已建立，請點連結完成付款。`,
-      items_html:     `<table style="width:100%;border-collapse:collapse">
-        ${items.map(it=>`<tr><td style="padding:8px;border-bottom:1px solid #eee">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(it.price||0).toLocaleString()}</td></tr>`).join('')}
-      </table>`,
-      amount_html:    `<div style="background:#e8f0fc;border-radius:8px;padding:14px 16px;margin:12px 0">
-        <div style="font-size:13px;color:#666;margin-bottom:6px">訂單金額 NT$${totalAmt.toLocaleString()}　已付訂金 NT$${dep.toLocaleString()}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:16px;font-weight:700;color:#1a56c4">應付尾款</span>
-          <span style="font-size:20px;font-weight:700;color:#c0392b">NT$${tail.toLocaleString()}</span>
-        </div>
-      </div>
-      <div style="text-align:center;margin:16px 0">
-        <a href="${url}" style="display:inline-block;background:#ee7700;color:#fff;padding:12px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none">前往付款 →</a>
-      </div>
-      <div style="font-size:12px;color:#888;text-align:center">連結：${url}</div>`,
-      bank_html:      '',
-      reminder_html:  `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;font-size:12px;color:#856404">⚠️ 請儘快完成付款，連結有效期限請參考賣貨便說明。</div>`,
-      delivery:       o.store||'',
-      phone:          o.phone||'',
-    });
-    document.getElementById('shipEmailOverlay')?.remove();
-    showToast('✅ 已寄送賣場連結給 ' + o.user_email);
-  } catch(err){
-    if(btn){ btn.disabled=false; btn.textContent='📧 寄送連結'; }
-    showToast('❌ 寄信失敗：'+(err?.text||err?.message||'請確認 EmailJS 設定'));
-  }
-}
-
-// ─── MYSHIP 賣貨便賣場腳本產生 ───────────────────────────
-
-// 共用：產生安全的賣貨便 console 腳本（所有變數用 JSON.stringify 保護）
-function buildMyshipScript(shopName, prodName, tail, totalQty, custName, orderRef){
-  // 用 JSON.stringify 確保所有字串安全（含特殊字符、中文、引號）
-  const sShopName = JSON.stringify(shopName);
-  const sProdName = JSON.stringify(prodName);
-  const sTail     = JSON.stringify(String(tail));
-  const sQty      = JSON.stringify(String(totalQty));
-  const sAlert    = JSON.stringify(
-    '✅ 填寫完成！\n\n賣場名稱：' + shopName +
-    '\n金額：NT$' + Number(tail).toLocaleString() +
-    '\n數量：' + totalQty + '件\n\n請確認後按下儲存賣場！'
-  );
-
-  return [
-    '// ===== Geto玩具屋 賣貨便自動填寫腳本 =====',
-    '// 顧客：' + (custName||'') + '　訂單：' + (orderRef||'') + '　尾款 NT$' + Number(tail).toLocaleString(),
-    '// 請在 https://myship.7-11.com.tw/fast/add 頁面的 Console 貼上此腳本',
-    '',
-    '(function(){',
-    '  var nameEl = document.getElementById("Cgdm_Name");',
-    '  if(nameEl){ nameEl.value = ' + sShopName + '; nameEl.dispatchEvent(new Event("input")); }',
-    '  var rdoDuring = document.getElementById("rdoDuring_0");',
-    '  if(rdoDuring){ rdoDuring.click(); }',
-    '  var isPrivate = document.getElementById("isPrivate");',
-    '  if(isPrivate){ isPrivate.click(); }',
-    '  var prodNameEl = document.querySelector(\'[name="product.Cgdd_Product_Name[1]"]\');',
-    '  if(prodNameEl){ prodNameEl.value = ' + sProdName + '; prodNameEl.dispatchEvent(new Event("input")); }',
-    '  var priceEl = document.querySelector(\'[name="specification.Cgds_Price[1]"]\');',
-    '  if(priceEl){ priceEl.value = ' + sTail + '; priceEl.dispatchEvent(new Event("change")); }',
-    '  var invEl = document.querySelector(\'[name="specification.Cgds_Inventory[1]"]\');',
-    '  if(invEl){ invEl.value = ' + sQty + '; invEl.dispatchEvent(new Event("change")); }',
-    '  var maxEl = document.querySelector(\'[name="product.Cgdd_Product_MaxOrder[1]"]\');',
-    '  if(maxEl){ maxEl.value = ' + sQty + '; maxEl.dispatchEvent(new Event("change")); }',
-    '  var minEl = document.querySelector(\'[name="product.Cgdd_Product_MinOrder[1]"]\');',
-    '  if(minEl){ minEl.value = "1"; minEl.dispatchEvent(new Event("change")); }',
-    '  var normalEl = document.getElementById("normal_1");',
-    '  if(normalEl){ normalEl.click(); }',
-    '  alert(' + sAlert + ');',
-    '})();'
-  ].join('\n');
-}
-
-
-function openMyshipModal(orderId){
-  const o = _allAdminOrders.find(x=>x.id===orderId);
-  if(!o){ showToast('找不到訂單'); return; }
-
-  let items=[];
-  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
-  if(!Array.isArray(items)||!items.length){
-    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
-  }
-
-  const total   = items.reduce((s,i)=>s+(i.price||0),0);
-  const dep     = items.reduce((s,i)=>s+(i.deposit||0),0)||o.price||0;
-  const tail    = total - dep; // 尾款 = 顧客需在賣場付的金額
-  const custName= o.customer_name||'顧客';
-  const shopName= `${custName} 訂單#${o.id}`;
-
-  // 商品名稱(合併所有品項)
-  const prodName = items.map(i=>`${i.product_name||''}${i.variant?' ('+i.variant+')':''}×${i.qty||1}`).join('、').slice(0,60);
-  const totalQty = items.reduce((s,i)=>s+(i.qty||1),0);
-
-  // 產生賣貨便 console 腳本
-  const script = buildMyshipScript(shopName, prodName, tail, totalQty, custName, '#'+o.id);
-
-  // 建立 modal
-  const overlay = document.createElement('div');
-  overlay.className='ms-overlay';
-  // Build modal HTML using DOM to avoid template literal nesting issues
-  const modalDiv = document.createElement('div');
-  modalDiv.className='ms-modal';
-  modalDiv.innerHTML=
-    '<div class="ms-title">📦 建立賣貨便賣場</div>'+
-    '<div class="ms-sub">訂單 #'+o.id+'｜'+custName+'｜尾款 NT$'+tail.toLocaleString()+'</div>'+
-    '<div class="ms-step"><b>第一步：</b>開啟新分頁前往賣貨便賣場新增頁面<br>'+
-    '<a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red);font-weight:700;font-size:13px;margin-top:4px;display:inline-block">→ 點我開啟賣貨便 ↗</a></div>'+
-    '<div class="ms-step"><b>第二步：</b>開啟 F12 Console，先打 <b style="background:#eee;padding:2px 6px;border-radius:3px">allow pasting</b> 解鎖</div>'+
-    '<div class="ms-step"><b>第三步：</b>複製下方腳本，貼到 Console 按 Enter</div>'+
-    '<div class="ms-code" id="msCode"></div>'+
-    '<button class="ms-copy-btn" id="msCopyBtn" onclick="copyMyshipScript()">📋 複製腳本</button>'+
-    '<button class="ms-close-btn" onclick="this.closest(\'.ms-overlay\').remove()">關閉</button>';
-  // Set script content as text (safe, no XSS)
-  modalDiv.querySelector('#msCode').textContent = script;
-  overlay.appendChild(modalDiv);
-    overlay._script = script;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-}
-
-function copyMyshipScript(){
-  const overlay = document.querySelector('.ms-overlay');
-  if(!overlay) return;
-  navigator.clipboard.writeText(overlay._script).then(()=>{
-    const btn = document.getElementById('msCopyBtn');
-    if(btn){ btn.textContent='✅ 已複製！'; btn.classList.add('copied'); }
-    setTimeout(()=>{ if(btn){ btn.textContent='📋 複製腳本'; btn.classList.remove('copied'); } },2000);
-  }).catch(()=>{
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = overlay._script;
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    const btn = document.getElementById('msCopyBtn');
-    if(btn){ btn.textContent='✅ 已複製！'; btn.classList.add('copied'); }
-    setTimeout(()=>{ if(btn){ btn.textContent='📋 複製腳本'; btn.classList.remove('copied'); } },2000);
-  });
-}
-
-// ─── 7-11 賣貨便賣場腳本產生器 ────────────────────────────
-function gen711Script(orderId){
-  const o = _allAdminOrders.find(x=>x.id===orderId);
-  if(!o){ showToast('找不到訂單'); return; }
-
-  let items = [];
-  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
-  if(!Array.isArray(items)||!items.length){
-    items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:0}];
-  }
-
-  const totalAmt   = items.reduce((s,i)=>s+(i.price||0),0);
-  const depositAmt = items.reduce((s,i)=>s+(i.deposit||0),0) || o.price || 0;
-  const tailAmt    = totalAmt - depositAmt;
-  const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
-
-  const ordNum    = String(o.id);
-  const orderCode = o.order_code || ordNum;
-  const storeName = (o.customer_name||'顧客') + ' 預購#' + orderCode;
-
-  // 單一商品：總尾款金額，庫存1，顧客只付一次
-  // 商品名稱組合所有品項
-  const productNames = items.map(it =>
-    (it.product_name||'') + (it.variant ? ' ' + it.variant : '') + ' x' + (it.qty||1)
-  ).join(' / ');
-  const singleProduct = [{
-    name:  productNames.slice(0, 60),
-    qty:   1,
-    price: payAmt   // 總尾款(或總金額)，顧客付一次
-  }];
-
-  // === 腳本內容(在 myship 頁面執行)===
-  // 注意：這段腳本裡不能有任何模板字串 ${} 以外的反引號
-  const storesData = JSON.stringify([{ name: storeName, products: singleProduct }], null, 2);
+  const storesData = JSON.stringify([{ name: storeName, products }], null, 2);
 
   const scriptLines = [
-    '// ======= Geto玩具屋 賣貨便建單腳本 =======',
-    '// 訂單 #' + ordNum + ' | 顧客：' + storeName,
+    '// ======= Geto玩具屋 賣貨便建單腳本（批次出貨）=======',
+    '// 顧客：' + custName + '　訂單：#' + orderNums,
     '// 請在 https://myship.7-11.com.tw/fast/add 頁面執行',
     '',
     'const stores = ' + storesData + ';',
@@ -6280,9 +5888,7 @@ function gen711Script(orderId){
     '      redirect: "follow",',
     '      credentials: "include"',
     '    });',
-    '    // 從 redirect 後的最終 URL 取得賣場 ID(最後一段路徑)',
     '    const text = await resp.text();',
-    '    // 從 HTML 回應裡找 GM 開頭的賣場 ID',
     '    const gmMatch = text.match(/GM[0-9]{10,}/g);',
     '    const id = gmMatch ? gmMatch[0] : (resp.url.split("/").pop() || "check-list");',
     '    results.push({ store: store.name, id, ms: Date.now() - t0, url: resp.url });',
@@ -6292,25 +5898,24 @@ function gen711Script(orderId){
     '  results.forEach(r => {',
     '    console.log("顧客：" + r.store);',
     '    console.log("購買連結：https://myship.7-11.com.tw/cart/confirm/" + r.id);',
-    '    console.log("耗時：" + r.ms + "ms");',
     '    console.log("========================");',
     '  });',
     '})();'
   ];
   const script = scriptLines.join('\n');
 
-  // 顯示 Modal
+  // 顯示 Modal（使用同 gen711Script 的 script-overlay 樣式）
   const existing = document.getElementById('scriptOverlay');
   if(existing) existing.remove();
 
+  const totalTail = selected.reduce((s,{item})=>s+(item.price||0)-(item.deposit||0),0);
   const overlay = document.createElement('div');
   overlay.className = 'script-overlay';
   overlay.id = 'scriptOverlay';
   overlay.innerHTML = '<div class="script-modal">'
-    + '<h3>📦 賣貨便建單腳本</h3>'
-    + '<p><b>顧客：' + (o.customer_name||'—') + '</b>　訂單 #' + ordNum + '<br>'
-    + '商品：' + (items[0].product_name||'').slice(0,30) + '　規格：' + (items[0].variant||'—') + '<br>'
-    + '應付：<b style="color:var(--red)">NT$ ' + payAmt.toLocaleString() + '</b></p>'
+    + '<h3>📦 批次出貨：賣貨便建單腳本</h3>'
+    + '<p><b>顧客：' + custName + '</b>　訂單：#' + orderNums + '<br>'
+    + '共 ' + selected.length + ' 件商品　應付尾款：<b style="color:var(--red)">NT$ ' + totalTail.toLocaleString() + '</b></p>'
     + '<div class="script-steps">'
     + '<b>步驟：</b><br>'
     + '1. 先登入並開啟 <a href="https://myship.7-11.com.tw/fast/add" target="_blank" style="color:var(--red)">myship.7-11.com.tw/fast/add</a><br>'
@@ -6322,7 +5927,7 @@ function gen711Script(orderId){
     + '<div class="script-box" id="scriptContent">' + script.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
     + '<div class="script-btns">'
     + '<button class="script-copy" id="scriptCopyBtn" onclick="copyScript()">📋 複製腳本</button>'
-    + '<button class="script-close" onclick="document.getElementById(\'scriptOverlay\').remove()">關閉</button>'
+    + '<button class="script-close" onclick="document.getElementById('scriptOverlay').remove()">關閉</button>'
     + '</div></div>';
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
@@ -6330,220 +5935,3 @@ function gen711Script(orderId){
 }
 
 
-function copyScript(){
-  const overlay = document.getElementById('scriptOverlay');
-  if(!overlay) return;
-  navigator.clipboard.writeText(overlay._scriptText).then(()=>{
-    const btn = document.getElementById('scriptCopyBtn');
-    if(btn){ btn.textContent='✅ 已複製！'; btn.className='script-copy copied'; }
-    setTimeout(()=>{
-      if(btn){ btn.textContent='📋 複製腳本'; btn.className='script-copy'; }
-    }, 2500);
-  }).catch(()=>{
-    const ta = document.createElement('textarea');
-    ta.value = overlay._scriptText;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('✅ 已複製腳本');
-  });
-}
-
-// ─── TOAST ────────────────────────────────────────────────
-// ─── 匯款回報 ─────────────────────────────────────────────
-let _payReportOrderId = null;
-
-function openPayReport(orderId){
-  _payReportOrderId = orderId;
-  const o = allOrdersCache.find(x=>x.id===orderId);
-  const sub = document.getElementById('payReportSub');
-  if(sub) sub.textContent = '訂單 #'+(o?.order_code||orderId);
-  const inp = document.getElementById('payCodeInput');
-  if(inp){ inp.value = ''; inp.focus(); }
-  document.getElementById('payReportModal').style.display = 'flex';
-}
-function closePayReport(){
-  document.getElementById('payReportModal').style.display = 'none';
-  _payReportOrderId = null;
-}
-async function submitPayReport(){ await _sbReady;
-  const code = document.getElementById('payCodeInput')?.value.trim();
-  if(!code || code.length < 4){ showToast('⚠️ 請輸入 4-5 位末碼'); return; }
-  const btn = document.querySelector('#payReportModal button:last-child');
-  if(btn){ btn.disabled=true; btn.textContent='提交中…'; }
-
-  // 存入 orders 的 payment_code 欄位（需在 Supabase 新增此欄位）
-  const {error} = await _sb.from('orders').update({payment_code: code}).eq('id', _payReportOrderId);
-  if(btn){ btn.disabled=false; btn.textContent='確認提交'; }
-  if(error){ showToast('❌ 提交失敗，請稍後再試'); return; }
-
-  // 更新本地快取
-  const o = allOrdersCache.find(x=>x.id===_payReportOrderId);
-  if(o) o.payment_code = code;
-
-  const _doneId = _payReportOrderId;
-  closePayReport();
-  renderOrdersList();
-  const odOverlay = document.getElementById('odOverlay');
-  if(odOverlay && odOverlay.classList.contains('open') && _doneId){
-    openOrderDetail(_doneId);
-  }
-  showToast('✅ 匯款末五碼已回報，我們將盡快確認！');
-}
-
-// ─── 管理員通知鈴鐺 ────────────────────────────────────────
-function updatePaymentBell(){
-  if(!isAdmin()) return;
-  // 找有 payment_code 但 status 還是 'new' 的訂單（待確認匯款）
-  const pending = _allAdminOrders.filter(o=>o.payment_code && o.status==='new');
-  const bell = document.getElementById('payBell');
-  if(bell){
-    bell.style.display = pending.length ? '' : 'none';
-    bell.textContent = pending.length > 9 ? '9+' : String(pending.length);
-  }
-}
-
-// ─── FAQ ────────────────────────────────────────────────
-function openFaq(){
-  document.getElementById('faqModal').style.display = 'flex';
-}
-function closeFaq(){
-  document.getElementById('faqModal').style.display = 'none';
-}
-
-// ─── 客服浮動按鈕 ─────────────────────────────────────────
-let _csOpen = false; // FB Chat Plugin 取代原有客服按鈕
-// CS Modal 內容設定
-const CS_CONFIGS = {
-  bug:        { title:'🐛 回報問題' },
-  payment:    { title:'💳 匯款末五碼回報', hint:'📋 <b>提醒</b><br>・若已在「我的訂單」頁面填寫末五碼，<b>無需再次聯絡</b>，我們會主動確認入帳' },
-  progress:   { title:'📦 詢問商品進度',   hint:'📋 <b>到貨時間說明</b><br>・到貨月份為日本官方出貨月份，實際到台灣通常晚 1〜2 個月<br>・到貨後我們會主動 Email 通知，無需額外詢問' },
-  newproduct: { title:'🌟 新品資訊詢問' },
-};
-
-function openCsModal(type){
-  _csOpen = false;
-
-  const cfg = CS_CONFIGS[type] || CS_CONFIGS.bug;
-  const titleEl = document.getElementById('csModalTitle');
-  const hintEl  = document.getElementById('csHintBox');
-  const textEl  = document.getElementById('bugText');
-  if(titleEl) titleEl.textContent = cfg.title;
-  if(hintEl){
-    if(cfg.hint){ hintEl.innerHTML = cfg.hint; hintEl.style.display = ''; }
-    else hintEl.style.display = 'none';
-  }
-  // 輸入框已移除，直接使用 Messenger 對話
-  document.getElementById('bugModal').style.display = 'flex';
-}
-
-function openBugReport(){ openCsModal('bug'); }
-function closeBugReport(){
-  document.getElementById('bugModal').style.display = 'none';
-}
-// 點 bug modal 背景關閉
-document.addEventListener('click', e=>{
-  const bugModal = document.getElementById('bugModal');
-  if(bugModal && e.target === bugModal) closeBugReport();
-
-});
-
-let _t;
-function showToast(m){
-  const t=document.getElementById('toast');
-  t.textContent=m;t.classList.add('show');
-  clearTimeout(_t);_t=setTimeout(()=>t.classList.remove('show'),3000);
-}
-
-// ─── INIT ─────────────────────────────────────────────────
-updBadge(); buildEmojiGrid();
-// EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
-try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
-
-// ── Stale-while-revalidate：快取有效 → 立刻顯示，背景安靜更新 ────────
-const _cacheValid = products.length && localStorage.getItem('tf_p_ver')===_CACHE_VERSION && _isCacheFresh();
-if(_cacheValid){
-  // 快取新鮮（30分鐘內）：直接用快取，不做背景 sync，節省 egress
-  setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
-} else {
-  // 快取過期或沒有快取：從 Supabase 拉最新資料
-  syncProductsFromSupabase();
-}
-
-// 每小時重新整理商品顯示(結單自動下架)
-setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
-// 每分鐘輕量檢查(精確到分鐘)— 結單後自動清購物車
-setInterval(()=>{
-  const expiredIds = new Set(
-    products
-      .filter(p=>p.type==='預購' && isDeadlinePassed(p.deadline))
-      .map(p=>String(p.id))
-  );
-  if(!expiredIds.size) return;
-  // 移除購物車裡已結單商品，記錄被移除的商品名稱
-  const removedNames = [];
-  cart.forEach(ci=>{
-    if(expiredIds.has(String(ci.id))){
-      const p = products.find(x=>String(x.id)===String(ci.id));
-      if(p) removedNames.push(p.name);
-    }
-  });
-  const before = cart.length;
-  cart = cart.filter(ci=>!expiredIds.has(String(ci.id)));
-  if(cart.length < before){
-    persist(); updBadge();
-    // 存入 sessionStorage，讓購物車打開時顯示
-    const existing = JSON.parse(sessionStorage.getItem('tf_cart_removed')||'[]');
-    removedNames.forEach(n=>{ if(!existing.includes(n)) existing.push(n); });
-    sessionStorage.setItem('tf_cart_removed', JSON.stringify(existing));
-  }
-  renderShop();
-}, 60 * 1000);
-
-// 頁面載入：先讓 Supabase 確認登入狀態，再 renderAuth
-(async()=>{
-  await _sbReady;
-  if(!_sb){ renderAuth(); updBadge(); updateNavFavsBadge(); return; }
-  const {data:{session}} = await _sb.auth.getSession();
-  if(session?.user){
-    const u = session.user;
-    user = {
-      name: u.user_metadata?.full_name || u.email,
-      email: u.email,
-      photo: u.user_metadata?.avatar_url || null,
-    };
-    loadProfileForUser(u.email); // 載入此帳號的 profile
-    // 同步登入資訊給 Crisp（顯示顧客姓名而非 Visitor）
-    if(window.$crisp){
-      $crisp.push(["set","user:email",[u.email]]);
-      const _dispName = u.user_metadata?.full_name || u.email;
-      $crisp.push(["set","user:nickname",[_dispName]]);
-      if(u.user_metadata?.avatar_url) $crisp.push(["set","user:avatar",[u.user_metadata.avatar_url]]);
-    }
-  } else {
-    user = null;
-    userProfile = { name:'', phone:'' };
-  }
-  // 清除 URL hash(Supabase OAuth 會留下 #)
-  if(window.location.hash){
-    history.replaceState(null, '', window.location.pathname);
-  }
-  renderAuth(); // 確定狀態後才渲染
-  updBadge();
-  updateNavFavsBadge();
-  // hash 恢復在 syncProductsFromSupabase 後執行，確保 products 已載入
-})();
-</script>
-
-<!-- Crisp 即時客服 -->
-<script type="text/javascript">window.$crisp=[];window.CRISP_WEBSITE_ID="542612b8-cccd-418e-b9e5-053cc6659c4a";(function(){d=document;s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();</script>
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('[SW] 註冊失敗:', err));
-  });
-}
-</script>
-</body>
-</html>
