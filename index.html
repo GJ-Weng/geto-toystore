@@ -3596,7 +3596,7 @@ const _sbReady = new Promise((resolve, reject) => {
 });
 
 // ─── 從 Supabase 同步商品 ─────────────────────────────────
-async function syncProductsFromSupabase(){
+async function syncProductsFromSupabase(_retryCount=0){
   try {
     await _sbReady.catch(()=>{}); // timeout 時靜默跳過
     if(!_sb) return; // 沒有 _sb 就不繼續
@@ -3617,13 +3617,13 @@ async function syncProductsFromSupabase(){
         .abortSignal(_abort.signal));
     } catch(fetchErr) {
       clearTimeout(_abortTimer);
-      // 請求被中斷（timeout 或網路斷線）
-      if(fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('abort')) {
-        console.warn('[sync] 商品載入逾時，使用快取');
-      } else {
-        console.warn('[sync] 商品載入失敗:', fetchErr?.message);
+      // 請求被中斷（timeout 或網路斷線），自動重試最多 2 次
+      if(_retryCount < 2){
+        console.log('[sync] 請求中斷，重試第 ' + (_retryCount+1) + ' 次...');
+        setTimeout(()=>syncProductsFromSupabase(_retryCount+1), 1500);
+        return;
       }
-      // 有快取就顯示快取，沒有就顯示錯誤
+      console.warn('[sync] 商品載入失敗（已重試）:', fetchErr?.message);
       renderShop();
       return;
     }
@@ -3631,7 +3631,13 @@ async function syncProductsFromSupabase(){
 
     if(error){
       console.warn('商品讀取失敗:', error.message || error);
-      showToast('⚠️ 商品載入失敗：' + (error.message || '請確認 Supabase 權限設定'));
+      // statement timeout：自動重試最多 2 次（間隔 1.5 秒）
+      if(_retryCount < 2 && (error.message||'').includes('timeout')){
+        console.log('[sync] 重試第 ' + (_retryCount+1) + ' 次...');
+        setTimeout(()=>syncProductsFromSupabase(_retryCount+1), 1500);
+        return;
+      }
+      showToast('⚠️ 商品載入失敗，請稍後重試');
       renderShop();
       return;
     }
