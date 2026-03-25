@@ -3276,7 +3276,15 @@ async function submitCheckoutOrder(){
     }
     return items.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); if(!p) return s; return s+(getProductDeposit(p))*ci.qty; },0);
   };
-  const _makeItems = (items) => items.map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); const vp=getVariantPrice(p,ci.variant); return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:getProductDeposit(p)}; }); // price/deposit 存單價，總價 = price * qty
+  const _makeItems = (items) => items.map(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    const vp=getVariantPrice(p,ci.variant);
+    // 首購：deposit = 單價的 50%（無條件進位）；一般：用商品設定訂金
+    const dep = firstBuyerDep>0 && p?.type==='預購'
+      ? Math.ceil(vp * 0.5)
+      : getProductDeposit(p);
+    return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:dep};
+  }); // price/deposit 存單價，總價 = price * qty
   const _makeRecord = (items, dep, orderNum, label) => ({
     product_name: items.map(i=>i.product_name).join(' / ')+(label?' ['+label+']':''),
     product_emoji: items[0]?.product_emoji||'',
