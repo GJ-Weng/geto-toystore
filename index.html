@@ -790,6 +790,12 @@ textarea.fi{min-height:64px;resize:vertical}
 .ms-copy-btn{width:100%;height:40px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:background .15s}
 .ms-copy-btn:hover{background:#333}
 .ms-copy-btn.copied{background:#2e7d32}
+.td-cell{padding:10px 8px;border-bottom:1px solid #eee;font-size:13px}
+.td-cell-c{padding:10px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:center}
+.td-cell-r{padding:10px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:right}
+.td-hdr-r{padding:10px 8px;font-size:12px;color:#666;border-bottom:2px solid #eee;text-align:right}
+.td-hdr-l{padding:10px 8px;font-size:12px;color:#666;border-bottom:2px solid #eee;text-align:left}
+.td-hdr-c{padding:10px 8px;font-size:12px;color:#666;border-bottom:2px solid #eee;text-align:center}
 .ms-close-btn{width:100%;height:36px;border:1px solid var(--border);background:var(--white);color:var(--ink2);border-radius:var(--r);font-size:13px;cursor:pointer}
 .aoc-btn-ship7{border-color:#f4b942;background:#fff8e6;color:#9a6900}
 .aoc-btn-ship7:hover{background:#f4b942;color:#fff}
@@ -1721,17 +1727,17 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   // 商品明細表格(有訂金時才顯示訂金欄)
   const itemsHtml = `<table style="width:100%;border-collapse:collapse;margin:12px 0">
     <thead><tr style="background:#f5f5f5">
-      <th style="padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #eee">商品</th>
-      <th style="padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #eee">數量</th>
-      <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #eee">小計</th>
-      ${hasDeposit?'<th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #eee">訂金/件</th>':''}
+      <th class="td-hdr-l">商品</th>
+      <th class="td-hdr-c">數量</th>
+      <th class="td-hdr-r">小計</th>
+      ${hasDeposit?'<th class="td-hdr-r">訂金/件</th>':''}
     </tr></thead>
     <tbody>
       ${items.map(it=>`
         <tr>
-          <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${it.qty}</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ ${(it.price||0).toLocaleString()}</td>
+          <td class="td-cell">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
+          <td class="td-cell-c">${it.qty}</td>
+          <td class="td-cell-r">NT$ ${(it.price||0).toLocaleString()}</td>
           ${hasDeposit?`<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px;color:${it.deposit>0?'#c0392b':'#aaa'}">${it.deposit>0?'NT$ '+it.deposit.toLocaleString()+'/件':'—'}</td>`:''}
         </tr>`).join('')}
     </tbody>
@@ -3591,6 +3597,7 @@ function _restoreHashPage(){
 
 // 儲存商品到 Supabase
 async function saveProductToSupabase(productData, existingId){
+  await _sbReady;
   const record = {
     name:        productData.name,
     brand:       productData.brand,
@@ -3626,6 +3633,7 @@ async function saveProductToSupabase(productData, existingId){
 }
 
 async function deleteProductFromSupabase(id){
+  await _sbReady;
   if(id && !String(id).startsWith('p')){
     const {error} = await _sb.from('products').delete().eq('id', id);
     if(error) console.warn('刪除商品失敗:', error);
@@ -3967,7 +3975,7 @@ async function testEmail(){
       subject_status: '待付款',
       header_title: '【測試信】訂單已成立 — 待付款',
       header_sub: `${user.name||'測試用戶'} 您好，這是一封測試信，確認 EmailJS 設定正確。`,
-      items_html: '<table style="width:100%;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:8px;text-align:left;font-size:12px">商品</th><th style="padding:8px;text-align:center;font-size:12px">數量</th><th style="padding:8px;text-align:right;font-size:12px">小計</th></tr><tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">測試商品(規格：紅色)</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">1</td><td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ 320</td></tr></table>',
+      items_html: '<table style="width:100%;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:8px;text-align:left;font-size:12px">商品</th><th style="padding:8px;text-align:center;font-size:12px">數量</th><th style="padding:8px;text-align:right;font-size:12px">小計</th></tr><tr><td class="td-cell">測試商品(規格：紅色)</td><td class="td-cell-c">1</td><td class="td-cell-r">NT$ 320</td></tr></table>',
       amount_html: '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#c0392b"><span>應付訂金</span><span>NT$ 100</span></div><div style="font-size:12px;color:#888;margin-top:6px">尾款 NT$ 220 於取貨時支付</div></div>',
       bank_html: shopSettings.bankAccount ? `<div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-top:12px"><div style="font-size:15px;font-weight:700;margin-bottom:12px">💳 轉帳資訊</div><table style="width:100%;font-size:13px"><tr><td style="padding:5px 0;color:#888;width:50px">銀行</td><td>${shopSettings.bankName} ${shopSettings.bankCode}</td></tr><tr><td style="padding:5px 0;color:#888">帳號</td><td style="font-family:monospace;letter-spacing:2px">${shopSettings.bankAccount}</td></tr><tr><td style="padding:5px 0;color:#888">戶名</td><td>${shopSettings.bankHolder}</td></tr></table></div>` : '<p style="color:#888;font-size:12px">(尚未設定銀行帳號)</p>',
       reminder_html: '<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404">⚠️ 請於 48 小時內完成匯款，逾時視同取消。(這是測試信)</div>',
@@ -4563,6 +4571,7 @@ function closeDeadlineModal(){
 }
 
 async function confirmDeadlineModal(){
+  await _sbReady;
   const input = document.getElementById('deadlineModalInput');
   const newDate = input.value;
   if(!newDate){ showToast('⚠️ 請選擇日期'); return; }
@@ -4604,6 +4613,7 @@ async function confirmDeadlineModal(){
 
 // ─── 手動提早結單 ───────────────────────────────────────────
 async function forceCloseDeadline(id){
+  await _sbReady;
   const p = products.find(x=>String(x.id)===String(id));
   if(!p){ showToast('找不到商品'); return; }
   if(!confirm(`確定要提早結單「${p.name.slice(0,20)}」？\n\n結單後購物車中的此商品將自動移除，顧客無法再下單。`)) return;
@@ -4637,6 +4647,7 @@ async function forceCloseDeadline(id){
 }
 
 async function togStatus(id){
+  await _sbReady;
   const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   p.status=p.status==='published'?'unlisted':'published';
 
@@ -4885,6 +4896,7 @@ function selectAllOrders(){
 }
 
 async function executeBatchCancel(){
+  await _sbReady;
   if(!_batchSelected.size){ showToast('⚠️ 請先選取訂單'); return; }
   const ids = [..._batchSelected];
   if(!confirm(`確定取消選取的 ${ids.length} 筆訂單？此操作無法復原。`)) return;
@@ -5039,6 +5051,7 @@ function _aoRenderCards(){
 }
 
 async function aoUpdateStatus(id, newStatus){
+  await _sbReady;
   const si=AO_STATUS[newStatus];
   if(!confirm(`確定將訂單 #${id} 改為「${si?.label||newStatus}」？`))return;
   const {error}=await _sb.from('orders').update({status:newStatus}).eq('id',id);
@@ -5180,6 +5193,7 @@ async function sendPostRequestEmail(){
 }
 
 async function sendTrackingEmail(){
+  await _sbReady;
   const o = _allAdminOrders.find(x=>x.id===_postModalOrderId);
   if(!o?.user_email){ showToast('⚠️ 此訂單無顧客 Email'); return; }
   const code = document.getElementById('postTrackingCode').value.trim();
@@ -5354,15 +5368,15 @@ async function sendStatusEmail(o, newStatus){
 
   const itemsHtml = `<table style="width:100%;border-collapse:collapse;margin:12px 0">
     <thead><tr style="background:#f5f5f5">
-      <th style="padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #eee">商品</th>
-      <th style="padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #eee">數量</th>
-      <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #eee">小計</th>
+      <th class="td-hdr-l">商品</th>
+      <th class="td-hdr-c">數量</th>
+      <th class="td-hdr-r">小計</th>
     </tr></thead>
     <tbody>${items.map(it=>`
       <tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13px">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${it.qty||1}</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;font-size:13px">NT$ ${(it.price||0).toLocaleString()}</td>
+        <td class="td-cell">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td>
+        <td class="td-cell-c">${it.qty||1}</td>
+        <td class="td-cell-r">NT$ ${(it.price||0).toLocaleString()}</td>
       </tr>`).join('')}
     </tbody>
   </table>`;
@@ -5421,6 +5435,7 @@ async function sendStatusEmail(o, newStatus){
 
 // 現貨訂單確認成立(不寄付款確認信)
 async function aoMarkStockPaid(id){
+  await _sbReady;
   if(!confirm('確定將此現貨訂單設為已成立？')) return;
   const {error} = await _sb.from('orders').update({status:'paid'}).eq('id',id);
   if(error){ showToast('❌ 失敗：'+error.message); return; }
@@ -5795,7 +5810,7 @@ async function bsGenScript(){
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 
-function bsMarkPartial(){
+async function bsMarkPartial(){
   if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
   await _sbReady;
   const selected = bsGetSelectedItems();
