@@ -2607,7 +2607,11 @@ function renderShop(){
     const _isNew = p.isNew===true;
     const _src   = (window._imgCache&&window._imgCache[p.id]) || p.imageUrl || PLACEHOLDER_IMG;
     const _inC   = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
-    const _rem   = p.stock>0 ? Math.max(0,p.stock-_inC) : null;
+    // 首頁顯示：有規格庫存 → 各規格加總；無規格 → 總庫存
+    const _totalVStock = (p.variantStocks&&Object.keys(p.variantStocks).length>0)
+      ? Object.values(p.variantStocks).reduce((s,v)=>s+(v||0),0)
+      : null;
+    const _rem = _totalVStock !== null ? Math.max(0, _totalVStock) : (p.stock>0 ? Math.max(0,p.stock-_inC) : null);
     const _remHtml = _rem!==null
       ? '<div class="pstock '+ (_rem<=3?'low':(_rem===0?'zero':''))+'">'
         +(_rem===0?'已售完':(_rem<=3?'僅剩 '+_rem+' 件':'庫存 '+_rem+' 件'))+'</div>'
@@ -2779,9 +2783,15 @@ function openDetail(id){
   const vg=document.getElementById('variantGrid');
   if(p.variants && p.variants.length>0){
     vs.style.display='';
-    vg.innerHTML=p.variants.map(v=>
-      `<button class="vchip" onclick="selVariant(this,'${v}')">${v}</button>`
-    ).join('');
+    vg.innerHTML=p.variants.map(v=>{
+      const vs = (p.variantStocks&&p.variantStocks[v]!=null) ? p.variantStocks[v] : null;
+      const sold = vs !== null && vs === 0;
+      const low  = vs !== null && vs > 0 && vs <= 3;
+      const stockLabel = sold ? ' <span style="font-size:10px;color:#e74c3c">售完</span>'
+                       : low  ? ` <span style="font-size:10px;color:#e67300">剩${vs}</span>`
+                       : '';
+      return `<button class="vchip${sold?' disabled':''}" onclick="${sold?'':'selVariant(this,\''+v+'\')' }" style="${sold?'opacity:.4;cursor:not-allowed;text-decoration:line-through;':''}">${v}${stockLabel}</button>`;
+    }).join('');
   } else {
     vs.style.display='none';
     selectedVariant='單一規格';
@@ -2790,11 +2800,14 @@ function openDetail(id){
   // Meta
   const _deadlinePassed = p.type==='預購' && isDeadlinePassed(p.deadline);
   // 現貨剩餘庫存(扣掉購物車中的數量)
-  const _inCartQty = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
-  const _remainStock = p.stock>0 ? Math.max(0, p.stock - _inCartQty) : null;
+  // 總庫存顯示（無規格商品才用）
+  const _hasVariantStocks = p.variantStocks && Object.keys(p.variantStocks).length > 0;
+  const _noVariant = !p.variants || p.variants.length === 0;
+  const _totalRemain = (_noVariant && p.stock > 0) ? p.stock : null;
   document.getElementById('dMeta').innerHTML=`
-    ${p.type==='現貨'&&p.stock>0?`<div class="dmeta-row"><span style="color:${_remainStock===0?'#e74c3c':'#2e7d32'};font-weight:700">📦 剩餘庫存：${_remainStock===0?'已售完':_remainStock+' 件'}</span></div>`:''}
-    ${p.type==='現貨'&&p.stock===0?`<div class="dmeta-row"><span style="color:var(--ink3)">庫存：無限制</span></div>`:''}
+    ${p.type==='現貨'&&_totalRemain!==null?`<div class="dmeta-row"><span style="color:${_totalRemain===0?'#e74c3c':'#2e7d32'};font-weight:700">📦 剩餘庫存：${_totalRemain===0?'已售完':_totalRemain+' 件'}</span></div>`:''}
+    ${p.type==='現貨'&&_hasVariantStocks?`<div class="dmeta-row" id="dVariantStock" style="display:none"></div>`:''}
+    ${p.type==='現貨'&&!_totalRemain&&!_hasVariantStocks?`<div class="dmeta-row"><span style="color:var(--ink3)">庫存：無限制</span></div>`:''}
     ${p.type==='預購'&&p.cnt>0?`<div class="dmeta-row"><span>${p.cnt} 人已預購</span></div>`:''}
     ${p.type==='現貨'&&p.cnt>0?`<div class="dmeta-row"><span style="color:var(--ink2)">🛒 已售出 ${p.cnt} 件</span></div>`:''}
     ${(txt=>{
@@ -2870,6 +2883,19 @@ function selVariant(el,v){
   const vPrice=(p.variantPrices&&p.variantPrices[v])?p.variantPrices[v]:p.price;
   const priceEl=document.getElementById('dPrice');
   if(priceEl) priceEl.innerHTML=`<b style="color:var(--red)">NT$ ${vPrice.toLocaleString()}</b>`;
+  // 更新此規格的剩餘庫存顯示
+  const _vStk = getVariantStockRemaining(p, v);
+  const stockRow = document.getElementById('dVariantStock');
+  if(stockRow){
+    if(_vStk !== null){
+      stockRow.style.display='';
+      stockRow.innerHTML = _vStk === 0
+        ? '<span style="color:#e74c3c;font-weight:700">此規格已售完</span>'
+        : `<span style="color:${_vStk<=3?'#e67300':'#2e7d32'};font-weight:700">📦 此規格剩餘：${_vStk} 件</span>`;
+    } else {
+      stockRow.style.display='none';
+    }
+  }
   updateDetailBuyBtn(p);
   _syncPlusBtn(p);
 }
@@ -2973,22 +2999,20 @@ function getVariantStockRemaining(p, variant){
   if(!p || p.type !== '現貨') return null;
   const v = variant && variant !== '單一規格' ? variant : '';
 
-  // 優先用規格庫存
+  // 有規格庫存 → 只看該規格的庫存，完全獨立，不影響其他規格
   if(p.variantStocks && Object.keys(p.variantStocks).length > 0){
-    const vKey = v || Object.keys(p.variantStocks)[0];
-    const vStock = p.variantStocks[vKey];
-    if(vStock != null && vStock > 0){
-      const inCart = cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
-      return Math.max(0, vStock - inCart);
+    const vStock = p.variantStocks[v] ?? p.variantStocks[Object.keys(p.variantStocks)[0]];
+    if(vStock != null){
+      // 購物車不鎖庫存：下單時才真正扣，這裡只回傳設定的庫存數
+      return Math.max(0, vStock);
     }
-    // 規格有設定但數量為 0 → 該規格缺貨
-    if(vStock != null && vStock === 0) return 0;
+    // 有規格但沒設此規格的庫存 → 不限制
+    return null;
   }
 
-  // 沒有規格庫存，用總庫存
-  if(p.stock > 0){
-    const inCart = cart.filter(x=>String(x.id)===String(p.id)).reduce((s,x)=>s+x.qty,0);
-    return Math.max(0, p.stock - inCart);
+  // 沒有規格庫存 且 沒有規格（單一商品）→ 用總庫存
+  if(!p.variants || p.variants.length === 0){
+    if(p.stock > 0) return Math.max(0, p.stock);
   }
 
   return null; // 沒設庫存 = 不限制
@@ -3002,14 +3026,16 @@ function addDetailToCart(){
     showToast('⚠️ 此商品已結單，無法預購');
     return;
   }
-  // 現貨庫存檢查（規格庫存優先）
+  // 現貨庫存檢查（規格庫存優先，加入購物車上限檢查）
   if(p.type==='現貨'){
     if(p.stockStatus==='out_of_stock'){ showToast('⚠️ 此商品目前缺貨'); return; }
     const _v = selectedVariant && selectedVariant !== '單一規格' ? selectedVariant : '';
     const _vRem = getVariantStockRemaining(p, _v);
     if(_vRem !== null){
-      if(_vRem <= 0){ showToast('⚠️ 此規格庫存已售完'); return; }
-      if(detailQty > _vRem){ showToast('⚠️ 庫存不足，此規格僅剩 '+_vRem+' 件'); return; }
+      if(_vRem <= 0){ showToast('⚠️ 此規格已售完'); return; }
+      // 購物車裡已有的數量 + 要加入的不能超過庫存
+      const _inCart = cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===((_v)||'')).reduce((s,x)=>s+x.qty,0);
+      if(_inCart + detailQty > _vRem){ showToast('⚠️ 庫存不足，此規格僅剩 '+Math.max(0,_vRem-_inCart)+' 件可加入'); return; }
     }
   }
   const v = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
