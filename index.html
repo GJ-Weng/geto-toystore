@@ -839,7 +839,7 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
       <div class="sb-inner sb-scroll">
         <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
-        <div class="si" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
+        <div class="si" id="sbFavItem" onclick="setFilter('我的收藏',this)" style="display:none"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
         <div class="ssep"></div>
         <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
         <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
@@ -2138,9 +2138,11 @@ function removeFav(id){
 function updateNavFavsBadge(){
   const link = document.getElementById('navFavsLink');
   const badge = document.getElementById('navFavsBadge');
+  const sbFavItem = document.getElementById('sbFavItem');
   const pub = products.filter(p=>p.status!=='hidden');
   const count = favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length;
   if(link) link.style.display = user ? '' : 'none';
+  if(sbFavItem) sbFavItem.style.display = user ? '' : 'none'; // 登入後才顯示側欄收藏
   if(badge){ badge.textContent = count || ''; badge.style.display = count ? '' : 'none'; }
 }
 
@@ -2908,9 +2910,8 @@ function _syncPlusBtn(p){
   const _orderedQty=getOrderedQty(currentProductId,v);
   const inCart=cart.filter(x=>String(x.id)===String(currentProductId)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
   const _limitRemain=maxQty===Infinity?999:Math.max(0,maxQty-inCart-_orderedQty);
-  const _v2 = selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
-  const _vRem2 = getVariantStockRemaining(p, _v2);
-  const _stockRemain = _vRem2 !== null ? _vRem2 : 999;
+  const _vRem = getVariantStockRemaining(p, v);
+  const _stockRemain = _vRem !== null ? _vRem : 999;
   const maxAdd=Math.min(_limitRemain,_stockRemain);
   const plusBtn=document.querySelector('[onclick="chgDQty(1)"]');
   if(plusBtn){
@@ -2926,9 +2927,10 @@ function chgDQty(d){
   const v=selectedVariant&&selectedVariant!=='單一規格'?selectedVariant:'';
   const _orderedQty = getOrderedQty(currentProductId, v);
   const inCart=cart.filter(x=>String(x.id)===String(currentProductId)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
-  // 最多可加 = min(限購剩餘, 庫存剩餘)
   const _limitRemain = maxQty===Infinity ? 999 : Math.max(0, maxQty - inCart - _orderedQty);
-  const _stockRemain = (p?.type==='現貨'&&p?.stock>0) ? Math.max(0, p.stock - cart.filter(x=>String(x.id)===String(currentProductId)).reduce((s,x)=>s+x.qty,0)) : 999;
+  // 規格庫存優先；有規格的商品完全忽略總庫存
+  const _vRem = getVariantStockRemaining(p, v);
+  const _stockRemain = _vRem !== null ? _vRem : 999;
   const maxAdd = Math.min(_limitRemain, _stockRemain);
   const newQty=Math.max(1, Math.min(detailQty+d, maxAdd>0?maxAdd:1));
   detailQty=newQty;
