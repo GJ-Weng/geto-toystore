@@ -809,7 +809,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <a onclick="goHome()">商品</a>
       <a onclick="openCart()">購物車</a>
       <a onclick="goOrders()">我的訂單</a>
-      <a onclick="goFavs()" id="navFavsLink" style="display:none">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
+      <a onclick="goFavs()" id="navFavsLink">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
     </div>
     <div class="nsearch">
       <input id="searchInput" type="text" placeholder="搜尋商品名稱..." oninput="onSearch()">
@@ -839,7 +839,7 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
       <div class="sb-inner sb-scroll">
         <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
-        <div class="si" id="sbFavItem" onclick="setFilter('我的收藏',this)" style="display:none"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
+        <div class="si" id="sbFavItem" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
         <div class="ssep"></div>
         <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
         <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
@@ -2073,6 +2073,7 @@ function goOrders(){
 
 function goFavs(){
   if(!user){ openAuth(); return; }
+  if(!user){ openAuth(); return; }
   showView('favsView');
   renderFavsPage();
 }
@@ -2141,8 +2142,7 @@ function updateNavFavsBadge(){
   const sbFavItem = document.getElementById('sbFavItem');
   const pub = products.filter(p=>p.status!=='hidden');
   const count = favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length;
-  if(link) link.style.display = user ? '' : 'none';
-  if(sbFavItem) sbFavItem.style.display = user ? '' : 'none'; // 登入後才顯示側欄收藏
+  // nav 連結和側欄項目永遠顯示，不依賴登入狀態
   if(badge){ badge.textContent = count || ''; badge.style.display = count ? '' : 'none'; }
 }
 
@@ -2961,7 +2961,12 @@ function updateDetailBuyBtn(p){
     if(p.stockStatus==='out_of_stock'){ _dis('已售完'); return; }
     // 檢查規格庫存（優先）或總庫存
     const _vRem = getVariantStockRemaining(p, v);
-    if(_vRem !== null && _vRem <= 0){ _dis('庫存已全數加入購物車'); return; }
+    if(_vRem !== null && _vRem <= 0){ _dis('此規格已售完'); return; }
+    // 購物車內已達庫存上限
+    if(_vRem !== null){
+      const _inC = cart.filter(x=>String(x.id)===String(p.id)&&(x.variant||'')===(v||'')).reduce((s,x)=>s+x.qty,0);
+      if(_inC >= _vRem){ _dis('📦 已加到庫存上限'); return; }
+    }
   }
 
   // 3. 規格未選
