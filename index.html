@@ -795,6 +795,12 @@ textarea.fi{min-height:64px;resize:vertical}
 .aoc-btn-ship7:hover{background:#f4b942;color:#fff}
 
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes ipPulse{0%,100%{box-shadow:0 0 0 0 rgba(234,88,12,.4)}50%{box-shadow:0 0 0 6px rgba(234,88,12,0)}}
+.ip-bell-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid;font-size:12px;font-weight:600;cursor:pointer;background:none;transition:all .2s;line-height:1.4;white-space:nowrap}
+.ip-bell-btn.has-alert{border-color:#ea580c;color:#ea580c;background:#fff7ed;animation:ipPulse 2s infinite}
+.ip-bell-btn.has-alert:hover{background:#ffedd5}
+.ip-bell-btn.no-alert{border-color:#d1d5db;color:#9ca3af;background:none}
+.ip-bell-btn.no-alert:hover{border-color:#9ca3af;color:#6b7280}
 </style>
 </head>
 <body>
@@ -811,7 +817,10 @@ textarea.fi{min-height:64px;resize:vertical}
       <a onclick="openCart()">購物車</a>
       <a onclick="goOrders()">我的訂單</a>
       <a onclick="goFavs()" id="navFavsLink">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
-      <button onclick="openIpNotifySettings()" id="navIpBell" style="position:relative;background:none;border:none;cursor:pointer;font-size:20px;padding:4px 6px;line-height:1;vertical-align:middle;display:none">🔔<span id="navIpBadge" style="display:none;position:absolute;top:-2px;right:-2px;background:#e74c3c;color:#fff;font-size:10px;font-weight:700;border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center"></span></button>
+      <button onclick="goToIpAlerts()" id="navIpBell" class="ip-bell-btn no-alert" style="display:none">
+        <span id="navIpIcon">🔔</span>
+        <span id="navIpText">暫無追蹤IP開單</span>
+      </button>
     </div>
     <div class="nsearch">
       <input id="searchInput" type="text" placeholder="搜尋商品名稱..." oninput="onSearch()">
@@ -1986,7 +1995,15 @@ function showCheckoutPage(){
   renderCheckoutPage();
   showView('checkoutView');
 }
-function goHome(){ showShop(); }
+function goHome(){
+  filter='全部'; subFilter=''; searchQ=''; currentPage=1;
+  document.getElementById('ipAlertTag')?.remove();
+  document.querySelectorAll('.si').forEach(x=>x.classList.remove('act'));
+  const allBtn = document.querySelector('.si');
+  if(allBtn) allBtn.classList.add('act');
+  document.getElementById('searchInp').value='';
+  showShop();
+}
 function toggleSidebar(){
   const sb = document.getElementById('sbPanel');
   const bd = document.getElementById('sbBackdrop');
@@ -2192,15 +2209,28 @@ function checkIpNotifications(){
         banner.style.display='';
       }
     }
-    // 顯示鈴鐺
-    if(bell) bell.style.display='';
-    if(bellBadge){
-      bellBadge.textContent = alertProds.length > 9 ? '9+' : String(alertProds.length);
-      bellBadge.style.display='';
+    // 有通知：橘色膠囊
+    if(bell){
+      bell.style.display='';
+      bell.className='ip-bell-btn has-alert';
+      const icon = document.getElementById('navIpIcon');
+      const txt  = document.getElementById('navIpText');
+      if(icon) icon.textContent='🔔';
+      if(txt)  txt.textContent = alertIps.length===1
+        ? alertIps[0]+' 有新開單！'
+        : alertIps.length+'個追蹤IP有新開單！';
     }
   } else {
     if(banner) banner.style.display='none';
-    if(bell) bell.style.display='none';
+    // 有追蹤 IP 但目前無開單：顯示灰色膠囊
+    if(bell){
+      bell.style.display = (user && favIps.length) ? '' : 'none';
+      bell.className='ip-bell-btn no-alert';
+      const icon = document.getElementById('navIpIcon');
+      const txt  = document.getElementById('navIpText');
+      if(icon) icon.textContent='🔕';
+      if(txt)  txt.textContent='暫無追蹤IP開單';
+    }
   }
   window._ipAlertIps = alertIps;
 }
@@ -2213,6 +2243,12 @@ function dismissIpAlert(){
 }
 
 function goToIpAlerts(){
+  // 灰色狀態（無新開單）→ 開設定；橘色狀態 → 看商品
+  const bell = document.getElementById('navIpBell');
+  if(bell && bell.classList.contains('no-alert')){
+    openIpNotifySettings();
+    return;
+  }
   dismissIpAlert();
   // 切換到「IP開單通知」特殊 filter，顯示所有追蹤 IP 的開單商品
   filter = 'IP開單通知';
