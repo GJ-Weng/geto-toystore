@@ -794,6 +794,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .aoc-btn-ship7{border-color:#f4b942;background:#fff8e6;color:#9a6900}
 .aoc-btn-ship7:hover{background:#f4b942;color:#fff}
 
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 </style>
 </head>
 <body>
@@ -810,6 +811,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <a onclick="openCart()">購物車</a>
       <a onclick="goOrders()">我的訂單</a>
       <a onclick="goFavs()" id="navFavsLink">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
+      <button onclick="openIpNotifySettings()" id="navIpBell" style="position:relative;background:none;border:none;cursor:pointer;font-size:20px;padding:4px 6px;line-height:1;vertical-align:middle;display:none">🔔<span id="navIpBadge" style="display:none;position:absolute;top:-2px;right:-2px;background:#e74c3c;color:#fff;font-size:10px;font-weight:700;border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center"></span></button>
     </div>
     <div class="nsearch">
       <input id="searchInput" type="text" placeholder="搜尋商品名稱..." oninput="onSearch()">
@@ -826,6 +828,19 @@ textarea.fi{min-height:64px;resize:vertical}
 </div>
 
 <!-- SHOP VIEW -->
+<!-- IP 開單通知橫幅 -->
+<div id="ipAlertBanner" style="display:none;background:#fff3cd;border-bottom:2px solid #ffc107;padding:10px 20px;position:sticky;top:0;z-index:200;animation:slideDown .3s ease">
+  <div style="max-width:960px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:20px">🔔</span>
+    <div style="flex:1;min-width:0">
+      <span style="font-size:14px;font-weight:700;color:#856404">您追蹤的 IP 有新商品開單！</span>
+      <span id="ipAlertList" style="font-size:13px;color:#6b5200;margin-left:8px"></span>
+    </div>
+    <button onclick="goToIpAlerts()" style="height:34px;padding:0 16px;background:#856404;color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">查看商品 →</button>
+    <button onclick="dismissIpAlert()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#856404;padding:0 4px;line-height:1">✕</button>
+  </div>
+</div>
+
 <div class="shopview" id="shopView">
   <div class="lay">
     <!-- SIDEBAR BACKDROP -->
@@ -2147,6 +2162,61 @@ function updateNavFavsBadge(){
     badge.textContent = count || '';
     badge.style.display = count ? '' : 'none';
   }
+}
+
+// ─── IP 開單通知邏輯 ────────────────────────────────────────
+function checkIpNotifications(){
+  if(!user || !favIps.length) return;
+  const pub = products.filter(p=>p.status==='published' && p.ip);
+  // 找追蹤的 IP 中有正在預購中的商品（未結單）
+  const alertIps = [];
+  const alertProds = [];
+  favIps.forEach(ip=>{
+    const matches = pub.filter(p=>p.ip===ip && !isDeadlinePassed(p.deadline));
+    if(matches.length){
+      alertIps.push(ip);
+      alertProds.push(...matches);
+    }
+  });
+  const banner = document.getElementById('ipAlertBanner');
+  const bell   = document.getElementById('navIpBell');
+  const bellBadge = document.getElementById('navIpBadge');
+  if(alertIps.length){
+    // 顯示橫幅
+    if(banner){
+      const listEl = document.getElementById('ipAlertList');
+      if(listEl) listEl.textContent = alertIps.map(ip=>`【${ip}】`).join(' ');
+      // 只在尚未關閉時顯示
+      const dismissed = sessionStorage.getItem('tf_ip_alert_dismissed');
+      if(dismissed !== JSON.stringify(alertIps.sort().join(','))){
+        banner.style.display='';
+      }
+    }
+    // 顯示鈴鐺
+    if(bell) bell.style.display='';
+    if(bellBadge){
+      bellBadge.textContent = alertProds.length > 9 ? '9+' : String(alertProds.length);
+      bellBadge.style.display='';
+    }
+  } else {
+    if(banner) banner.style.display='none';
+    if(bell) bell.style.display='none';
+  }
+  window._ipAlertIps = alertIps;
+}
+
+function dismissIpAlert(){
+  const banner = document.getElementById('ipAlertBanner');
+  if(banner) banner.style.display='none';
+  // 本次 session 不再顯示同樣的 IP 通知
+  sessionStorage.setItem('tf_ip_alert_dismissed', JSON.stringify((window._ipAlertIps||[]).sort().join(',')));
+}
+
+function goToIpAlerts(){
+  dismissIpAlert();
+  // 直接跳到第一個有新商品的 IP 分類
+  const ip = window._ipAlertIps?.[0];
+  if(ip){ setFilter(ip, null); closeSidebar(); }
 }
 
 function openIpNotifySettings(){ renderIpNotifySettings(); document.getElementById('ipNotifyModal').style.display='flex'; }
@@ -3665,6 +3735,7 @@ async function syncProductsFromSupabase(){
       localStorage.setItem('tf_p_ver', _CACHE_VERSION);
     } catch(storErr){ console.warn('localStorage write error:', storErr.name); }
 
+    if(user) checkIpNotifications(); // 商品載入後重新檢查 IP 通知
     console.log('[Supabase sync] 商品載入完成，共 ' + products.length + ' 件（已上架：' + products.filter(p=>p.status==='published').length + ' 件）');
     renderShop();
     updCounts();
@@ -3952,6 +4023,8 @@ _sbReady.then(() => {
     renderAuth();
     if(event==='SIGNED_IN'){
       showToast('👋 歡迎，'+user.name.split(' ')[0]+'！');
+      // 登入後檢查 IP 開單通知
+      setTimeout(checkIpNotifications, 500);
       // 登入後拉訂單重建限購記錄(確保與伺服器同步)
       _sb.from('orders').select('id,note,status').eq('user_email', u.email).neq('status','cancelled').then(({data})=>{
         if(data) rebuildOrderedQtyMap(data);
