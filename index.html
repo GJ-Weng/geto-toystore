@@ -1998,11 +1998,21 @@ function showCheckoutPage(){
 function goHome(){
   filter='全部'; subFilter=''; searchQ=''; currentPage=1;
   document.getElementById('ipAlertTag')?.remove();
+  // 強制隱藏所有 fullview 和 detailview
+  document.querySelectorAll('.fullview').forEach(el=>el.classList.remove('show'));
+  document.querySelectorAll('.detailview').forEach(el=>el.classList.remove('show'));
+  // shopView 強制顯示
+  const sv = document.getElementById('shopView');
+  if(sv) sv.classList.remove('hide');
+  // 側欄重置
   document.querySelectorAll('.si').forEach(x=>x.classList.remove('act'));
   const allBtn = document.querySelector('.si');
   if(allBtn) allBtn.classList.add('act');
-  document.getElementById('searchInp').value='';
-  showShop();
+  const si = document.getElementById('searchInp');
+  if(si) si.value='';
+  renderShop();
+  window.scrollTo(0,0);
+  history.pushState({view:'shopView'}, '', window.location.pathname);
 }
 function toggleSidebar(){
   const sb = document.getElementById('sbPanel');
