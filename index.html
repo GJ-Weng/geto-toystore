@@ -2183,7 +2183,20 @@ function updateNavFavsBadge(){
 
 // ─── IP 開單通知邏輯 ────────────────────────────────────────
 function checkIpNotifications(){
-  if(!user || !favIps.length) return;
+  if(!user) return;
+  // 沒有追蹤 IP → 顯示灰色膠囊引導設定
+  if(!favIps.length){
+    const bell = document.getElementById('navIpBell');
+    if(bell){
+      bell.style.display='';
+      bell.className='ip-bell-btn no-alert';
+      const icon = document.getElementById('navIpIcon');
+      const txt  = document.getElementById('navIpText');
+      if(icon) icon.textContent='🔔';
+      if(txt)  txt.textContent='設定IP開單通知';
+    }
+    return;
+  }
   const pub = products.filter(p=>p.status==='published' && p.ip);
   // 找追蹤的 IP 中有正在預購中的商品（未結單）
   const alertIps = [];
@@ -2257,7 +2270,8 @@ function goToIpAlerts(){
   // 清除側欄 active 狀態
   document.querySelectorAll('.si').forEach(x=>x.classList.remove('act'));
   renderShop();
-  // 更新頁面標題提示
+  // 更新頁面標題提示（先移除舊的，避免重複）
+  document.getElementById('ipAlertTag')?.remove();
   const rcount = document.getElementById('rcount');
   if(rcount){
     const ips = (window._ipAlertIps||[]).join('、');
@@ -2567,7 +2581,16 @@ function getVis(){
   else if(filter==='現貨') list=pub.filter(p=>p.type==='現貨');
   else if(filter==='預購') list=pub.filter(p=>p.type==='預購');
   else if(filter==='未分類') list=pub.filter(p=>!p.ip&&!p.form);
-  else if(filter==='IP開單通知') list=pub.filter(p=>p.ip&&(window._ipAlertIps||[]).includes(p.ip));
+  else if(filter==='IP開單通知'){
+    // 追蹤IP的開單商品，排除顧客已下單過的（orderedQtyMap 有紀錄的）
+    list=pub.filter(p=>{
+      if(!p.ip || !(window._ipAlertIps||[]).includes(p.ip)) return false;
+      // 已下單過就不顯示
+      const ordered = orderedQtyMap[String(p.id)];
+      if(ordered && Object.values(ordered).some(q=>q>0)) return false;
+      return true;
+    });
+  }
   else list=[...pub];
   if(subFilter) list=list.filter(p=>p.ip===subFilter||p.form===subFilter||(p.brand||'').split('/')[0].trim()===subFilter);
   if(searchQ) list=list.filter(p=>p.name.includes(searchQ)||p.brand.includes(searchQ));
