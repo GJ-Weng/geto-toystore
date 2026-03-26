@@ -2137,13 +2137,16 @@ function removeFav(id){
 }
 
 function updateNavFavsBadge(){
-  const link = document.getElementById('navFavsLink');
   const badge = document.getElementById('navFavsBadge');
-  const sbFavItem = document.getElementById('sbFavItem');
-  const pub = products.filter(p=>p.status!=='hidden');
-  const count = favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length;
-  // nav 連結和側欄項目永遠顯示，不依賴登入狀態
-  if(badge){ badge.textContent = count || ''; badge.style.display = count ? '' : 'none'; }
+  // products 可能尚未載入，用 favs 長度當 fallback
+  const pub = products.length ? products.filter(p=>p.status!=='hidden') : [];
+  const count = pub.length
+    ? favs.filter(id=>pub.find(p=>String(p.id)===String(id))).length
+    : favs.length; // products 未載入時直接用 favs 數量
+  if(badge){
+    badge.textContent = count || '';
+    badge.style.display = count ? '' : 'none';
+  }
 }
 
 function openIpNotifySettings(){ renderIpNotifySettings(); document.getElementById('ipNotifyModal').style.display='flex'; }
@@ -3922,7 +3925,7 @@ function renderAuth(){
         ${isAdmin()?`<div class="umi" onclick="openAdmin();closeUMenu()">⚙️ 商品管理</div>`:''}
         <div class="umi" onclick="goProfile();closeUMenu()">👤 個人資料</div>
         <div class="umi" onclick="goOrders();closeUMenu()">📦 我的訂單</div>
-        <div class="umi" onclick="goFavs();closeUMenu()">♡ 我的收藏</div>
+        <div class="umi" onclick="goFavs();closeUMenu()"><span style="color:#e74c3c">❤</span> 我的收藏</div>
         <hr class="usep">
         <div class="umi" onclick="logout()">↩ 登出</div>
       </div>
@@ -6545,7 +6548,7 @@ function showToast(m){
 }
 
 // ─── INIT ─────────────────────────────────────────────────
-updBadge(); buildEmojiGrid();
+updBadge(); buildEmojiGrid(); updateNavFavsBadge();
 // EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
