@@ -1855,10 +1855,15 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   }
 }
 
-let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify({
-  bankName: '', bankCode: '', bankAccount: '', bankHolder: '',
+// 匯款資訊（hardcode 確保所有顧客都能看到，管理員到後台「匯款設定」可更新）
+const _DEFAULT_BANK = {
+  bankName: '中國信託', bankCode: '822',
+  bankAccount: '200540235342', bankHolder: '吳佩諴',
   bankNote: '轉帳請備註訂單編號(#字不用打)，以利小編核對確認，感謝！'
-}));
+};
+let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify(_DEFAULT_BANK));
+// 如果 localStorage 裡的帳號是空的，用預設值補上
+if(!shopSettings.bankAccount) shopSettings = {..._DEFAULT_BANK, ...shopSettings};
 
 // 計算購物車總訂金(依各商品設定，首購預購商品收50%)
 function calcCartDeposit(){
@@ -2511,6 +2516,14 @@ function openOrderDetail(orderId){
       <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">NT$ ${dep.toLocaleString()}</span></div>
     </div>
 
+    ${o.status==='paid'&&o.payment_code?`
+    <div style="background:#eef7f1;border:1px solid #a8d5b5;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">✅</span>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#1e7a38">匯款末五碼已回報</div>
+        <div style="font-size:11px;color:#2e7d32">末碼：<b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b>，等待小編確認</div>
+      </div>
+    </div>`:''}
     ${(canCancel||(['paid','partial'].includes(o.status)))?`
     <div class="od-actions" style="display:flex;flex-direction:column;gap:8px">
       ${['paid','partial'].includes(o.status)?`
@@ -2534,7 +2547,7 @@ function openChangeDelivery(orderId){
   modal.id = 'changeDeliveryModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px';
   modal.innerHTML = `
-    <div style="background:var(--white);border-radius:12px;width:420px;max-width:94vw;padding:24px">
+    <div style="background:var(--white);border-radius:12px;width:440px;max-width:94vw;padding:24px;max-height:90vh;overflow-y:auto">
       <div style="font-size:16px;font-weight:700;margin-bottom:6px">🚚 申請更改取貨方式</div>
       <div style="font-size:12px;color:var(--ink3);margin-bottom:16px">訂單 #${o.order_code||o.id}・目前：${currentStore||'未設定'}</div>
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">選擇新的取貨方式</div>
@@ -2544,8 +2557,26 @@ function openChangeDelivery(orderId){
         <button id="cdOptPickup" onclick="cdSel(this,'pickup')"
           class="delivery-opt${!isShip?' sel':''}" style="height:44px">🏪 自取</button>
       </div>
-      <div id="cdPickupNote" style="display:${!isShip?'':'none'};background:#f0f9ff;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;margin-bottom:12px">
-        ⚠️ 自取地點將由小編確認後通知您
+      <!-- 自取地點選擇 -->
+      <div id="cdPickupLocs" style="display:${!isShip?'':'none'};margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--ink3);margin-bottom:8px">請選擇自取地點</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="ploc-opt" id="cdLocA" onclick="cdSelLoc('七張-頑瘋樂',this)" style="cursor:pointer">
+            <input type="radio" name="cdPloc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 16:30–21:00｜須提前告知</div>
+            </div>
+          </label>
+          <label class="ploc-opt" id="cdLocB" onclick="cdSelLoc('林口-7-11亞昕門市',this)" style="cursor:pointer">
+            <input type="radio" name="cdPloc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">林口 — 7-11 亞昕門市</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">限週日、週一｜須提前預約</div>
+            </div>
+          </label>
+        </div>
+        <div id="cdLocWarn" style="display:none;font-size:12px;color:var(--red);margin-top:6px">⚠️ 請選擇自取地點</div>
       </div>
       <div style="font-size:12px;color:var(--ink3);background:#fff3cd;border-radius:8px;padding:10px 14px;margin-bottom:16px">
         ⚠️ 更改取貨方式需小編審核，送出後我們會盡快確認並通知您
@@ -2566,8 +2597,19 @@ function openChangeDelivery(orderId){
 function cdSel(el, choice){
   document.getElementById('cdOptShip')?.classList.toggle('sel', choice==='ship');
   document.getElementById('cdOptPickup')?.classList.toggle('sel', choice==='pickup');
-  document.getElementById('cdPickupNote').style.display = choice==='pickup' ? '' : 'none';
+  const locsEl = document.getElementById('cdPickupLocs');
+  if(locsEl) locsEl.style.display = choice==='pickup' ? '' : 'none';
   window._cdChoice = choice;
+  window._cdPickupLoc = ''; // 重置地點選擇
+  document.querySelectorAll('#cdPickupLocs .ploc-opt').forEach(el=>el.classList.remove('sel'));
+}
+
+function cdSelLoc(loc, el){
+  window._cdPickupLoc = loc;
+  document.querySelectorAll('#cdPickupLocs .ploc-opt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+  el.querySelector('input[type=radio]').checked = true;
+  document.getElementById('cdLocWarn').style.display = 'none';
 }
 
 async function submitChangeDelivery(orderId){
@@ -2575,7 +2617,13 @@ async function submitChangeDelivery(orderId){
   const o = allOrdersCache.find(x=>x.id===orderId);
   if(!o) return;
   const choice = window._cdChoice || 'ship';
-  const newStore = choice==='ship' ? '賣貨便' : '自取（待確認地點）';
+  if(choice==='pickup' && !window._cdPickupLoc){
+    const warn = document.getElementById('cdLocWarn');
+    if(warn) warn.style.display='';
+    if(btn){ btn.disabled=false; btn.textContent='送出申請'; }
+    return;
+  }
+  const newStore = choice==='ship' ? '賣貨便' : '自取：'+(window._cdPickupLoc||'待確認');
   const btn = document.querySelector('#changeDeliveryModal button:last-child');
   if(btn){ btn.disabled=true; btn.textContent='送出中...'; }
   // 在 note 裡加上申請記錄
