@@ -445,9 +445,11 @@ textarea.fi{min-height:64px;resize:vertical}
   .filter-btn{display:flex}
 }
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
+@media(max-width:880px){#mobilFilterFab{display:flex!important}}
+@media(min-width:881px){#mobilFilterFab{display:none!important}}
 .sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500}
 .sb-backdrop.sb-open{display:block}
-.filter-btn{display:none;align-items:center;gap:5px;padding:5px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:20px;font-size:13px;cursor:pointer;color:var(--ink2);white-space:nowrap;flex-shrink:0}
+.filter-btn{display:none;align-items:center;gap:6px;padding:7px 14px;background:var(--gold);border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 #sbCloseRow{display:none}
 @media(max-width:880px){#sbCloseRow{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}}
 .sb-handle{display:none;width:40px;height:4px;background:var(--border2);border-radius:2px;margin:10px auto 8px;flex-shrink:0}
@@ -1967,6 +1969,9 @@ function persist(){
 // ─── VIEWS ────────────────────────────────────────────────
 function showView(name, pushHistory){
   document.getElementById('shopView').classList.toggle('hide', name!=='shopView');
+  // 只在 shopView 時顯示手機篩選浮動按鈕
+  const fab = document.getElementById('mobilFilterFab');
+  if(fab) fab.style.setProperty('display', name==='shopView' ? '' : 'none', 'important');
   ['detailView','cartView','checkoutView','confirmView','ordersView','profileView','favsView'].forEach(id=>{
     document.getElementById(id).classList.toggle('show', id===name);
   });
@@ -7086,6 +7091,15 @@ setInterval(()=>{
   // hash 恢復在 syncProductsFromSupabase 後執行，確保 products 已載入
 })();
 </script>
+
+<!-- 手機版固定篩選按鈕 -->
+<button id="mobilFilterFab" onclick="toggleSidebar()"
+  style="display:none;position:fixed;bottom:80px;left:16px;z-index:490;
+    background:var(--gold);color:#fff;border:none;border-radius:24px;
+    padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.25);align-items:center;gap:6px">
+  ☰ 分類
+</button>
 
 <!-- Crisp 即時客服 -->
 <script type="text/javascript">window.$crisp=[];window.CRISP_WEBSITE_ID="542612b8-cccd-418e-b9e5-053cc6659c4a";(function(){d=document;s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();</script>
