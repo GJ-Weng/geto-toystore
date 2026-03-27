@@ -1376,7 +1376,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <div class="ft">匯款設定</div>
         <div class="fr"><div class="fg"><label class="fl">銀行名稱</label><input class="fi" id="sBankName" placeholder="中國信託"></div><div class="fg"><label class="fl">銀行代碼</label><input class="fi" id="sBankCode" placeholder="822"></div></div>
         <div class="fr"><div class="fg"><label class="fl">帳號</label><input class="fi" id="sBankAcct" placeholder="0000000000000000"></div><div class="fg"><label class="fl">戶名</label><input class="fi" id="sBankHolder" placeholder="王小明"></div></div>
-        <div class="fr c1"><div class="fg"><label class="fl">匯款說明</label><input class="fi" id="sBankNote" placeholder="轉帳請備註訂單編號(#字不用打)，以利老闆核對確認，感謝！"></div></div>
+        <div class="fr c1"><div class="fg"><label class="fl">匯款說明</label><input class="fi" id="sBankNote" placeholder="轉帳請備註訂單編號(#字不用打)，以利小編核對確認，感謝！"></div></div>
         <div class="fa"><button class="fsave" onclick="saveSettings()">儲存設定</button></div>
 
         <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">
@@ -1702,7 +1702,7 @@ function getTotalOrderedQty(productId){
   return Object.values(map).reduce((s,n)=>s+n, 0);
 }
 
-// ─── 店家設定 ────────────────────────────────────────────
+// ─── 小編設定 ────────────────────────────────────────────
 // ─── EMAIL 設定 ──────────────────────────────────────────
 // 填入你的 EmailJS 資訊(見後台「匯款設定」)
 // ── EmailJS 預設值(直接寫入，不依賴 localStorage)──────
@@ -1857,7 +1857,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
 
 let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify({
   bankName: '', bankCode: '', bankAccount: '', bankHolder: '',
-  bankNote: '轉帳請備註訂單編號(#字不用打)，以利老闆核對確認，感謝！'
+  bankNote: '轉帳請備註訂單編號(#字不用打)，以利小編核對確認，感謝！'
 }));
 
 // 計算購物車總訂金(依各商品設定，首購預購商品收50%)
@@ -2467,7 +2467,7 @@ function openOrderDetail(orderId){
           <span style="font-size:22px">✅</span>
           <div style="flex:1">
             <div style="font-size:14px;font-weight:700;color:#1e7a38">末五碼已回報</div>
-            <div style="font-size:12px;color:#2e7d32;margin-top:2px">末碼：<b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b>，等待店家確認中</div>
+            <div style="font-size:12px;color:#2e7d32;margin-top:2px">末碼：<b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b>，等待小編確認中</div>
           </div>
           <button onclick="openPayReport(${o.id})" style="height:30px;padding:0 12px;border:1px solid #a8d5b5;border-radius:6px;background:#fff;color:#2e7d32;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">重填</button>
         </div>`
@@ -2475,7 +2475,7 @@ function openOrderDetail(orderId){
           <span style="font-size:20px">💳</span>
           <span style="text-align:left">
             <div>我已完成匯款，填寫末五碼</div>
-            <div style="font-size:11px;font-weight:400;opacity:.85;margin-top:2px">讓店家快速確認您的付款</div>
+            <div style="font-size:11px;font-weight:400;opacity:.85;margin-top:2px">讓小編快速確認您的付款</div>
           </span>
         </button>`
     }
@@ -2511,12 +2511,89 @@ function openOrderDetail(orderId){
       <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">NT$ ${dep.toLocaleString()}</span></div>
     </div>
 
-    ${canCancel?`
-    <div class="od-actions">
-      <button class="od-act-cancel" onclick="confirmCancelOrder(${o.id})">取消訂單</button>
+    ${(canCancel||(['paid','partial'].includes(o.status)))?`
+    <div class="od-actions" style="display:flex;flex-direction:column;gap:8px">
+      ${['paid','partial'].includes(o.status)?`
+      <button onclick="openChangeDelivery(${o.id})" style="height:40px;border:1px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;width:100%">
+        🚚 申請更改取貨方式
+      </button>`:''}
+      ${canCancel?`<button class="od-act-cancel" onclick="confirmCancelOrder(${o.id})">取消訂單</button>`:''}
     </div>`:''}
   `;
   document.getElementById('odOverlay').classList.add('open');
+}
+
+function openChangeDelivery(orderId){
+  const o = allOrdersCache.find(x=>x.id===orderId);
+  if(!o) return;
+  const existing = document.getElementById('changeDeliveryModal');
+  if(existing) existing.remove();
+  const currentStore = o.store||'';
+  const isShip = !currentStore.includes('自取');
+  const modal = document.createElement('div');
+  modal.id = 'changeDeliveryModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--white);border-radius:12px;width:420px;max-width:94vw;padding:24px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">🚚 申請更改取貨方式</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:16px">訂單 #${o.order_code||o.id}・目前：${currentStore||'未設定'}</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">選擇新的取貨方式</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <button id="cdOptShip" onclick="cdSel(this,'ship')"
+          class="delivery-opt${isShip?' sel':''}" style="height:44px">📦 賣貨便寄送</button>
+        <button id="cdOptPickup" onclick="cdSel(this,'pickup')"
+          class="delivery-opt${!isShip?' sel':''}" style="height:44px">🏪 自取</button>
+      </div>
+      <div id="cdPickupNote" style="display:${!isShip?'':'none'};background:#f0f9ff;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;margin-bottom:12px">
+        ⚠️ 自取地點將由小編確認後通知您
+      </div>
+      <div style="font-size:12px;color:var(--ink3);background:#fff3cd;border-radius:8px;padding:10px 14px;margin-bottom:16px">
+        ⚠️ 更改取貨方式需小編審核，送出後我們會盡快確認並通知您
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('changeDeliveryModal').remove()"
+          style="flex:1;height:40px;border:1px solid var(--border2);border-radius:var(--r);background:var(--white);font-size:13px;cursor:pointer">取消</button>
+        <button onclick="submitChangeDelivery(${o.id})"
+          style="flex:2;height:40px;background:#2563eb;color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">送出申請</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+  window._cdOrderId = orderId;
+  window._cdChoice = isShip ? 'ship' : 'pickup';
+}
+
+function cdSel(el, choice){
+  document.getElementById('cdOptShip')?.classList.toggle('sel', choice==='ship');
+  document.getElementById('cdOptPickup')?.classList.toggle('sel', choice==='pickup');
+  document.getElementById('cdPickupNote').style.display = choice==='pickup' ? '' : 'none';
+  window._cdChoice = choice;
+}
+
+async function submitChangeDelivery(orderId){
+  await _sbReady;
+  const o = allOrdersCache.find(x=>x.id===orderId);
+  if(!o) return;
+  const choice = window._cdChoice || 'ship';
+  const newStore = choice==='ship' ? '賣貨便' : '自取（待確認地點）';
+  const btn = document.querySelector('#changeDeliveryModal button:last-child');
+  if(btn){ btn.disabled=true; btn.textContent='送出中...'; }
+  // 在 note 裡加上申請記錄
+  let noteItems = [];
+  try{ noteItems = JSON.parse(o.note||'[]'); }catch(e){}
+  const {error} = await _sb.from('orders')
+    .update({ store: newStore, note: JSON.stringify(noteItems) })
+    .eq('id', orderId);
+  if(error){
+    if(btn){ btn.disabled=false; btn.textContent='送出申請'; }
+    showToast('❌ 更新失敗，請稍後再試'); return;
+  }
+  // 更新本地快取
+  o.store = newStore;
+  document.getElementById('changeDeliveryModal')?.remove();
+  showToast('✅ 已送出更改申請，小編確認後會通知您');
+  // 重新渲染訂單詳情
+  openOrderDetail(orderId);
 }
 
 function closeOrderDetail(){
@@ -3650,7 +3727,7 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
         +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
         +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
         +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+preDep.toLocaleString()+'</span></div>'
-      : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫店家確認匯款方式)</div>';
+      : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫小編確認匯款方式)</div>';
     payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
       +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
       +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b></div>'
@@ -4717,7 +4794,7 @@ function renderAdminList(){
       try{ const items=JSON.parse(o.note||'[]'); return items.some(it=>String(it.product_id)===pid); }
       catch(e){ return String(o.product_name||'').includes(p.name.slice(0,8)); }
     });
-    const _soldQty = _pOrders.reduce((s,o)=>{
+    const _soldQty = _pOrders.filter(o=>o.status!=='cancelled').reduce((s,o)=>{
       try{ const items=JSON.parse(o.note||'[]'); return s+items.filter(it=>String(it.product_id)===pid).reduce((a,it)=>a+(it.qty||1),0); }
       catch(e){ return s+(o.qty||1); }
     }, 0);
@@ -6247,7 +6324,7 @@ function sendShipEmail(orderId){
   if(!o){ showToast('找不到訂單'); return; }
   if(!o.user_email){ showToast('⚠️ 此訂單沒有顧客 Email'); return; }
 
-  // 彈出輸入視窗，讓店家貼入剛建立的賣場連結
+  // 彈出輸入視窗，讓小編貼入剛建立的賣場連結
   const existing = document.getElementById('shipEmailOverlay');
   if(existing) existing.remove();
 
