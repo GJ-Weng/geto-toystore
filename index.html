@@ -2715,8 +2715,34 @@ async function doCancelOrder(orderId, btn){
       }
     }
   }
+  // 減少 cnt
+  if(_cancelOrder){
+    let _citems=[];
+    try{ _citems=JSON.parse(_cancelOrder.note||'[]'); }catch(e){}
+    _citems.forEach(it=>{
+      const p=products.find(x=>String(x.id)===String(it.product_id));
+      if(!p) return;
+      if(p.type==='現貨') p.cnt=Math.max(0,(p.cnt||0)-(it.qty||1));
+      else p.cnt=Math.max(0,(p.cnt||1)-1);
+      if(p.id&&!String(p.id).startsWith('p'))
+        _sb.from('products').update({order_count:p.cnt}).eq('id',p.id).then(()=>{});
+    });
+  }
+  // 清除 orderedQtyMap 讓客人可以重新下單
+  if(_cancelOrder){
+    let _oitems=[];
+    try{ _oitems=JSON.parse(_cancelOrder.note||'[]'); }catch(e){}
+    _oitems.forEach(it=>{
+      const pid=String(it.product_id); const v=it.variant||'';
+      if(orderedQtyMap[pid]?.[v]){
+        orderedQtyMap[pid][v]=Math.max(0,(orderedQtyMap[pid][v]||0)-(it.qty||1));
+      }
+    });
+    try{ localStorage.setItem('tf_ordered_v2',JSON.stringify(orderedQtyMap)); }catch(e){}
+  }
   closeOrderDetail();
   showToast('已取消訂單');
+  renderShop();
   loadOrders();
 }
 
@@ -3715,7 +3741,19 @@ async function submitCheckoutOrder(){
 
   // ── 更新計數、庫存、orderedQtyMap ────────────────────────
   const _orderedIds = [...new Set(cart_snapshot.map(ci=>ci.id))];
-  _orderedIds.forEach(pid=>{ const p=products.find(x=>String(x.id)===String(pid)); if(p) p.cnt=(p.cnt||0)+1; });
+  // cnt：現貨加實際購買件數，預購加下單人次(+1)
+  cart_snapshot.forEach(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    if(!p) return;
+    if(p.type==='現貨') p.cnt=(p.cnt||0)+ci.qty; // 現貨：加件數
+    else p.cnt=(p.cnt||0)+1; // 預購：加人次（同訂單只+1）
+  });
+  // 更新 Supabase 的 order_count
+  [...new Set(cart_snapshot.map(ci=>ci.id))].forEach(pid=>{
+    const p=products.find(x=>String(x.id)===String(pid));
+    if(p&&p.id&&!String(p.id).startsWith('p'))
+      _sb.from('products').update({order_count:p.cnt}).eq('id',p.id).then(()=>{});
+  });
 
   const _stockUpdates = [];
   stockItems.forEach(ci=>{
