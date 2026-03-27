@@ -5305,6 +5305,8 @@ function resetForm(){
   document.getElementById('editBadge').style.display='none';
   document.getElementById('formTitle').textContent='新增商品';
   selEmoji=EMOJIS[0];buildEmojiGrid();
+  // 清除規格價格和庫存（避免舊資料帶到下一個商品）
+  restoreVariantPrices({});
 }
 
 // ─── ORDER LIST (ADMIN) ──────────────────────────────────
