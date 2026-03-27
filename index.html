@@ -2709,13 +2709,18 @@ async function doCancelOrder(orderId, btn){
       const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
       const upd = {stock_status:'in_stock'};
       if(hasVariantStock && v && p.variantStocks[v] != null){
-        // 恢復規格庫存
-        p.variantStocks[v] = (p.variantStocks[v]||0) + restore;
+        // 先從 Supabase 拿最新庫存，再加回去，避免記憶體快取問題
+        const {data:_fresh} = await _sb.from('products').select('variant_stocks,stock_status').eq('id',p.id).single();
+        const _freshStocks = (_fresh&&_fresh.variant_stocks) ? _fresh.variant_stocks : p.variantStocks;
+        _freshStocks[v] = (_freshStocks[v]||0) + restore;
+        p.variantStocks = _freshStocks;
         p.stockStatus = 'in_stock';
-        upd.variant_stocks = p.variantStocks;
+        upd.variant_stocks = _freshStocks;
       } else {
-        // 恢復總庫存
-        p.stock = (p.stock||0) + restore;
+        // 先從 Supabase 拿最新庫存
+        const {data:_fresh2} = await _sb.from('products').select('stock,stock_status').eq('id',p.id).single();
+        const _freshStock = (_fresh2&&_fresh2.stock!=null) ? _fresh2.stock : p.stock;
+        p.stock = (_freshStock||0) + restore;
         p.stockStatus = 'in_stock';
         upd.stock = p.stock;
       }
