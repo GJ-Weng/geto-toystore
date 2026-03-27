@@ -2708,8 +2708,7 @@ async function doCancelOrder(orderId, btn){
       const v = it.variant && it.variant!=='單一規格' ? it.variant : '';
       const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
       const upd = {stock_status:'in_stock'};
-      const _vsKey = hasVariantStock && v && p.variantStocks[v] != null ? v : null;
-    if(hasVariantStock && _vsKey !== null){
+      if(hasVariantStock && v && p.variantStocks[v] != null){
         // 恢復規格庫存
         p.variantStocks[v] = (p.variantStocks[v]||0) + restore;
         p.stockStatus = 'in_stock';
