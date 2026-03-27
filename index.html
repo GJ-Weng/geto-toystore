@@ -2689,16 +2689,28 @@ async function doCancelOrder(orderId, btn){
   if(_cancelOrder){
     let _items=[];
     try{ _items=JSON.parse(_cancelOrder.note||'[]'); }catch(e){}
-    _items.forEach(async it=>{
+    for(const it of _items){
       const p=products.find(x=>String(x.id)===String(it.product_id));
-      if(!p||p.type!=='現貨'||!p.stock&&p.stockStatus!=='out_of_stock') return;
+      if(!p||p.type!=='現貨') continue;
       const restore = it.qty||1;
-      p.stock = (p.stock||0) + restore;
-      if(p.stockStatus==='out_of_stock') p.stockStatus='in_stock';
-      if(p.id && !String(p.id).startsWith('p')){
-        await _sb.from('products').update({stock:p.stock, stock_status:'in_stock'}).eq('id',p.id);
+      const v = it.variant && it.variant!=='單一規格' ? it.variant : '';
+      const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
+      const upd = {stock_status:'in_stock'};
+      if(hasVariantStock && v && p.variantStocks[v] != null){
+        // 恢復規格庫存
+        p.variantStocks[v] = (p.variantStocks[v]||0) + restore;
+        p.stockStatus = 'in_stock';
+        upd.variant_stocks = p.variantStocks;
+      } else {
+        // 恢復總庫存
+        p.stock = (p.stock||0) + restore;
+        p.stockStatus = 'in_stock';
+        upd.stock = p.stock;
       }
-    });
+      if(p.id && !String(p.id).startsWith('p')){
+        await _sb.from('products').update(upd).eq('id',p.id);
+      }
+    }
   }
   closeOrderDetail();
   showToast('已取消訂單');
@@ -3691,13 +3703,32 @@ async function submitCheckoutOrder(){
   const _stockUpdates = [];
   stockItems.forEach(ci=>{
     const p=products.find(x=>String(x.id)===String(ci.id));
-    if(!p||!p.stock) return;
-    p.stock = Math.max(0, p.stock - ci.qty);
-    if(p.stock===0) p.stockStatus='out_of_stock';
-    if(p.id&&!String(p.id).startsWith('p'))
-      _stockUpdates.push({id:p.id, stock:p.stock, stock_status:p.stock===0?'out_of_stock':(p.stockStatus||'in_stock')});
+    if(!p) return;
+    const v = ci.variant && ci.variant!=='單一規格' ? ci.variant : '';
+    const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
+
+    if(hasVariantStock && v && p.variantStocks[v] != null){
+      // 有規格庫存：扣規格庫存，不動總庫存
+      p.variantStocks[v] = Math.max(0, (p.variantStocks[v]||0) - ci.qty);
+      // 檢查所有規格是否都賣完
+      const allSoldOut = Object.values(p.variantStocks).every(s=>s===0);
+      if(allSoldOut) p.stockStatus='out_of_stock';
+      if(p.id&&!String(p.id).startsWith('p'))
+        _stockUpdates.push({id:p.id, variant_stocks:p.variantStocks, stock_status:allSoldOut?'out_of_stock':(p.stockStatus||'in_stock')});
+    } else if(p.stock > 0){
+      // 無規格庫存：扣總庫存
+      p.stock = Math.max(0, p.stock - ci.qty);
+      if(p.stock===0) p.stockStatus='out_of_stock';
+      if(p.id&&!String(p.id).startsWith('p'))
+        _stockUpdates.push({id:p.id, stock:p.stock, stock_status:p.stock===0?'out_of_stock':(p.stockStatus||'in_stock')});
+    }
   });
-  _stockUpdates.forEach(async ({id,stock,stock_status})=>{ await _sb.from('products').update({stock,stock_status}).eq('id',id); });
+  _stockUpdates.forEach(async ({id, stock, variant_stocks, stock_status})=>{
+    const upd = {stock_status};
+    if(stock != null) upd.stock = stock;
+    if(variant_stocks != null) upd.variant_stocks = variant_stocks;
+    await _sb.from('products').update(upd).eq('id',id);
+  });
 
   cart_snapshot.forEach(ci=>{
     const pid=String(ci.id); const v=ci.variant||'';
