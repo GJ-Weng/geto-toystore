@@ -2725,7 +2725,20 @@ async function doCancelOrder(orderId, btn){
   // 恢復現貨庫存
   if(_cancelOrder){
     let _items=[];
-    try{ _items=JSON.parse(_cancelOrder.note||'[]'); }catch(e){}
+    try{ _items=JSON.parse(_cancelOrder.note||'[]'); }catch(e){ console.warn('note parse error', e); }
+    console.log('[cancel] orderId:', orderId, 'note:', _cancelOrder.note, 'items:', _items);
+    // note 是空的但有 product_name（舊格式訂單）→ 直接用訂單欄位
+    if(!_items.length && _cancelOrder.product_name){
+      _items = [{
+        product_id: _cancelOrder.product_id||
+          products.find(p=>p.name===_cancelOrder.product_name)?.id,
+        product_name: _cancelOrder.product_name,
+        variant: _cancelOrder.variant||'',
+        qty: _cancelOrder.qty||1,
+        price: _cancelOrder.price||0
+      }];
+      console.log('[cancel] fallback to order fields:', _items);
+    }
     for(const it of _items){
       const p=products.find(x=>String(x.id)===String(it.product_id));
       if(!p||p.type!=='現貨') continue;
