@@ -1722,19 +1722,18 @@ const _EJS_DEFAULTS = {
   serviceId:  'geto_service',
   templateId: 'template_89xij6q',
 };
-const _ejsSaved = JSON.parse(localStorage.getItem('tf_ejs') || '{}');
+// EmailJS 永遠用 hardcode 預設值，不依賴 localStorage
 let emailjsConfig = {
-  publicKey:  _ejsSaved.publicKey  || _EJS_DEFAULTS.publicKey,
-  serviceId:  _ejsSaved.serviceId  || _EJS_DEFAULTS.serviceId,
-  templateId: _ejsSaved.templateId || _EJS_DEFAULTS.templateId,
+  publicKey:  _EJS_DEFAULTS.publicKey,
+  serviceId:  _EJS_DEFAULTS.serviceId,
+  templateId: _EJS_DEFAULTS.templateId,
 };
 
 function initEmailJS(){
   // 從 localStorage 讀最新設定
-  const saved = JSON.parse(localStorage.getItem('tf_ejs')||'{}');
-  if(saved.publicKey) {
-    emailjsConfig = saved;
-    emailjs.init({ publicKey: saved.publicKey });
+  // 永遠用 hardcode 預設值
+  if(emailjsConfig.publicKey) {
+    emailjs.init({ publicKey: emailjsConfig.publicKey });
   } else {
     console.warn('⚠️ EmailJS 尚未設定，請到後台「匯款設定」填寫');
   }
@@ -1742,8 +1741,7 @@ function initEmailJS(){
 
 async function sendOrderEmail({ customerName, customerEmail, orderNum, items, total, dep, tail, delivery, phone, settings }){
   // 重新從 localStorage 讀取最新設定(防止快取過期)
-  const _ejsCfg = JSON.parse(localStorage.getItem('tf_ejs')||'{}');
-  if(_ejsCfg.publicKey) Object.assign(emailjsConfig, _ejsCfg);
+  // 永遠用 hardcode，不從 localStorage 覆蓋
 
   // 按實際 dep 比例重算各商品訂金（首購50%時，item.deposit來自商品設定，需重新分配）
   const _storedDepTotal = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
