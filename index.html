@@ -2781,7 +2781,9 @@ async function doCancelOrder(orderId, btn){
   }
   closeOrderDetail();
   showToast('已取消訂單');
-  renderShop();
+  // 清除商品快取，強制重新從 Supabase 拉最新 order_count
+  try{ localStorage.removeItem('tf_p'); localStorage.removeItem('tf_p_ts'); }catch(e){}
+  syncProductsFromSupabase().then(()=>renderShop());
   loadOrders();
 }
 
@@ -4772,18 +4774,20 @@ function getVariantPrices(){
   return result;
 }
 
-function restoreVariantPrices(variantPrices){
+function restoreVariantPrices(variantPrices, variantStocks){
   // 先重新渲染（依目前 fVariants 欄位的內容）
   renderVariantPrices();
   const grid = document.getElementById('variantPriceGrid');
   if(!grid) return;
-  // 如果沒有價格資料就直接結束（UI 已清空）
-  if(!variantPrices||!Object.keys(variantPrices).length) return;
-  // 填入各規格價格
+  // 填入各規格價格和庫存
   grid.querySelectorAll('.vp-row').forEach(row=>{
     const n=row.dataset.v;
-    const inp=row.querySelector('.vp-price-inp');
-    if(n&&inp&&variantPrices[n]) inp.value=variantPrices[n];
+    const priceInp=row.querySelector('.vp-price-inp');
+    const stockInp=row.querySelector('.vp-stock-inp');
+    if(n){
+      if(priceInp && variantPrices && variantPrices[n]) priceInp.value=variantPrices[n];
+      if(stockInp && variantStocks && variantStocks[n] != null) stockInp.value=variantStocks[n];
+    }
   });
 }
 
@@ -5285,7 +5289,7 @@ function editP(id){
   const fImg=document.getElementById('fImgUrl');
   if(fImg) fImg.value='';
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
-  restoreVariantPrices(p.variantPrices||{});
+  restoreVariantPrices(p.variantPrices||{}, p.variantStocks||{});
   document.getElementById('fStatus').value=p.status;
   // 商品說明
   const fDesc2 = document.getElementById('fDesc');
@@ -5375,7 +5379,7 @@ function resetForm(){
   selEmoji=EMOJIS[0];buildEmojiGrid();
   // 清除規格欄位 UI（需先清 fVariants 再呼叫 restoreVariantPrices）
   const fv = document.getElementById('fVariants'); if(fv) fv.value='';
-  restoreVariantPrices({}); // 清除規格價格和庫存 UI
+  restoreVariantPrices({}, {}); // 清除規格價格和庫存 UI
   onTypeChange(); // 最後才呼叫，依 fType 更新顯示
 }
 
