@@ -1900,10 +1900,21 @@ let selectedDelivery = '寄送';
 // ─── USER PROFILE ────────────────────────────────────────
 let userProfile = { name:'', phone:'', trusted:false }; // 登入後依 email 載入
 
-function loadProfileForUser(email){
+async function loadProfileForUser(email){
   if(!email){ userProfile={name:'',phone:'',trusted:false}; return; }
+  // 先用 localStorage 快取立即顯示
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
-  userProfile = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
+  const cached = JSON.parse(localStorage.getItem(key)||'null');
+  if(cached) userProfile = cached;
+  // 再從 Supabase 拉最新資料
+  try{
+    await _sbReady;
+    const {data} = await _sb.from('profiles').select('name,phone').eq('id', _sb.auth.getUser ? (await _sb.auth.getUser()).data?.user?.id : null).single();
+    if(data){
+      userProfile = { name: data.name||'', phone: data.phone||'', trusted: userProfile.trusted||false };
+      try{ localStorage.setItem(key, JSON.stringify(userProfile)); }catch(e){}
+    }
+  }catch(e){ /* 無資料或未登入，用快取值 */ }
 }
 
 // 判斷是否首購(無已完成或已成立的預購訂單)
@@ -1928,10 +1939,21 @@ function calcFirstBuyerDeposit(){
   return Math.ceil(preorderTotal * 0.5);
 }
 
-function saveProfileForUser(email, profile){
+async function saveProfileForUser(email, profile){
   if(!email) return;
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
-  localStorage.setItem(key, JSON.stringify(profile));
+  // 同時更新 localStorage（快速顯示）和 Supabase（跨裝置同步）
+  try{ localStorage.setItem(key, JSON.stringify(profile)); }catch(e){}
+  try{
+    await _sbReady;
+    const uid = (await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    await _sb.from('profiles').upsert({
+      id: uid,
+      name: profile.name||'',
+      phone: profile.phone||''
+    }, { onConflict: 'id' });
+  }catch(e){ console.warn('profile save error:', e); }
 }
 
 // ─── 信任買家管理 ───────────────────────────────────────────
@@ -3267,6 +3289,10 @@ function selVariant(el,v){
       stockRow.style.display='none';
     }
   }
+  // 切換規格時重置數量為 1，避免超出新規格的庫存上限
+  detailQty = 1;
+  const dQtyEl = document.getElementById('dQtyVal');
+  if(dQtyEl) dQtyEl.textContent = '1';
   updateDetailBuyBtn(p);
   _syncPlusBtn(p);
 }
