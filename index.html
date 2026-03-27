@@ -3785,25 +3785,15 @@ async function submitCheckoutOrder(){
     const v = ci.variant && ci.variant!=='單一規格' ? ci.variant : '';
     const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
 
-    const _vsKey = hasVariantStock && v && p.variantStocks[v] != null ? v : null;
-    if(hasVariantStock && _vsKey !== null){
-      // 有規格庫存：扣規格庫存，不動總庫存
-      p.variantStocks[_vsKey] = Math.max(0, (p.variantStocks[_vsKey]||0) - ci.qty);
-      // 還有任何規格庫存 > 0 → in_stock；所有規格都 = 0 → 依原本 stockStatus 決定
-      const _hasAnyPositive = Object.values(p.variantStocks).some(s=>s>0);
-      if(_hasAnyPositive){
-        p.stockStatus = 'in_stock';
-      } else {
-        // 全部規格都是 0，如果有任一規格原本是有設庫存的（>0 後被扣到 0），才標售完
-        // 用扣之前的值判斷：ci.qty 是剛扣的，加回去看原本是不是 > 0
-        const _wasSet = p.variantStocks[_vsKey] !== undefined; // 有設這個規格
-        const _origVal = (p.variantStocks[_vsKey]||0) + ci.qty; // 扣之前的值
-        if(_wasSet && _origVal > 0) p.stockStatus = 'out_of_stock';
-        // 否則（原本就是 0）保持 in_stock，代表不限制
-      }
-      const allSoldOut = p.stockStatus === 'out_of_stock';
+    if(hasVariantStock && v && p.variantStocks[v] != null){
+      // 有規格庫存：只扣該規格，不動總庫存
+      p.variantStocks[v] = Math.max(0, (p.variantStocks[v]||0) - ci.qty);
+      // 所有規格都賣完（>0 被扣到 0）才標售完；原本就是 0 的不算
+      const allSoldOut = Object.entries(p.variantStocks).every(([k,s])=>s===0) &&
+        Object.entries(p.variantStocks).some(([k,s])=> k===v ? ci.qty > 0 : s===0);
+      if(allSoldOut) p.stockStatus='out_of_stock';
       if(p.id&&!String(p.id).startsWith('p'))
-        _stockUpdates.push({id:p.id, variant_stocks:p.variantStocks, stock_status:allSoldOut?'out_of_stock':(p.stockStatus||'in_stock')});
+        _stockUpdates.push({id:p.id, variant_stocks:p.variantStocks, stock_status:p.stockStatus||'in_stock'});
     } else if(p.stock > 0){
       // 無規格庫存：扣總庫存
       p.stock = Math.max(0, p.stock - ci.qty);
