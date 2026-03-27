@@ -65,15 +65,19 @@ input,select,textarea{font-family:var(--font)}
 .si.act .sn{background:var(--red);color:#fff}
 .si#sbFavItem .sn{background:#fee2e2;color:#dc2626}
 .ssep{height:1px;background:var(--border);margin:6px 8px}
-.sghead{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;cursor:pointer;font-size:12px;font-weight:700;color:var(--ink3);letter-spacing:.6px;text-transform:uppercase;transition:all .15s;margin:2px 6px 0 0;border-radius:0 8px 8px 0}
+.sghead{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;cursor:pointer;font-size:12px;font-weight:700;color:var(--ink3);letter-spacing:.4px;transition:all .15s;margin:4px 6px 0 0;border-radius:0 8px 8px 0;gap:6px}
 .sghead:hover{background:#f5f5f5;color:var(--ink2)}
-.sghead .ar{font-size:9px;transition:transform .2s;opacity:.5}
+.sghead .sg-left{display:flex;align-items:center;gap:6px;flex:1}
+.sghead .sg-cnt{font-size:10px;background:#eee;color:var(--ink3);border-radius:10px;padding:1px 6px;font-weight:500}
+.sghead.open .sg-cnt{background:var(--red-light);color:var(--red)}
+.sghead .ar{font-size:9px;transition:transform .2s;opacity:.4;flex-shrink:0}
 .sghead.open .ar{transform:rotate(180deg)}
-.ssub{display:none;padding:0 0 4px}
+.ssub{display:none;padding:6px 10px 10px 14px}
 .ssub.open{display:block}
-.ssub a{display:flex;justify-content:space-between;padding:8px 14px 8px 26px;font-size:13px;color:var(--ink3);cursor:pointer;transition:color .15s,background .15s}
-.ssub a:hover{color:var(--ink);background:var(--bg)}
-.ssub a.act{color:var(--red);font-weight:500}
+.ssub a{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:var(--ink2);cursor:pointer;transition:all .15s;background:#f3f4f6;border-radius:20px;border:1px solid transparent;font-weight:500}
+.ssub a:hover{background:#e5e7eb;color:var(--ink)}
+.ssub a.act{background:var(--red-light);color:var(--red);border-color:#fca5a5;font-weight:700}
+.ssub a span{font-size:10px;opacity:.6}
 
 /* MAIN */
 .main{flex:1;min-width:0}
@@ -870,12 +874,12 @@ textarea.fi{min-height:64px;resize:vertical}
         <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
         <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
         <div class="ssep"></div>
-        <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><span>IP主題</span><span class="ar">▾</span></div>
+        <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><div class="sg-left"><span>IP 主題</span><span class="sg-cnt" id="sgIpCnt"></span></div><span class="ar">▾</span></div>
         <div class="ssub" id="ipSub"><div id="ipList"></div></div>
-        <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><span>商品類型</span><span class="ar">▾</span></div>
+        <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><div class="sg-left"><span>商品類型</span><span class="sg-cnt" id="sgTypeCnt"></span></div><span class="ar">▾</span></div>
         <div class="ssub" id="typeSub"><div id="typeList"></div></div>
         <div class="ssep"></div>
-        <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><span>廠牌</span><span class="ar">▾</span></div>
+        <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><div class="sg-left"><span>廠牌</span><span class="sg-cnt" id="sgBrandCnt"></span></div><span class="ar">▾</span></div>
         <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
           <div id="brandList"></div>
         </div>
@@ -2816,9 +2820,19 @@ function updCounts(){
   if(_closedRow) _closedRow.style.display = _admin ? '' : 'none';
   if(_closedSep) _closedSep.style.display  = _admin ? '' : 'none';
   // 動態更新 IP / 商品類型 / 廠牌
-  renderDynamicFilter('ipList',   [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort(), pub);
-  renderDynamicFilter('typeList', [...new Set(pub.map(p=>p.form).filter(Boolean))].sort(), pub);
+  const _ips    = [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort();
+  const _types  = [...new Set(pub.map(p=>p.form).filter(Boolean))].sort();
+  renderDynamicFilter('ipList',   _ips,   pub);
+  renderDynamicFilter('typeList', _types, pub);
   renderBrandFilter(pub);
+  // 更新 sghead badge
+  const sgIp    = document.getElementById('sgIpCnt');
+  const sgType  = document.getElementById('sgTypeCnt');
+  const sgBrand = document.getElementById('sgBrandCnt');
+  if(sgIp)    sgIp.textContent    = _ips.length    || '';
+  if(sgType)  sgType.textContent  = _types.length  || '';
+  const _brands = [...new Set(pub.map(p=>(p.brand||'').split('/')[0].trim()).filter(Boolean))];
+  if(sgBrand) sgBrand.textContent = _brands.length || '';
 }
 
 function renderDynamicFilter(listId, items, pubList){
