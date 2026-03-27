@@ -3149,9 +3149,10 @@ function openDetail(id){
     vs.style.display='';
     vg.innerHTML=p.variants.map(v=>{
       const vs = (p.variantStocks&&p.variantStocks[v]!=null) ? p.variantStocks[v] : null;
-      // vs=0 只有在 stockStatus=out_of_stock 時才視為售完，否則視為不限制
-      const sold = vs !== null && vs === 0 && p.stockStatus==='out_of_stock';
-      const low  = vs !== null && vs > 0 && vs <= 3;
+      // 用 getVariantStockRemaining 統一判斷，確保邏輯一致
+      const _rem = getVariantStockRemaining(p, v);
+      const sold = _rem !== null && _rem === 0;
+      const low  = _rem !== null && _rem > 0 && _rem <= 3;
       const stockLabel = sold ? ' <span style="font-size:10px;color:#e74c3c">售完</span>'
                        : low  ? ` <span style="font-size:10px;color:#e67300">剩${vs}</span>`
                        : '';
@@ -3376,8 +3377,16 @@ function getVariantStockRemaining(p, variant){
   if(p.variantStocks && Object.keys(p.variantStocks).length > 0){
     const vStock = p.variantStocks[v] ?? p.variantStocks[Object.keys(p.variantStocks)[0]];
     if(vStock != null){
-      // vs=0 且 stockStatus=in_stock → 不限制（沒有設定庫存）
-      if(vStock === 0 && p.stockStatus !== 'out_of_stock') return null;
+      if(vStock === 0){
+        // 判斷這個商品是否有在追蹤庫存：看其他規格有沒有 > 0 的
+        const _otherHasStock = Object.entries(p.variantStocks).some(([k,s])=> k!==v && s>0);
+        // 有其他規格還有庫存 → 這個規格是真的售完
+        // 沒有任何規格有庫存 → 可能是全部不限制（vs=0 代表不設上限）
+        if(_otherHasStock) return 0; // 此規格售完
+        // 全部規格都是 0，看 stock_status 判斷
+        if(p.stockStatus === 'out_of_stock') return 0; // 整個商品售完
+        return null; // 全部是 0 且 in_stock → 不限制
+      }
       return Math.max(0, vStock);
     }
     // 有規格但沒設此規格的庫存 → 不限制
