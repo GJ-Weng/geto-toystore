@@ -1909,11 +1909,14 @@ async function loadProfileForUser(email){
   // 再從 Supabase 拉最新資料
   try{
     await _sbReady;
-    const {data} = await _sb.from('profiles').select('name,phone').eq('id', _sb.auth.getUser ? (await _sb.auth.getUser()).data?.user?.id : null).single();
+    const uid = (await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    const {data, error} = await _sb.from('profiles').select('name,phone').eq('id', uid).maybeSingle();
     if(data){
       userProfile = { name: data.name||'', phone: data.phone||'', trusted: userProfile.trusted||false };
       try{ localStorage.setItem(key, JSON.stringify(userProfile)); }catch(e){}
     }
+    // error 或 data 為 null（新用戶尚未建立 profile）→ 保持快取值
   }catch(e){ /* 無資料或未登入，用快取值 */ }
 }
 
