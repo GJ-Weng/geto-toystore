@@ -2432,16 +2432,10 @@ function renderOrdersList(){
           <span class="ocf-arrow">›</span>
         </div>
       </div>
-      ${o.payment_code&&o.status==='paid'?`
-      <div style="padding:8px 16px;background:#f0fdf4;border-top:1px solid #bbf7d0;display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
-        <span style="font-size:13px">💳</span>
-        <span style="font-size:12px;color:#166534">此訂單您匯款的末五碼為 <b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b></span>
-      </div>`:''}
-      ${['paid','partial'].includes(o.status)?`
-      <div style="padding:8px 16px;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-        <button onclick="openChangeDelivery(${o.id})" style="height:34px;width:100%;border:1px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">
-          🚚 申請更改取貨方式
-        </button>
+      ${(o.payment_code&&o.status==='paid')||['paid','partial'].includes(o.status)?`
+      <div style="padding:6px 16px 8px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${o.payment_code&&o.status==='paid'?`<span style="font-size:11px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:2px 8px">💳 末五碼 <b style="font-family:monospace;letter-spacing:1px">${o.payment_code}</b></span>`:'<span></span>'}
+        ${['paid','partial'].includes(o.status)?`<button onclick="openChangeDelivery(${o.id})" style="height:26px;padding:0 12px;border:1px solid #93c5fd;background:#eff6ff;color:#2563eb;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">🚚 更改取貨方式</button>`:''}
       </div>`:''}
     </div>`;
   }).join('');
