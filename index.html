@@ -994,11 +994,14 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="co-sec">訂購人資訊</div>
       <div class="co-field" id="coNameField">
         <div class="co-lbl">姓名（本名）</div>
-        <input class="co-inp" id="coNameInp" placeholder="請填寫真實姓名" style="border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:var(--font)" oninput="coUpdateProfile()">
+        <div style="padding:9px 12px;font-size:14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--ink)" id="coNameInp">
+        </div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:4px">如需修改請至 <a onclick="goProfile()" style="color:#2563eb;cursor:pointer;text-decoration:underline">個人資料</a> 頁面更改</div>
       </div>
       <div class="co-field" id="coPhoneField">
         <div class="co-lbl">手機號碼</div>
-        <input class="co-inp" id="coPhoneInp" placeholder="09xxxxxxxx" type="tel" style="border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:var(--font)" oninput="coUpdateProfile()">
+        <div style="padding:9px 12px;font-size:14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--ink)" id="coPhoneInp">
+        </div>
       </div>
       <div class="co-field">
         <div class="co-lbl">Email</div>
@@ -1855,15 +1858,21 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   }
 }
 
-// 匯款資訊（hardcode 確保所有顧客都能看到，管理員到後台「匯款設定」可更新）
+// 匯款資訊預設值（hardcode 確保所有顧客都能看到）
 const _DEFAULT_BANK = {
   bankName: '中國信託', bankCode: '822',
   bankAccount: '200540235342', bankHolder: '吳佩諴',
   bankNote: '轉帳請備註訂單編號(#字不用打)，以利小編核對確認，感謝！'
 };
-let shopSettings = JSON.parse(localStorage.getItem('tf_cfg') || JSON.stringify(_DEFAULT_BANK));
-// 如果 localStorage 裡的帳號是空的，用預設值補上
-if(!shopSettings.bankAccount) shopSettings = {..._DEFAULT_BANK, ...shopSettings};
+// 從 localStorage 讀取，但每個欄位若為空都補回預設值
+const _savedCfg = JSON.parse(localStorage.getItem('tf_cfg')||'{}');
+let shopSettings = {
+  bankName:    _savedCfg.bankName    || _DEFAULT_BANK.bankName,
+  bankCode:    _savedCfg.bankCode    || _DEFAULT_BANK.bankCode,
+  bankAccount: _savedCfg.bankAccount || _DEFAULT_BANK.bankAccount,
+  bankHolder:  _savedCfg.bankHolder  || _DEFAULT_BANK.bankHolder,
+  bankNote:    _savedCfg.bankNote    || _DEFAULT_BANK.bankNote,
+};
 
 // 計算購物車總訂金(依各商品設定，首購預購商品收50%)
 function calcCartDeposit(){
@@ -3521,8 +3530,8 @@ function renderCheckoutPage(){
   const warn     = document.getElementById('coProfileWarn');
   const submitBtn = document.getElementById('checkoutSubmitBtn');
 
-  if(nameInp)  nameInp.value  = name;
-  if(phoneInp) phoneInp.value = phone;
+  if(nameInp)  nameInp.textContent  = name || '（尚未填寫）';
+  if(phoneInp) phoneInp.textContent = phone || '（尚未填寫）';
   if(emailEl)  emailEl.textContent = email;
   if(warn)     warn.style.display = (!name || !phone) ? '' : 'none';
   if(submitBtn) submitBtn.disabled = false;
@@ -3587,17 +3596,12 @@ function genOrderNum(){
 async function submitCheckoutOrder(){
   await _sbReady;
   // 先從結帳頁 input 更新 profile
-  const _nameInp  = document.getElementById('coNameInp')?.value.trim()||'';
-  const _phoneInp = document.getElementById('coPhoneInp')?.value.trim()||'';
-  if(_nameInp)  { userProfile.name=_nameInp;  if(user?.email) saveProfileForUser(user.email, userProfile); }
-  if(_phoneInp) { userProfile.phone=_phoneInp; if(user?.email) saveProfileForUser(user.email, userProfile); }
   const phone = userProfile.phone||'';
   const customerName = userProfile.name||user?.name||'';
   if(!phone||!customerName){
     const warn=document.getElementById('coProfileWarn');
     if(warn) warn.style.display='';
-    document.getElementById('coNameInp')?.focus();
-    showToast('⚠️ 請填寫姓名及手機號碼'); return;
+    showToast('⚠️ 請先至個人資料頁填寫姓名及手機號碼'); return;
   }
   // 自取必須選擇地點
   if(selectedDelivery==='自取' && !selectedPickupLoc){
