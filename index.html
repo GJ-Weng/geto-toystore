@@ -2708,7 +2708,8 @@ async function doCancelOrder(orderId, btn){
       const v = it.variant && it.variant!=='單一規格' ? it.variant : '';
       const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
       const upd = {stock_status:'in_stock'};
-      if(hasVariantStock && v && p.variantStocks[v] != null){
+      const _vsKey = hasVariantStock && v && p.variantStocks[v] != null ? v : null;
+    if(hasVariantStock && _vsKey !== null){
         // 恢復規格庫存
         p.variantStocks[v] = (p.variantStocks[v]||0) + restore;
         p.stockStatus = 'in_stock';
@@ -3784,12 +3785,23 @@ async function submitCheckoutOrder(){
     const v = ci.variant && ci.variant!=='單一規格' ? ci.variant : '';
     const hasVariantStock = p.variantStocks && Object.keys(p.variantStocks).length > 0;
 
-    if(hasVariantStock && v && p.variantStocks[v] != null){
+    const _vsKey = hasVariantStock && v && p.variantStocks[v] != null ? v : null;
+    if(hasVariantStock && _vsKey !== null){
       // 有規格庫存：扣規格庫存，不動總庫存
-      p.variantStocks[v] = Math.max(0, (p.variantStocks[v]||0) - ci.qty);
-      // 檢查所有規格是否都賣完
-      const allSoldOut = Object.values(p.variantStocks).every(s=>s===0);
-      if(allSoldOut) p.stockStatus='out_of_stock';
+      p.variantStocks[_vsKey] = Math.max(0, (p.variantStocks[_vsKey]||0) - ci.qty);
+      // 還有任何規格庫存 > 0 → in_stock；所有規格都 = 0 → 依原本 stockStatus 決定
+      const _hasAnyPositive = Object.values(p.variantStocks).some(s=>s>0);
+      if(_hasAnyPositive){
+        p.stockStatus = 'in_stock';
+      } else {
+        // 全部規格都是 0，如果有任一規格原本是有設庫存的（>0 後被扣到 0），才標售完
+        // 用扣之前的值判斷：ci.qty 是剛扣的，加回去看原本是不是 > 0
+        const _wasSet = p.variantStocks[_vsKey] !== undefined; // 有設這個規格
+        const _origVal = (p.variantStocks[_vsKey]||0) + ci.qty; // 扣之前的值
+        if(_wasSet && _origVal > 0) p.stockStatus = 'out_of_stock';
+        // 否則（原本就是 0）保持 in_stock，代表不限制
+      }
+      const allSoldOut = p.stockStatus === 'out_of_stock';
       if(p.id&&!String(p.id).startsWith('p'))
         _stockUpdates.push({id:p.id, variant_stocks:p.variantStocks, stock_status:allSoldOut?'out_of_stock':(p.stockStatus||'in_stock')});
     } else if(p.stock > 0){
@@ -4729,12 +4741,13 @@ function getVariantPrices(){
 }
 
 function restoreVariantPrices(variantPrices){
-  if(!variantPrices||!Object.keys(variantPrices).length) return;
-  // First render the grid
+  // 先重新渲染（依目前 fVariants 欄位的內容）
   renderVariantPrices();
-  // Then fill in prices
   const grid = document.getElementById('variantPriceGrid');
   if(!grid) return;
+  // 如果沒有價格資料就直接結束（UI 已清空）
+  if(!variantPrices||!Object.keys(variantPrices).length) return;
+  // 填入各規格價格
   grid.querySelectorAll('.vp-row').forEach(row=>{
     const n=row.dataset.v;
     const inp=row.querySelector('.vp-price-inp');
@@ -5315,20 +5328,23 @@ function resetForm(){
   editingId=null;
   _adminImgs=[];
   renderAdminImgPreviews();
+  // 清除所有文字欄位
   ['fName','fBrand','fLimit','fDeadline','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   document.getElementById('fType').value='預購';
   const _fStock2 = document.getElementById('fStock'); if(_fStock2) _fStock2.value=0;
   const _fSS2 = document.getElementById('fStockStatus'); if(_fSS2) _fSS2.value='in_stock';
-  onTypeChange();
-  document.getElementById('fIP').value='';document.getElementById('fForm').value='';
+  document.getElementById('fIP').value='';
+  document.getElementById('fForm').value='';
   document.getElementById('fStatus').value='published';
   document.getElementById('editBadge').style.display='none';
   document.getElementById('formTitle').textContent='新增商品';
   selEmoji=EMOJIS[0];buildEmojiGrid();
-  // 清除規格價格和庫存（避免舊資料帶到下一個商品）
-  restoreVariantPrices({});
+  // 清除規格欄位 UI（需先清 fVariants 再呼叫 restoreVariantPrices）
+  const fv = document.getElementById('fVariants'); if(fv) fv.value='';
+  restoreVariantPrices({}); // 清除規格價格和庫存 UI
+  onTypeChange(); // 最後才呼叫，依 fType 更新顯示
 }
 
 // ─── ORDER LIST (ADMIN) ──────────────────────────────────
