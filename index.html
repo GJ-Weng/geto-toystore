@@ -2432,6 +2432,17 @@ function renderOrdersList(){
           <span class="ocf-arrow">›</span>
         </div>
       </div>
+      ${o.payment_code&&o.status==='paid'?`
+      <div style="padding:8px 16px;background:#f0fdf4;border-top:1px solid #bbf7d0;display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+        <span style="font-size:13px">💳</span>
+        <span style="font-size:12px;color:#166534">此訂單您匯款的末五碼為 <b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b></span>
+      </div>`:''}
+      ${['paid','partial'].includes(o.status)?`
+      <div style="padding:8px 16px;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
+        <button onclick="openChangeDelivery(${o.id})" style="height:34px;width:100%;border:1px solid #2563eb;background:#eff6ff;color:#2563eb;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">
+          🚚 申請更改取貨方式
+        </button>
+      </div>`:''}
     </div>`;
   }).join('');
 }
@@ -2516,12 +2527,12 @@ function openOrderDetail(orderId){
       <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">NT$ ${dep.toLocaleString()}</span></div>
     </div>
 
-    ${o.status==='paid'&&o.payment_code?`
+    ${o.payment_code&&['paid','partial','shipped'].includes(o.status)?`
     <div style="background:#eef7f1;border:1px solid #a8d5b5;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px">✅</span>
+      <span style="font-size:16px">💳</span>
       <div>
-        <div style="font-size:12px;font-weight:700;color:#1e7a38">匯款末五碼已回報</div>
-        <div style="font-size:11px;color:#2e7d32">末碼：<b style="font-family:monospace;letter-spacing:2px">${o.payment_code}</b>，等待小編確認</div>
+        <div style="font-size:12px;font-weight:700;color:#1e7a38">此訂單您匯款的末五碼為</div>
+        <div style="font-size:14px;color:#2e7d32;font-family:monospace;letter-spacing:3px;font-weight:700;margin-top:2px">${o.payment_code}</div>
       </div>
     </div>`:''}
     ${(canCancel||(['paid','partial'].includes(o.status)))?`
