@@ -2912,8 +2912,12 @@ function setFilter(f,el){
 }
 function setSubFilter(f){
   subFilter=f;currentPage=1;
-  document.querySelectorAll('.ssub a').forEach(x=>x.classList.toggle('act',x.textContent.trim()===f));
+  // 切換子篩選時，重置特殊 filter 模式（如 IP開單通知）回全部
+  if(filter==='IP開單通知') filter='全部';
+  document.getElementById('ipAlertTag')?.remove();
+  document.querySelectorAll('.ssub a').forEach(x=>x.classList.toggle('act',x.querySelector('span:first-child')?.textContent.trim()===f||x.textContent.trim().startsWith(f)));
   renderShop();
+  if(window.innerWidth<=880) closeSidebar();
 }
 
 function renderBrandFilter(pub){
@@ -2936,9 +2940,10 @@ function renderBrandFilter(pub){
 }
 
 function setBrandFilter(brand){
-  // 把 subFilter 用在廠牌
   subFilter = brand;
   currentPage = 1;
+  if(filter==='IP開單通知') filter='全部';
+  document.getElementById('ipAlertTag')?.remove();
   // 清除其他 active
   document.querySelectorAll('.ssub a').forEach(x=>x.classList.remove('act'));
   // 找對應的 a 並 highlight
