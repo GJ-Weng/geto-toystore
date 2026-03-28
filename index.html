@@ -2715,10 +2715,12 @@ function confirmCancelOrder(orderId){
 }
 
 async function doCancelOrder(orderId, btn){
+  console.log('[doCancelOrder] start, orderId:', orderId, 'allOrdersCache len:', allOrdersCache.length);
   await _sbReady;
   btn.disabled=true; btn.textContent='處理中...';
   // 取消前先讀訂單內容，以便恢復庫存
   const _cancelOrder = allOrdersCache.find(x=>x.id===orderId);
+  console.log('[doCancelOrder] _cancelOrder:', _cancelOrder);
   const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',orderId);
   document.querySelector('.cancel-overlay')?.remove();
   if(error){ showToast('❌ 取消失敗：'+error.message); return; }
@@ -5725,19 +5727,42 @@ async function aoUpdateStatus(id, newStatus){
   const {error}=await _sb.from('orders').update({status:newStatus}).eq('id',id);
   if(error){showToast('❌ 更新失敗：'+error.message);return;}
   const o=_allAdminOrders.find(x=>x.id===id);
-  // 改為取消時：恢復現貨庫存
+  // 改為取消時：恢復現貨庫存 + 減少 order_count
   if(newStatus==='cancelled' && o){
     let _items=[];
     try{ _items=JSON.parse(o.note||'[]'); }catch(e){}
-    _items.forEach(async it=>{
+    if(!_items.length && o.product_name){
+      _items=[{product_id:o.product_id||products.find(p=>p.name===o.product_name)?.id,
+               variant:o.variant||'',qty:o.qty||1}];
+    }
+    for(const it of _items){
       const p=products.find(x=>String(x.id)===String(it.product_id));
-      if(!p||p.type!=='現貨') return;
-      p.stock=(p.stock||0)+(it.qty||1);
-      if(p.stockStatus==='out_of_stock') p.stockStatus='in_stock';
-      if(p.id&&!String(p.id).startsWith('p')){
-        await _sb.from('products').update({stock:p.stock,stock_status:'in_stock'}).eq('id',p.id);
+      if(!p||p.type!=='現貨') continue;
+      const restore=it.qty||1;
+      const v=it.variant&&it.variant!=='單一規格'?it.variant:'';
+      const hasVS=p.variantStocks&&Object.keys(p.variantStocks).length>0;
+      const upd={stock_status:'in_stock'};
+      if(hasVS && v && p.variantStocks[v]!=null){
+        // 從 Supabase 拿最新規格庫存再加回去
+        const {data:_fresh}=await _sb.from('products').select('variant_stocks').eq('id',p.id).single();
+        const _vs=(_fresh&&_fresh.variant_stocks)?_fresh.variant_stocks:p.variantStocks;
+        _vs[v]=(_vs[v]||0)+restore;
+        p.variantStocks=_vs; p.stockStatus='in_stock';
+        upd.variant_stocks=_vs;
+      } else {
+        const {data:_fresh2}=await _sb.from('products').select('stock').eq('id',p.id).single();
+        p.stock=((_fresh2&&_fresh2.stock!=null)?_fresh2.stock:p.stock||0)+restore;
+        p.stockStatus='in_stock'; upd.stock=p.stock;
       }
-    });
+      // 減少 order_count
+      p.cnt=Math.max(0,(p.cnt||0)-(p.type==='現貨'?restore:1));
+      upd.order_count=p.cnt;
+      if(p.id&&!String(p.id).startsWith('p'))
+        await _sb.from('products').update(upd).eq('id',p.id);
+    }
+    // 清除快取強制重新同步
+    try{localStorage.removeItem('tf_p');localStorage.removeItem('tf_p_ts');}catch(e){}
+    setTimeout(()=>syncProductsFromSupabase().then(()=>renderShop()),300);
   }
   if(o) o.status=newStatus;
   _aoRenderStats();_aoRenderTabs();_aoRenderCards();
