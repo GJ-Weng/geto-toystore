@@ -2841,7 +2841,7 @@ function getVis(){
     });
   }
   else list=[...pub];
-  if(subFilter) list=list.filter(p=>p.ip===subFilter||p.form===subFilter||(p.brand||'').split('/')[0].trim()===subFilter);
+  if(subFilter) list=list.filter(p=>p.ip===subFilter||(p.form||'').split(',').map(f=>f.trim()).includes(subFilter)||(p.brand||'').split('/')[0].trim()===subFilter);
   if(searchQ) list=list.filter(p=>p.name.includes(searchQ)||p.brand.includes(searchQ));
   const s=document.getElementById('sortSel').value;
   if(s==='price_asc') list.sort((a,b)=>a.price-b.price);
@@ -2874,7 +2874,7 @@ function updCounts(){
   if(_closedSep) _closedSep.style.display  = _admin ? '' : 'none';
   // 動態更新 IP / 商品類型 / 廠牌
   const _ips    = [...new Set(pub.map(p=>p.ip  ).filter(Boolean))].sort();
-  const _types  = [...new Set(pub.map(p=>p.form).filter(Boolean))].sort();
+  const _types  = [...new Set(pub.flatMap(p=>(p.form||'').split(',').map(f=>f.trim()).filter(Boolean)))].sort();
   renderDynamicFilter('ipList',   _ips,   pub);
   renderDynamicFilter('typeList', _types, pub);
   renderBrandFilter(pub);
@@ -2893,7 +2893,7 @@ function renderDynamicFilter(listId, items, pubList){
   if(!el) return;
   if(!items.length){ el.innerHTML='<a style="color:var(--ink3);cursor:default;font-size:12px">(暫無)</a>'; return; }
   el.innerHTML = items.map(v=>{
-    const cnt = pubList ? pubList.filter(p=>p.ip===v||p.form===v).length : 0;
+    const cnt = pubList ? pubList.filter(p=>p.ip===v||(p.form||'').split(',').map(f=>f.trim()).includes(v)).length : 0;
     return `<a onclick="setSubFilter('${v.replace(/'/g,"&#39;")}')" style="display:flex;justify-content:space-between;align-items:center">`
       +`<span>${v}</span>`
       +(cnt>0?`<span style="font-size:10px;color:var(--ink3);margin-left:4px;flex-shrink:0">${cnt}</span>`:'')
@@ -3158,7 +3158,7 @@ function openDetail(id){
     <span class="bc-link" onclick="goHome()">首頁</span>
     <span>/</span>
     ${p.ip?`<span class="bc-link" onclick="setSubFilter('${p.ip}');goHome()">${p.ip}</span><span>/</span>`:''}
-    <span class="bc-link" onclick="setSubFilter('${p.form}');goHome()">${p.form||p.brand}</span>
+    <span class="bc-link" onclick="setSubFilter('${(p.form||'').split(',')[0].trim()}');goHome()">${(p.form||'').split(',')[0].trim()||p.brand}</span>
   `;
 
   // Image(使用 imageUrls 陣列，第一張為主圖)
