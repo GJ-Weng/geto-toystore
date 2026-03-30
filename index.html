@@ -1975,16 +1975,22 @@ async function setTrustedBuyer(email, trusted){
   // 更新 Supabase profiles（跨裝置持久）
   try{
     await _sbReady;
-    // 用 orders 表找到該 email 對應的 user profile
-    const {data:orderData} = await _sb.from('orders')
-      .select('user_email').eq('user_email', email).limit(1);
-    if(orderData && orderData.length){
-      // 用 email 找到對應的 profile 再更新 trusted
-      const {data:profData} = await _sb.from('profiles')
-        .select('id').eq('email', email).maybeSingle();
-      if(profData?.id){
-        await _sb.from('profiles').update({ trusted: trusted }).eq('id', profData.id);
-      }
+    // 先試用 email 欄位找
+    const {data:profByEmail} = await _sb.from('profiles')
+      .select('id').eq('email', email).maybeSingle();
+    if(profByEmail?.id){
+      await _sb.from('profiles').update({ trusted: trusted, email: email }).eq('id', profByEmail.id);
+      console.log('[trusted] 用 email 找到並更新');
+    } else {
+      // email 欄位是空的，嘗試用 upsert 直接寫（需要知道 uid）
+      // 透過 Supabase admin 查不到，改為直接 upsert 一筆只有 email + trusted 的記錄
+      // 等顧客下次登入時 saveProfileForUser 會用 uid 合併
+      const {error} = await _sb.from('profiles').upsert(
+        { email: email, trusted: trusted },
+        { onConflict: 'email' }
+      );
+      if(error) console.warn('[trusted] upsert error:', error);
+      else console.log('[trusted] upsert by email 成功');
     }
   }catch(e){ console.warn('setTrustedBuyer Supabase error:', e); }
   showToast(trusted ? '✅ 已標記為信任買家' : '已移除信任標記');
