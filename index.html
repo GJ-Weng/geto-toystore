@@ -1954,13 +1954,22 @@ async function saveProfileForUser(email, profile){
     await _sbReady;
     const uid = (await _sb.auth.getUser()).data?.user?.id;
     if(!uid) return;
+    // 先讀現有的 trusted 值，不讓 saveProfile 覆蓋後台設定的信任標記
+    const {data:existProf} = await _sb.from('profiles').select('trusted').eq('id',uid).maybeSingle();
+    const keepTrusted = existProf?.trusted || profile.trusted || false;
     await _sb.from('profiles').upsert({
       id: uid,
       name: profile.name||'',
       phone: profile.phone||'',
-      email: profile.email||email,
-      trusted: profile.trusted||false
+      email: email,
+      trusted: keepTrusted
     }, { onConflict: 'id' });
+    // 同步 trusted 回 userProfile 和 localStorage
+    if(existProf?.trusted && !profile.trusted){
+      profile.trusted = true;
+      userProfile.trusted = true;
+      try{ localStorage.setItem('tf_prof_'+btoa(email).replace(/=/g,''), JSON.stringify(userProfile)); }catch(e){}
+    }
   }catch(e){ console.warn('profile save error:', e); }
 }
 
