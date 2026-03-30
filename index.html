@@ -1916,7 +1916,7 @@ async function loadProfileForUser(email){
     if(!uid) return;
     const {data, error} = await _sb.from('profiles').select('name,phone').eq('id', uid).maybeSingle();
     if(data){
-      userProfile = { name: data.name||'', phone: data.phone||'', trusted: userProfile.trusted||false };
+      userProfile = { name: data.name||'', phone: data.phone||'', trusted: data.trusted||false };
       try{ localStorage.setItem(key, JSON.stringify(userProfile)); }catch(e){}
     }
     // error 或 data 為 null（新用戶尚未建立 profile）→ 保持快取值
@@ -1957,19 +1957,37 @@ async function saveProfileForUser(email, profile){
     await _sb.from('profiles').upsert({
       id: uid,
       name: profile.name||'',
-      phone: profile.phone||''
+      phone: profile.phone||'',
+      email: profile.email||email,
+      trusted: profile.trusted||false
     }, { onConflict: 'id' });
   }catch(e){ console.warn('profile save error:', e); }
 }
 
 // ─── 信任買家管理 ───────────────────────────────────────────
-function setTrustedBuyer(email, trusted){
+async function setTrustedBuyer(email, trusted){
   if(!email) return;
+  // 更新 localStorage（立即生效）
   const key = 'tf_prof_' + btoa(email).replace(/=/g,'');
   const prof = JSON.parse(localStorage.getItem(key)||'null') || {name:'',phone:'',trusted:false};
   prof.trusted = trusted;
   localStorage.setItem(key, JSON.stringify(prof));
-  showToast(trusted ? `✅ 已標記為信任買家` : `已移除信任標記`);
+  // 更新 Supabase profiles（跨裝置持久）
+  try{
+    await _sbReady;
+    // 用 orders 表找到該 email 對應的 user profile
+    const {data:orderData} = await _sb.from('orders')
+      .select('user_email').eq('user_email', email).limit(1);
+    if(orderData && orderData.length){
+      // 用 email 找到對應的 profile 再更新 trusted
+      const {data:profData} = await _sb.from('profiles')
+        .select('id').eq('email', email).maybeSingle();
+      if(profData?.id){
+        await _sb.from('profiles').update({ trusted: trusted }).eq('id', profData.id);
+      }
+    }
+  }catch(e){ console.warn('setTrustedBuyer Supabase error:', e); }
+  showToast(trusted ? '✅ 已標記為信任買家' : '已移除信任標記');
 }
 
 function persist(){
