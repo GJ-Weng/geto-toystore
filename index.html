@@ -1820,8 +1820,9 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
 
   // 提醒文字
   const reminderHtml = hasDeposit
-    ? `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404;line-height:1.6">
-        ⚠️ 請於 <b>48 小時內</b> 完成匯款，訂金到帳後訂單才會正式成立，逾時未付視同取消。
+    ? `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404;line-height:1.8">
+        ⚠️ 請於 <b>48 小時內</b> 完成匯款，訂金到帳後訂單才會正式成立，逾時未付視同取消。<br>
+        💡 <b>匯款後請回報末五碼：</b>登入網站 → 右上角頭像 → 我的訂單 → 找到訂單編號 → 按「已匯款，填寫末五碼」
       </div>`
     : `<div style="background:#d4edda;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#155724;line-height:1.6">
         ✅ 您的訂單已成立！我們會在商品到貨後通知您取貨，感謝您的支持！
@@ -3997,7 +3998,12 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
       : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫小編確認匯款方式)</div>';
     payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
       +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
-      +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b></div>'
+      +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b><br>'
+      +'<div style="margin-top:8px;padding:8px 10px;background:#fffbe6;border-radius:6px;font-size:12px;color:#7c5e00;line-height:1.8">'
+      +'💡 <b>匯款後請回報末五碼：</b><br>'
+      +'點右上角頭像 → <b>我的訂單</b> → 找到該訂單編號 → 按「<b>已匯款，填寫末五碼</b>」'
+      +'</div>'
+      +'</div>'
       +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
       +'<div class="bank-box">'+bankDetails+'</div>'
       +'<div class="bank-note" style="margin-top:8px;margin-bottom:12px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>';
