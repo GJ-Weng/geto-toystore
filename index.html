@@ -2006,6 +2006,52 @@ async function setTrustedBuyer(email, trusted){
   showToast(trusted ? '✅ 已標記為信任買家' : '已移除信任標記');
 }
 
+// ─── Supabase 同步：購物車、收藏、IP追蹤 ────────────────────
+async function syncCartToSb(){
+  if(!user) return;
+  try{
+    await _sbReady;
+    const uid=(await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    await _sb.from('carts').upsert({user_id:uid,items:cart,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }catch(e){}
+}
+async function syncFavsToSb(){
+  if(!user) return;
+  try{
+    await _sbReady;
+    const uid=(await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    await _sb.from('favourites').upsert({user_id:uid,product_ids:favs,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }catch(e){}
+}
+async function syncIpFollowsToSb(){
+  if(!user) return;
+  try{
+    await _sbReady;
+    const uid=(await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    await _sb.from('ip_follows').upsert({user_id:uid,ips:favIps,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }catch(e){}
+}
+async function loadUserDataFromSb(){
+  if(!user) return;
+  try{
+    await _sbReady;
+    const uid=(await _sb.auth.getUser()).data?.user?.id;
+    if(!uid) return;
+    // 購物車
+    const {data:cartData}=await _sb.from('carts').select('items').eq('user_id',uid).maybeSingle();
+    if(cartData?.items?.length){ cart=cartData.items; try{localStorage.setItem('tf_c',JSON.stringify(cart));}catch(e){} updBadge(); }
+    // 收藏
+    const {data:favData}=await _sb.from('favourites').select('product_ids').eq('user_id',uid).maybeSingle();
+    if(favData?.product_ids?.length){ favs=favData.product_ids; try{localStorage.setItem('tf_f',JSON.stringify(favs));}catch(e){} updateNavFavsBadge(); }
+    // IP追蹤
+    const {data:ipData}=await _sb.from('ip_follows').select('ips').eq('user_id',uid).maybeSingle();
+    if(ipData?.ips?.length){ favIps=ipData.ips; try{localStorage.setItem('tf_fav_ips',JSON.stringify(favIps));}catch(e){} }
+  }catch(e){ console.warn('loadUserDataFromSb error:',e); }
+}
+
 function persist(){
   try{
     // products 存輕量版本(base64 圖片不存 localStorage，避免 QuotaExceededError)
@@ -2020,6 +2066,7 @@ function persist(){
   }catch(e){ console.warn('products cache skip:', e.name); }
   try{ localStorage.setItem('tf_c',JSON.stringify(cart)); }catch(e){}
   try{ localStorage.setItem('tf_f',JSON.stringify(favs)); }catch(e){}
+  syncCartToSb(); syncFavsToSb();
   try{ localStorage.setItem('tf_o',JSON.stringify(orders)); }catch(e){}
   try{ localStorage.setItem('tf_cfg',JSON.stringify(shopSettings)); }catch(e){}
   try{ localStorage.setItem('tf_ejs',JSON.stringify(emailjsConfig)); }catch(e){}
@@ -2395,8 +2442,8 @@ function renderIpNotifySettings(){
     `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)"><div style="font-size:12px;color:var(--ink3);margin-bottom:10px">手動新增追蹤</div>${untracked.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${untracked.map(ip=>`<button onclick="addIpNotify('${ip.replace(/'/g,"&#39;")}')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:var(--white);border:1px solid var(--border2);border-radius:20px;font-size:12px;color:var(--ink2);cursor:pointer">+ ${ip}</button>`).join('')}</div>` : `<div style="font-size:13px;color:var(--ink3)">目前所有上架 IP 都已追蹤 ✅</div>`}</div>`;
 }
 
-function addIpNotify(ip){ if(!favIps.includes(ip)){ favIps.push(ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} showToast('已加入追蹤：'+ip); renderIpNotifySettings(); } }
-function removeIpNotify(ip){ favIps=favIps.filter(x=>x!==ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} showToast('已移除追蹤：'+ip); renderIpNotifySettings(); }
+function addIpNotify(ip){ if(!favIps.includes(ip)){ favIps.push(ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} syncIpFollowsToSb(); showToast('已加入追蹤：'+ip); renderIpNotifySettings(); } }
+function removeIpNotify(ip){ favIps=favIps.filter(x=>x!==ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} syncIpFollowsToSb(); showToast('已移除追蹤：'+ip); renderIpNotifySettings(); }
 
 async function loadOrders(){ await _sbReady;
   const wrap = document.getElementById('ordersListWrap');
@@ -4257,7 +4304,7 @@ function toggleFav(id){
   if(adding){
     favs.push(id);
     const p = products.find(x=>String(x.id)===sid2);
-    if(p && p.ip && !favIps.includes(p.ip)){ favIps.push(p.ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} }
+    if(p && p.ip && !favIps.includes(p.ip)){ favIps.push(p.ip); try{ localStorage.setItem('tf_fav_ips', JSON.stringify(favIps)); }catch(e){} syncIpFollowsToSb(); }
   } else { favs = favs.filter(x=>String(x)!==sid2); }
   updateNavFavsBadge();
   persist();renderShop();updCounts();
@@ -4457,6 +4504,8 @@ _sbReady.then(() => {
     renderAuth();
     if(event==='SIGNED_IN'){
       showToast('👋 歡迎，'+user.name.split(' ')[0]+'！');
+      // 登入後從 Supabase 載入購物車、收藏、IP追蹤
+      loadUserDataFromSb();
       // 登入後檢查 IP 開單通知
       setTimeout(checkIpNotifications, 500);
       // 登入後拉訂單重建限購記錄(確保與伺服器同步)
@@ -4471,7 +4520,7 @@ _sbReady.then(() => {
   } else {
     user = null;
     userProfile = { name:'', phone:'' }; // 登出時清空 profile
-    cart = []; // 登出時清空購物車，避免混用
+    cart = []; // 登出時清空購物車（Supabase 保留，下次登入重新載入）
     orderedQtyMap = {}; // 登出時清除已下單記錄
     localStorage.removeItem('tf_ordered_v2');
     persist();
