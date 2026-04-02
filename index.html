@@ -4047,6 +4047,11 @@ async function submitCheckoutOrder(){
   localStorage.setItem('tf_ordered_v2', JSON.stringify(orderedQtyMap));
   cart=[];
 
+  // 計算購物車內預購商品的最近結單日（先宣告，寄信和結帳完成頁都要用）
+  const nearestDeadline = cart_snapshot
+    .map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?.type==='預購'&&p?.deadline?p.deadline:null; })
+    .filter(Boolean).sort()[0] || null;
+
   // ── 寄信 ─────────────────────────────────────────────────
   if(user?.email){
     const allItems = _makeItems(cart_snapshot);
@@ -4062,10 +4067,6 @@ async function submitCheckoutOrder(){
       phone: phone||'', settings: shopSettings,
     }).catch(e=>console.warn('寄信失敗',e));
   }
-  // 計算購物車內預購商品的最近結單日（寄信和結帳完成頁都要用）
-  const nearestDeadline = cart_snapshot
-    .map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?.type==='預購'&&p?.deadline?p.deadline:null; })
-    .filter(Boolean).sort()[0] || null;
 
   persist(); updBadge();
   sessionStorage.removeItem('tf_terms_agreed');
