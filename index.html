@@ -3825,9 +3825,15 @@ function renderCheckoutPage(){
     return p?.type==='預購'&&p?.deadline?p.deadline:null;
   }).filter(Boolean).sort();
   const _nearestDdl = _checkoutDeadlines[0]||null;
+  // 只有「預購 + 有訂金」才需提示盡快匯款
+  const _hasDep = cart.some(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    if(!p) return false;
+    return p.type==='預購' && Number(p.deposit||0) > 0;
+  });
   const _ddlWarnEl = document.getElementById('checkoutDeadlineWarn');
   if(_ddlWarnEl){
-    if(_nearestDdl){
+    if(_nearestDdl && _hasDep){
       const _ddlDate = new Date(_nearestDdl+'T23:59:59+08:00');
       const _hoursLeft = Math.floor((_ddlDate - new Date()) / 3600000);
       if(_hoursLeft <= 72){
