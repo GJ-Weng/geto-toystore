@@ -3901,6 +3901,8 @@ function genOrderNum(){
 }
 
 async function submitCheckoutOrder(){
+  const btn = document.getElementById('checkoutSubmitBtn');
+  try {
   await _sbReady;
   // 先從結帳頁 input 更新 profile
   const phone = userProfile.phone||'';
@@ -3916,7 +3918,6 @@ async function submitCheckoutOrder(){
     if(warn) warn.style.display='';
     showToast('⚠️ 請選擇自取地點'); return;
   }
-  const btn = document.getElementById('checkoutSubmitBtn');
   btn.disabled=true; btn.textContent='送出中...';
 
   // ── 分類購物車：現貨 / 預購 ──────────────────────────────
@@ -4070,6 +4071,11 @@ async function submitCheckoutOrder(){
     .map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?.type==='預購'&&p?.deadline?p.deadline:null; })
     .filter(Boolean).sort()[0] || null;
   showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc, nearestDeadline:_nearestDeadline});
+  } catch(err){
+    console.error('❌ submitCheckoutOrder error:', err);
+    if(btn){ btn.disabled=false; btn.textContent='確認訂單'; }
+    showToast('❌ 下單失敗，請重試：'+(err?.message||err));
+  }
 }
 
 function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false, delivery='寄送', pickupLoc='', nearestDeadline=null}={}){
