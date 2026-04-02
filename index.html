@@ -1066,6 +1066,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <span class="cod-total-lbl">應付金額</span>
         <span class="cod-total-amt" id="checkoutPayAmt">NT$ 0</span>
       </div>
+      <div id="checkoutDeadlineWarn" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b;line-height:1.7"></div>
       <button class="cod-submit" id="checkoutSubmitBtn" onclick="submitCheckoutOrder()">確認訂單</button>
     </div>
   </div>
@@ -3818,6 +3819,30 @@ function renderCheckoutPage(){
   if(warn)     warn.style.display = (!name || !phone) ? '' : 'none';
   if(submitBtn) submitBtn.disabled = false;
 
+  // 結帳頁：偵測即將結單的商品並顯示警示
+  const _checkoutDeadlines = cart.map(ci=>{
+    const p=products.find(x=>String(x.id)===String(ci.id));
+    return p?.type==='預購'&&p?.deadline?p.deadline:null;
+  }).filter(Boolean).sort();
+  const _nearestDdl = _checkoutDeadlines[0]||null;
+  const _ddlWarnEl = document.getElementById('checkoutDeadlineWarn');
+  if(_ddlWarnEl){
+    if(_nearestDdl){
+      const _ddlDate = new Date(_nearestDdl+'T23:59:59+08:00');
+      const _hoursLeft = Math.floor((_ddlDate - new Date()) / 3600000);
+      if(_hoursLeft <= 72){
+        _ddlWarnEl.style.display='';
+        _ddlWarnEl.innerHTML = '⏰ <b>注意：</b>訂單內有商品將於 <b>'+_nearestDdl+'</b> 結單'
+          +(_hoursLeft<=48?' <b style="color:#dc2626">（剩約 '+Math.max(0,_hoursLeft)+' 小時）</b>':'')
+          +'，請確認訂單後盡快匯款，逾時系統將<b>自動取消</b>訂單。';
+      } else {
+        _ddlWarnEl.style.display='none';
+      }
+    } else {
+      _ddlWarnEl.style.display='none';
+    }
+  }
+
   // ── 計算總金額與訂金（這兩個變數在本函式內使用）──────────────────────
   const total = cart.reduce((s,ci)=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?s+getVariantPrice(p,ci.variant)*ci.qty:s; },0);
   const dep   = calcCartDeposit();
@@ -4030,7 +4055,7 @@ async function submitCheckoutOrder(){
       customerName: customerName||user.name||user.email,
       customerEmail: user.email,
       orderNum: [stockOrderNum,preOrderNum].filter(Boolean).join(' / '),
-    nearestDeadline: nearestDeadline,
+      nearestDeadline: nearestDeadline,
       items: allItems, total: allTotal, dep: allDep,
       tail: allTotal-allDep, delivery: selectedDelivery,
       phone: phone||'', settings: shopSettings,
