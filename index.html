@@ -3825,8 +3825,8 @@ function renderCheckoutPage(){
     return p?.type==='預購'&&p?.deadline?p.deadline:null;
   }).filter(Boolean).sort();
   const _nearestDdl = _checkoutDeadlines[0]||null;
-  // 只有「預購 + 有訂金」才需提示盡快匯款
-  const _hasDep = cart.some(ci=>{
+  // 需要付款才顯示結單警示：「預購 + 有訂金」或「首購（預購總金額50%）」
+  const _hasDep = calcFirstBuyerDeposit() > 0 || cart.some(ci=>{
     const p=products.find(x=>String(x.id)===String(ci.id));
     if(!p) return false;
     return p.type==='預購' && Number(p.deposit||0) > 0;
