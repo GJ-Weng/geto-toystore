@@ -1742,7 +1742,7 @@ function initEmailJS(){
   }
 }
 
-async function sendOrderEmail({ customerName, customerEmail, orderNum, items, total, dep, tail, delivery, phone, settings }){
+async function sendOrderEmail({ customerName, customerEmail, orderNum, items, total, dep, tail, delivery, phone, settings, nearestDeadline=null }){
   // 重新從 localStorage 讀取最新設定(防止快取過期)
   // 永遠用 hardcode，不從 localStorage 覆蓋
 
@@ -1823,6 +1823,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
     ? `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404;line-height:1.8">
         ⚠️ 請於 <b>48 小時內</b> 完成匯款，訂金到帳後訂單才會正式成立，逾時未付視同取消。<br>
         💡 <b>匯款後請回報末五碼：</b>登入網站 → 右上角頭像 → 我的訂單 → 找到訂單編號 → 按「已匯款，填寫末五碼」
+        ${nearestDeadline ? `<br><br><span style="color:#991b1b;font-weight:700">⏰ 注意：訂單內有商品將於 ${nearestDeadline} 結單，請務必在結單前完成匯款，否則系統將自動取消訂單。</span>` : ''}
       </div>`
     : `<div style="background:#d4edda;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#155724;line-height:1.6">
         ✅ 您的訂單已成立！我們會在商品到貨後通知您取貨，感謝您的支持！
@@ -2455,10 +2456,65 @@ async function loadOrders(){ await _sbReady;
 
   if(error){ wrap.innerHTML=`<div style="text-align:center;padding:40px;color:var(--red)">讀取失敗：${error.message}</div>`; return; }
   allOrdersCache = data||[];
-  // 從真實訂單重建 orderedQtyMap(這樣管理員取消訂單後會自動歸零)
+  // 自動取消逾期未付款的訂單
+  await autoExpireOrders(allOrdersCache);
+  // 從真實訂單重建 orderedQtyMap
   rebuildOrderedQtyMap(allOrdersCache);
   renderOrdersTabs();
   renderOrdersList();
+}
+
+async function autoExpireOrders(orders){
+  const now = new Date();
+  const toCancel = [];
+  for(const o of orders){
+    if(o.status !== 'new') continue; // 只處理待付款
+    // 計算付款期限：min(下單後48小時, 訂單內最近結單日 23:59)
+    const created = new Date(o.created_at);
+    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
+    // 從 note 找最近結單日
+    let productDeadline = null;
+    try{
+      const items = JSON.parse(o.note||'[]');
+      const deadlines = items.map(it=>{
+        const p = products.find(x=>String(x.id)===String(it.product_id));
+        return p?.deadline || null;
+      }).filter(Boolean).sort();
+      if(deadlines.length){
+        productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
+      }
+    }catch(e){}
+    // 取最早的期限
+    const payLimit = productDeadline && productDeadline < deadline48h
+      ? productDeadline : deadline48h;
+    if(now > payLimit){
+      toCancel.push(o);
+    }
+  }
+  for(const o of toCancel){
+    const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',o.id);
+    if(!error){
+      o.status = 'cancelled';
+      // 恢復庫存
+      try{
+        const items = JSON.parse(o.note||'[]');
+        for(const it of items){
+          const p = products.find(x=>String(x.id)===String(it.product_id));
+          if(!p||p.type!=='現貨') continue;
+          const v = it.variant&&it.variant!=='單一規格'?it.variant:'';
+          const hasVS = p.variantStocks&&Object.keys(p.variantStocks).length>0;
+          if(hasVS&&v&&p.variantStocks[v]!=null){
+            p.variantStocks[v]=(p.variantStocks[v]||0)+(it.qty||1);
+            await _sb.from('products').update({variant_stocks:p.variantStocks,stock_status:'in_stock'}).eq('id',p.id);
+          } else if(p.stock>=0){
+            p.stock=(p.stock||0)+(it.qty||1);
+            await _sb.from('products').update({stock:p.stock,stock_status:'in_stock'}).eq('id',p.id);
+          }
+        }
+      }catch(e){}
+      console.log('[autoExpire] 已自動取消逾期訂單:', o.order_code||o.id);
+    }
+  }
 }
 
 function rebuildOrderedQtyMap(orders){
@@ -3974,6 +4030,7 @@ async function submitCheckoutOrder(){
       customerName: customerName||user.name||user.email,
       customerEmail: user.email,
       orderNum: [stockOrderNum,preOrderNum].filter(Boolean).join(' / '),
+    nearestDeadline: nearestDeadline,
       items: allItems, total: allTotal, dep: allDep,
       tail: allTotal-allDep, delivery: selectedDelivery,
       phone: phone||'', settings: shopSettings,
@@ -3983,10 +4040,14 @@ async function submitCheckoutOrder(){
   // 清除須知同意記號，下次購買預購商品仍需重新確認
   sessionStorage.removeItem('tf_terms_agreed');
 
-  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc});
+  // 計算購物車內預購商品的最近結單日
+  const _nearestDeadline = cart_snapshot
+    .map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?.type==='預購'&&p?.deadline?p.deadline:null; })
+    .filter(Boolean).sort()[0] || null;
+  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc, nearestDeadline:_nearestDeadline});
 }
 
-function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false, delivery='寄送', pickupLoc=''}={}){
+function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0, hasMixed=false, hasStock=false, hasPre=false, delivery='寄送', pickupLoc='', nearestDeadline=null}={}){
   const s = shopSettings;
   const dep = stockDep + preDep;
   const isPreorder = hasPre;
@@ -4043,6 +4104,15 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
         +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
         +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+preDep.toLocaleString()+'</span></div>'
       : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫小編確認匯款方式)</div>';
+    // 判斷是否接近結單（結單日在 48 小時內）
+    const _ddl = nearestDeadline ? new Date(nearestDeadline+'T23:59:59+08:00') : null;
+    const _now = new Date();
+    const _hoursLeft = _ddl ? Math.floor((_ddl - _now) / 3600000) : 999;
+    const _deadlineWarn = _ddl && _hoursLeft <= 48
+      ? '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12px;color:#991b1b;font-weight:700">'
+        +'⏰ 注意！訂單內有商品將於 <b>'+nearestDeadline+'</b> 結單（剩約 '+Math.max(0,_hoursLeft)+' 小時），請盡快完成匯款，逾時系統將自動取消訂單。'
+        +'</div>'
+      : '';
     payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
       +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
       +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b><br>'
@@ -4053,7 +4123,8 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
       +'</div>'
       +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
       +'<div class="bank-box">'+bankDetails+'</div>'
-      +'<div class="bank-note" style="margin-top:8px;margin-bottom:12px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>';
+      +'<div class="bank-note" style="margin-top:8px;margin-bottom:12px">'+(s.bankNote||'轉帳請備註訂單編號，以利確認，感謝！')+'</div>'
+      +_deadlineWarn;
   } else if(hasStock){
     payHtml = '<div style="background:#eef7f1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1e7a38">✅ 現貨訂單已成立！我們確認庫存後將盡快安排出貨。</div>';
   }
@@ -5545,10 +5616,39 @@ async function renderOrderList(){
   const {data,error} = await _sb.from('orders').select('*').order('created_at',{ascending:false});
   if(error){if(ol)ol.innerHTML=`<div class="ao-empty"><div>❌</div><p>讀取失敗：${error.message}</p></div>`;return;}
   _allAdminOrders = data||[];
+  // 自動取消逾期未付款訂單（後台版，處理所有顧客的訂單）
+  await autoExpireAdminOrders(_allAdminOrders);
   _aoRenderStats();
   _aoRenderTabs();
   _aoRenderCards();
-  updatePaymentBell(); // 更新匯款通知鈴鐺
+  updatePaymentBell();
+}
+
+async function autoExpireAdminOrders(orders){
+  const now = new Date();
+  let changed = false;
+  for(const o of orders){
+    if(o.status !== 'new') continue;
+    const created = new Date(o.created_at);
+    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
+    let productDeadline = null;
+    try{
+      const items = JSON.parse(o.note||'[]');
+      const deadlines = items.map(it=>{
+        const p = products.find(x=>String(x.id)===String(it.product_id));
+        return p?.deadline || null;
+      }).filter(Boolean).sort();
+      if(deadlines.length) productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
+    }catch(e){}
+    const payLimit = productDeadline && productDeadline < deadline48h ? productDeadline : deadline48h;
+    if(now > payLimit){
+      const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',o.id);
+      if(!error){ o.status='cancelled'; changed=true;
+        console.log('[autoExpire admin] 取消:', o.order_code||o.id);
+      }
+    }
+  }
+  if(changed) showToast('⏰ 已自動取消逾期未付款訂單');
 }
 
 function _aoRenderStats(){
