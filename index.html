@@ -1578,7 +1578,7 @@ textarea.fi{min-height:64px;resize:vertical}
 
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <div class="faq-q">💳 訂金要怎麼繳交？</div>
-        <div class="faq-a">下單後請於 <b>48 小時內</b>完成匯款，逾時訂單自動取消。<br>・匯款時請在備註欄填寫<b>訂單編號</b><br>・匯款完成後請在「我的訂單」頁面按「已匯款」並填寫末五碼，我們會主動確認入帳。</div>
+        <div class="faq-a">下單後請於 <b>48 小時內</b>完成匯款，逾時訂單自動取消。<br>・匯款時請在備註欄填寫<b>訂單編號</b><br>・匯款完成後請在「我的訂單」頁面按「<b>回報末五碼</b>」，我們會主動確認入帳。</div>
       </div>
 
       <div class="faq-item" onclick="this.classList.toggle('open')">
@@ -1823,7 +1823,7 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   const reminderHtml = hasDeposit
     ? `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#856404;line-height:1.8">
         ⚠️ 請於 <b>48 小時內</b> 完成匯款，訂金到帳後訂單才會正式成立，逾時未付視同取消。<br>
-        💡 <b>匯款後請回報末五碼：</b>登入網站 → 右上角頭像 → 我的訂單 → 找到訂單編號 → 按「已匯款，填寫末五碼」
+        💡 <b>匯款後請回報末五碼：</b>登入網站 → 右上角頭像 → 我的訂單 → 找到訂單編號 → 按「回報末五碼」
         ${nearestDeadline ? `<br><br><span style="color:#991b1b;font-weight:700">⏰ 注意：訂單內有商品將於 ${nearestDeadline} 結單，請務必在結單前完成匯款，否則系統將自動取消訂單。</span>` : ''}
       </div>`
     : `<div style="background:#d4edda;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#155724;line-height:1.6">
@@ -2611,7 +2611,7 @@ function renderOrdersList(){
         <div class="ocf-info">
           <span>${dateStr}</span>
           ${o.status==='new'?'<span style="background:#fff4e5;color:#e67300;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">需付款</span>':''}
-          ${o.status==='new'&&(o.price||0)>0?('<button class="pay-report-btn" onclick="event.stopPropagation();openPayReport('+o.id+')" style="background:'+(o.payment_code?'#eef7f1':'var(--gold)')+';color:'+(o.payment_code?'#2e7d32':'#fff')+';border:none;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer">'+(o.payment_code?'✅ 已回報末五碼':'💳 已匯款')+'</button>'):''}
+          ${o.status==='new'&&(o.price||0)>0?('<button class="pay-report-btn" onclick="event.stopPropagation();openPayReport('+o.id+')" style="background:'+(o.payment_code?'#eef7f1':'var(--gold)')+';color:'+(o.payment_code?'#2e7d32':'#fff')+';border:none;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer">'+(o.payment_code?'✅ 已回報末五碼':'💳 回報末五碼')+'</button>'):''}
         </div>
         <div class="ocf-total">
           共 ${items.length} 件
@@ -2671,7 +2671,7 @@ function openOrderDetail(orderId){
       : `<button onclick="openPayReport(${o.id})" style="width:100%;margin:4px 0 16px;padding:16px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#C9A84C,#e5be6a);color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(201,168,76,.4);display:flex;align-items:center;justify-content:center;gap:10px;">
           <span style="font-size:20px">💳</span>
           <span style="text-align:left">
-            <div>我已完成匯款，填寫末五碼</div>
+            <div>填寫匯款末五碼</div>
             <div style="font-size:11px;font-weight:400;opacity:.85;margin-top:2px">讓小編快速確認您的付款</div>
           </span>
         </button>`
@@ -4155,7 +4155,7 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
       +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b><br>'
       +'<div style="margin-top:8px;padding:8px 10px;background:#fffbe6;border-radius:6px;font-size:12px;color:#7c5e00;line-height:1.8">'
       +'💡 <b>匯款後請回報末五碼：</b><br>'
-      +'點右上角頭像 → <b>我的訂單</b> → 找到該訂單編號 → 按「<b>已匯款，填寫末五碼</b>」'
+      +'點右上角頭像 → <b>我的訂單</b> → 找到該訂單編號 → 按「<b>回報末五碼</b>」'
       +'</div>'
       +'</div>'
       +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
