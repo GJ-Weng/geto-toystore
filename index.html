@@ -4062,15 +4062,14 @@ async function submitCheckoutOrder(){
       phone: phone||'', settings: shopSettings,
     }).catch(e=>console.warn('寄信失敗',e));
   }
-  persist(); updBadge();
-  // 清除須知同意記號，下次購買預購商品仍需重新確認
-  sessionStorage.removeItem('tf_terms_agreed');
-
-  // 計算購物車內預購商品的最近結單日
-  const _nearestDeadline = cart_snapshot
+  // 計算購物車內預購商品的最近結單日（寄信和結帳完成頁都要用）
+  const nearestDeadline = cart_snapshot
     .map(ci=>{ const p=products.find(x=>String(x.id)===String(ci.id)); return p?.type==='預購'&&p?.deadline?p.deadline:null; })
     .filter(Boolean).sort()[0] || null;
-  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc, nearestDeadline:_nearestDeadline});
+
+  persist(); updBadge();
+  sessionStorage.removeItem('tf_terms_agreed');
+  showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc, nearestDeadline});
   } catch(err){
     console.error('❌ submitCheckoutOrder error:', err);
     if(btn){ btn.disabled=false; btn.textContent='確認訂單'; }
