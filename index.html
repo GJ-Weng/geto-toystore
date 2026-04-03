@@ -1896,8 +1896,8 @@ async function sendOrderEmail({ customerName, customerEmail, orderNum, items, to
   const subjectStatus = hasDeposit ? '待付款' : '已成立';
   const headerTitle = hasDeposit ? '訂單已成立 — 待付款' : '訂單已成立！';
   const headerSub = hasDeposit
-    ? `${customerName} 您好，感謝您的訂購！您的訂單編號為 #${orderNum}，請儘快完成付款。`
-    : `${customerName} 您好，感謝您的訂購！您的訂單編號為 #${orderNum}，已成功建立。`;
+    ? `${customerName ? customerName+' 您好' : '您好'}，感謝您的訂購！您的訂單編號為 #${orderNum}，請儘快完成付款。`
+    : `${customerName ? customerName+' 您好' : '您好'}，感謝您的訂購！您的訂單編號為 #${orderNum}，已成功建立。`;
 
   const params = {
     to_name: customerName,
@@ -6342,7 +6342,7 @@ async function sendPostRequestEmail(){
       order_num:    o.order_code||String(o.id),
       subject_status: '需補款並提供寄件資訊',
       header_title: '📮 商品改以郵寄方式出貨',
-      header_sub:   `${o.customer_name||'您好'}，您的訂單商品需改為郵寄出貨，請補款並提供寄件資訊。`,
+      header_sub:   `${o.customer_name ? o.customer_name+' 您好' : '您好'}，您的訂單商品需改為郵寄出貨，請補款並提供寄件資訊。`,
       items_html:   `<p style="font-size:13px;line-height:1.8">
         ${note?`<b>說明：</b>${note}<br><br>`:''}
         <b>需補款金額：</b>NT$ ${tail.toLocaleString()}(尾款)+ NT$ ${shipFee}(運費)= <b style="color:#c0392b">NT$ ${total.toLocaleString()}</b><br><br>
@@ -6406,7 +6406,7 @@ async function sendTrackingEmail(){
       order_num:    o.order_code||String(o.id),
       subject_status: '商品已寄出',
       header_title: '📬 您的商品已寄出！',
-      header_sub:   `${o.customer_name||'您好'}，您的商品已透過郵局寄出，以下是追蹤資訊。`,
+      header_sub:   `${o.customer_name ? o.customer_name+' 您好' : '您好'}，您的商品已透過郵局寄出，以下是追蹤資訊。`,
       items_html:   `<div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:12px 0;border:1px solid #a5d6b0">
         <div style="font-size:14px;font-weight:700;color:#2e7d32;margin-bottom:8px">📬 郵局追蹤號碼</div>
         <div style="font-size:20px;font-weight:800;font-family:monospace;letter-spacing:2px;color:#1a1a1a">${code}</div>
@@ -6604,7 +6604,7 @@ async function sendStatusEmail(o, newStatus){
       order_num:      o.order_code||String(o.id),
       subject_status: st.title,
       header_title:   st.title,
-      header_sub:     `${o.customer_name||'您'} 您好，${st.sub}`,
+      header_sub:     `${o.customer_name ? o.customer_name+' 您好' : '您好'}，以下是您的訂單 ${o.order_code||('#'+o.id)} 最新狀態：`,
       items_html:     itemsHtml,
       amount_html:    amountHtml,
       bank_html:      '',
@@ -7098,7 +7098,7 @@ async function bsDoSendShipEmail(){
       order_num: selected.map(({order})=>order.order_code||order.id).join('、'),
       subject_status: '商品已到貨，賣場已建立',
       header_title: '🛒 您的商品已到貨，賣場已建立！',
-      header_sub: `${cust.name||'您'} 您好！以下商品已到貨，請點連結完成付款。`,
+      header_sub: `${cust.name ? cust.name+' 您好' : '您好'}！以下商品已到貨，請點連結完成付款。`,
       items_html: `<table style="width:100%;border-collapse:collapse">${itemsEmailHtml}</table>`,
       amount_html: `<div style="background:#e8f0fc;border-radius:8px;padding:14px 16px;margin:12px 0"><div style="font-size:13px;color:#666;margin-bottom:6px">商品合計 NT$${totalAmt.toLocaleString()}　已付訂金 NT$${totalDep.toLocaleString()}</div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:700;color:#1a56c4">應付尾款</span><span style="font-size:20px;font-weight:700;color:#c0392b">NT$${tail.toLocaleString()}</span></div></div><div style="text-align:center;margin:16px 0"><a href="${url}" style="display:inline-block;background:#ee7700;color:#fff;padding:12px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none">前往付款 →</a></div><div style="font-size:12px;color:#888;text-align:center">連結：${url}</div>`,
       bank_html: '', reminder_html: `<div style="background:#fff3cd;border-radius:6px;padding:10px 14px;font-size:12px;color:#856404">⚠️ 請儘快完成付款。</div>`,
@@ -7143,7 +7143,7 @@ function sendShipEmail(orderId){
       <h3>📧 寄賣場連結給顧客</h3>
       <p>
         <b>${o.customer_name||'顧客'}</b>　${o.user_email}<br>
-        訂單 #${o.id}
+        訂單 #${o.order_code||o.id}
       </p>
       <div class="co-field" style="margin-bottom:14px">
         <div class="co-lbl" style="margin-bottom:6px">貼上賣貨便賣場連結</div>
@@ -7186,7 +7186,7 @@ async function doSendShipEmail(orderId){
       order_num:      o.order_code||String(o.id),
       subject_status: '賣場已建立，請前往付款',
       header_title:   '🛒 您的專屬賣場已建立！',
-      header_sub:     `${o.customer_name||'您'} 您好！您的訂單尾款賣場已建立，請點連結完成付款。`,
+      header_sub:     `${o.customer_name ? o.customer_name+' 您好' : '您好'}！您的訂單尾款賣場已建立，請點連結完成付款。`,
       items_html:     `<table style="width:100%;border-collapse:collapse">
         ${items.map(it=>`<tr><td style="padding:8px;border-bottom:1px solid #eee">${it.product_name||''}${it.variant?' ('+it.variant+')':''}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(it.price||0).toLocaleString()}</td></tr>`).join('')}
       </table>`,
@@ -7916,7 +7916,7 @@ function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
       order_num:      o.order_code||String(o.id),
       subject_status: subjectLabel,
       header_title:   subjectLabel,
-      header_sub:     `${o.customer_name||'您'} 您好，您的訂單 ${o.order_code||('#'+o.id)} 有以下異動，請確認：`,
+      header_sub:     `${o.customer_name ? o.customer_name+' 您好' : '您好'}，您的訂單 ${o.order_code||('#'+o.id)} 有以下異動，請確認：`,
       items_html:     _itemsHtml,
       amount_html:    _reminderHtml,
       bank_html:      '',
