@@ -6165,7 +6165,8 @@ function _aoRenderCards(){
           if(!Array.isArray(_it)||!_it.length) _it=[{price:o.price,deposit:0}];
           const _tot = _it.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
           // o.price = 實際收取的訂金（比 items.deposit 更準確，尤其首購50%時）
-          const _dep = o.price || _it.reduce((s,i)=>s+(i.deposit||0),0);
+          // 用 ?? 而非 ||，讓 price=0（免訂金）時不 fallback 到 items.deposit
+          const _dep = (o.price != null) ? (o.price||0) : _it.reduce((s,i)=>s+(i.deposit||0),0);
           const _tail= _tot-_dep;
           return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <div style="display:flex;gap:16px;font-size:12px">
