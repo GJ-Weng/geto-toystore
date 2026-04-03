@@ -2086,7 +2086,12 @@ async function syncFavsToSb(){
     await _sbReady;
     const uid=(await _sb.auth.getUser()).data?.user?.id;
     if(!uid) return;
-    await _sb.from('favourites').upsert({user_id:uid,product_ids:favs,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+    await _sb.from('favourites').upsert({
+      user_id: uid,
+      user_email: user.email,   // 同時存 email，供通知查詢用
+      product_ids: favs,
+      updated_at: new Date().toISOString()
+    },{onConflict:'user_id'});
   }catch(e){}
 }
 async function syncIpFollowsToSb(){
@@ -5769,6 +5774,35 @@ async function saveProduct(){
         ]);
       }
     }
+
+    // ── 通知有收藏此商品的客人（排除已在上面通知過的訂單客人）──────────
+    try{
+      const _notifiedEmails = new Set(_affOrders.map(o=>o.user_email).filter(Boolean));
+      const _pidNum = parseInt(_savedProductId);
+      const _pidVal = isNaN(_pidNum) ? _savedProductId : _pidNum;
+      // favourites 表已有 user_email 欄位（需先執行 ALTER TABLE）
+      const {data: _favRows} = await _sb.from('favourites')
+        .select('user_email')
+        .contains('product_ids', [_pidVal])
+        .not('user_email', 'is', null);
+
+      if(_favRows && _favRows.length){
+        for(const _fRow of _favRows){
+          const _favEmail = _fRow.user_email;
+          if(!_favEmail || _notifiedEmails.has(_favEmail)) continue;
+
+          if(_priceChanged){
+            const _favPriceBody = `您收藏的「${name}」售價已從 NT$ ${_oldPrice.toLocaleString()} 調整為 NT$ ${price.toLocaleString()}。`;
+            await insertNotification(_favEmail, 'price_change', '💰 收藏商品價格更新', _favPriceBody, null, _savedProductId);
+          }
+          if(_deadlineChanged){
+            const _favDeadlineBody = `您收藏的「${name}」結單日期已從 ${_oldDeadline||'未設定'} 調整為 ${newDeadline||'未設定'}。`;
+            await insertNotification(_favEmail, 'deadline_change', '📅 收藏商品結單時間調整', _favDeadlineBody, null, _savedProductId);
+          }
+          _notifiedEmails.add(_favEmail);
+        }
+      }
+    } catch(e){ console.warn('notify favs error:', e); }
   }
 
   // 先顯示成功，背景靜默 sync（避免等待 sync 造成 UI 卡頓）
@@ -6565,18 +6599,18 @@ async function sendStatusEmail(o, newStatus){
   try {
     emailjs.init({ publicKey: emailjsConfig.publicKey });
     await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
-      to_name:       o.customer_name||'顧客',
-      to_email:      o.user_email,
-      order_num:     String(o.id),
+      to_name:        o.customer_name||'顧客',
+      to_email:       o.user_email,
+      order_num:      o.order_code||String(o.id),
       subject_status: st.title,
-      header_title:  st.title,
-      header_sub:    `${o.customer_name||'您'} 您好，${st.sub}`,
-      items_html:    itemsHtml,
-      amount_html:   amountHtml,
-      bank_html:     '',
-      reminder_html: reminderHtml,
-      delivery:      o.store||'',
-      phone:         o.phone||'',
+      header_title:   st.title,
+      header_sub:     `${o.customer_name||'您'} 您好，${st.sub}`,
+      items_html:     itemsHtml,
+      amount_html:    amountHtml,
+      bank_html:      '',
+      reminder_html:  reminderHtml,
+      delivery:       o.store||'',
+      phone:          o.phone||'',
     });
     showToast(`📧 已通知顧客`);
   } catch(err){
@@ -7149,7 +7183,7 @@ async function doSendShipEmail(orderId){
     await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
       to_name:        o.customer_name||'顧客',
       to_email:       o.user_email,
-      order_num:      String(o.id),
+      order_num:      o.order_code||String(o.id),
       subject_status: '賣場已建立，請前往付款',
       header_title:   '🛒 您的專屬賣場已建立！',
       header_sub:     `${o.customer_name||'您'} 您好！您的訂單尾款賣場已建立，請點連結完成付款。`,
@@ -7879,10 +7913,10 @@ function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
     emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
       to_name:        o.customer_name||'顧客',
       to_email:       o.user_email,
-      order_num:      String(o.order_code||o.id),
+      order_num:      o.order_code||String(o.id),
       subject_status: subjectLabel,
       header_title:   subjectLabel,
-      header_sub:     `${o.customer_name||'您'} 您好，您的訂單 <b>${o.order_code||('#'+o.id)}</b> 有以下異動，請確認：`,
+      header_sub:     `${o.customer_name||'您'} 您好，您的訂單 ${o.order_code||('#'+o.id)} 有以下異動，請確認：`,
       items_html:     _itemsHtml,
       amount_html:    _reminderHtml,
       bank_html:      '',
