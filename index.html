@@ -2290,7 +2290,14 @@ const ORDER_STATUS = {
   shipped:   {label:'已完成',   cls:'os-done'},
   cancelled: {label:'已取消',   cls:'os-cancelled'},
 };
-function oStatusInfo(s){ return ORDER_STATUS[s] || {label:s, cls:'os-confirmed'}; }
+function oStatusInfo(s, price){ 
+  if(s === 'new'){
+    // price=0 → 待確認（免訂金），price>0 → 待付款
+    if((price||0) <= 0) return {label:'待確認', cls:'os-confirmed'};
+    return {label:'待付款', cls:'os-pending'};
+  }
+  return ORDER_STATUS[s] || {label:s, cls:'os-confirmed'};
+}
 
 let ordersTabFilter = 'all';
 let allOrdersCache = [];
@@ -2525,6 +2532,7 @@ async function autoExpireOrders(orders){
   const toCancel = [];
   for(const o of orders){
     if(o.status !== 'new') continue; // 只處理待付款
+    if((o.price||0) <= 0) continue;  // 免訂金（待確認）不自動取消，等管理員處理
     // 計算付款期限：min(下單後48小時, 訂單內最近結單日 23:59)
     const created = new Date(o.created_at);
     const deadline48h = new Date(created.getTime() + 48*60*60*1000);
@@ -2597,7 +2605,7 @@ function renderOrdersTabs(){
   allOrdersCache.forEach(o=>{ counts.all++; if(counts[o.status]!==undefined) counts[o.status]++; });
   const tabs = [
     {key:'all',     label:'全部'},
-    {key:'new',     label:'待付款'},
+    {key:'new',     label:'待處理'},
     {key:'paid',    label:'已成立'},
     {key:'partial', label:'部分出貨'},
     {key:'shipped', label:'已完成'},
@@ -2633,8 +2641,8 @@ function renderOrdersList(){
     if(!Array.isArray(items)||!items.length){
       items=[{product_emoji:o.product_emoji,product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price}];
     }
-    const si = oStatusInfo(o.status);
-    const dep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
+    const si = oStatusInfo(o.status, o.price);
+    const dep = o.price || 0;
     const realTotal = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
     const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="order-card" onclick="openOrderDetail(${o.id})">
@@ -2665,7 +2673,8 @@ function renderOrdersList(){
       <div class="order-card-foot">
         <div class="ocf-info">
           <span>${dateStr}</span>
-          ${o.status==='new'?'<span style="background:#fff4e5;color:#e67300;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">需付款</span>':''}
+          ${o.status==='new'&&(o.price||0)>0?'<span style="background:#fff4e5;color:#e67300;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">需付款</span>':''}
+          ${o.status==='new'&&(o.price||0)<=0?'<span style="background:#e8f0fc;color:#1a56c4;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px">待確認</span>':''}
           ${o.status==='new'&&(o.price||0)>0?('<button class="pay-report-btn" onclick="event.stopPropagation();openPayReport('+o.id+')" style="background:'+(o.payment_code?'#eef7f1':'var(--gold)')+';color:'+(o.payment_code?'#2e7d32':'#fff')+';border:none;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer">'+(o.payment_code?'✅ 已回報末五碼':'💳 回報末五碼')+'</button>'):''}
         </div>
         <div class="ocf-total">
@@ -2691,17 +2700,19 @@ function openOrderDetail(orderId){
   if(!Array.isArray(items)||!items.length){
     items=[{product_emoji:o.product_emoji,product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price}];
   }
-  const si = oStatusInfo(o.status);
-  const dep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
+  const si = oStatusInfo(o.status, o.price);
+  const dep = o.price || 0; // 應付訂金直接用 orders.price（管理員可調整過）
   const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const tail = total - dep;
+  const tail = Math.max(0, total - dep);
   const canCancel = (o.status==='new');
+  const hasDep = dep > 0; // 是否需要付訂金
   const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
 
   document.getElementById('odHeaderStatus').innerHTML = `<span class="order-card-status ${si.cls}">${si.label}</span>`;
 
   document.getElementById('odBody').innerHTML = `
     ${o.status==='new'?`
+    ${hasDep ? `
     <div class="od-banner pending">
       <span class="od-banner-icon">⚠</span>
       <span class="od-banner-text">待付訂金</span>
@@ -2731,7 +2742,12 @@ function openOrderDetail(orderId){
           </span>
         </button>`
     }
-    `:''}`:
+    `:''}` : `
+    <div class="od-banner" style="background:#e8f0fc;border-left:4px solid #1a56c4">
+      <span class="od-banner-icon" style="color:#1a56c4">ℹ</span>
+      <span class="od-banner-text" style="color:#1a56c4">此訂單免付訂金，等待管理員確認成立</span>
+    </div>
+    `}`:
     o.status==='cancelled'?`<div class="od-banner" style="background:#f5f5f5"><span class="od-banner-text" style="color:#888">此訂單已取消</span></div>`:''}
 
     <div class="od-section">訂購商品</div>
@@ -2760,7 +2776,7 @@ function openOrderDetail(orderId){
       <div class="od-row"><span class="od-row-lbl">配送方式</span><span class="od-row-val">${o.store||'—'}</span></div>
       <div class="od-row"><span class="od-row-lbl">商品合計</span><span class="od-row-val">NT$ ${total.toLocaleString()}</span></div>
       <div class="od-row"><span class="od-row-lbl">尾款(取貨時付)</span><span class="od-row-val">NT$ ${tail.toLocaleString()}</span></div>
-      <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">NT$ ${dep.toLocaleString()}</span></div>
+      <div class="od-row total"><span class="od-row-lbl">應付訂金</span><span class="od-row-val">${hasDep ? `NT$ ${dep.toLocaleString()}` : '<span style="color:#2e7d32;font-weight:700">免訂金</span>'}</span></div>
     </div>
 
     ${o.payment_code&&['paid','partial','shipped'].includes(o.status)?`
@@ -5359,8 +5375,8 @@ function renderAdminList(){
       const _oItems = items.filter(it=>String(it.product_id)===pid);
       const _chips = _oItems.map(it=>`<span class="p-order-item-chip">${it.variant&&it.variant!=='單一規格'?it.variant+' ':''}×${it.qty}</span>`).join('');
       const _statusInfo = {new:'待付款',paid:'已成立',partial:'部分出貨',shipped:'已完成',cancelled:'已取消'};
-      const _sLabel = _statusInfo[o.status]||o.status;
-      const _sColor = {new:'#e67300',paid:'#1a56c4',partial:'#6b3fc5',shipped:'#2e7d32',cancelled:'#888'}[o.status]||'#888';
+      const _sLabel = o.status==='new' ? ((o.price||0)<=0 ? '待確認' : '待付款') : (_statusInfo[o.status]||o.status);
+      const _sColor = {new:(o.price||0)<=0?'#1a56c4':'#e67300',paid:'#1a56c4',partial:'#6b3fc5',shipped:'#2e7d32',cancelled:'#888'}[o.status]||'#888';
       return `<div class="p-order-row">
         <div style="display:flex;flex-direction:column;gap:0;width:100%">
           <div class="p-order-head">
@@ -5793,6 +5809,14 @@ const AO_STATUS = {
   shipped:      {label:'已完成',   cls:'os-done',      bg:'#eef7f1',color:'#2e7d32'},
   cancelled:    {label:'已取消',   cls:'os-cancelled', bg:'#f5f5f5',color:'#888'},
 };
+// 後台狀態輔助：new 依 price 區分「待付款」vs「待確認」
+function aoStatusInfo(o){
+  const base = AO_STATUS[o.status] || {label:o.status, bg:'#eee', color:'#555'};
+  if(o.status === 'new' && (o.price||0) <= 0){
+    return {...base, label:'待確認', cls:'os-confirmed', bg:'#e8f0fc', color:'#1a56c4'};
+  }
+  return base;
+}
 
 async function renderOrderList(){
   const ol=document.getElementById('orderList');
@@ -5856,7 +5880,7 @@ function _aoRenderStats(){
 
   document.getElementById('aoStats').innerHTML=`
     <div class="ao-stat"><div class="ao-stat-n">${counts.all}</div><div class="ao-stat-l">全部訂單</div></div>
-    <div class="ao-stat pending"><div class="ao-stat-n">${counts.new}</div><div class="ao-stat-l">待付款</div></div>
+    <div class="ao-stat pending"><div class="ao-stat-n">${counts.new}</div><div class="ao-stat-l">待處理</div></div>
     <div class="ao-stat confirmed"><div class="ao-stat-n">${counts.paid+counts.partial}</div><div class="ao-stat-l">進行中</div></div>
     <div class="ao-stat shipped"><div class="ao-stat-n">${counts.shipped}</div><div class="ao-stat-l">已完成</div></div>
     <div class="ao-stat"><div class="ao-stat-n" style="font-size:15px;color:#e67300">NT$${depositAmt.toLocaleString()}</div><div class="ao-stat-l">已收訂金</div></div>
@@ -5868,7 +5892,7 @@ function _aoRenderTabs(){
   _allAdminOrders.forEach(o=>{counts.all++;if(counts[o.status]!==undefined)counts[o.status]++;});
   const tabs=[
     {key:'all',label:'全部'},
-    {key:'new',label:'待付款'},
+    {key:'new',label:'待處理'},
     {key:'paid',label:'已成立'},
     {key:'partial',label:'部分出貨'},
     {key:'pickup_ready',label:'待自取'},
@@ -6042,7 +6066,7 @@ function _aoRenderCards(){
     if(!Array.isArray(items)||!items.length){
       items=[{product_emoji:o.product_emoji,product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price}];
     }
-    const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
+    const si=aoStatusInfo(o);
     const dateStr=o.created_at?new Date(o.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
     const _oIsPickup  = (o.store||'').startsWith('自取');
     // 判斷是否有訂金(有訂金 = 預購訂單，需確認付款)
@@ -6438,7 +6462,7 @@ function searchCustomer(){
       <!-- 訂單列表 -->
       <div style="max-height:280px;overflow-y:auto">
         ${g.orders.map(o=>{
-          const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
+          const si=aoStatusInfo(o);
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
           const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||o.price||0;
@@ -6699,7 +6723,7 @@ function renderFwlTab(){
         +groups.active.map(o=>{
           let items=[]; try{items=JSON.parse(o.note||'[]');}catch(e){}
           const total=items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0)||0;
-          const si=AO_STATUS[o.status]||{label:o.status,bg:'#eee',color:'#555'};
+          const si=aoStatusInfo(o);
           const dateStr=o.created_at?new Date(o.created_at).toLocaleDateString('zh-TW'):'';
           return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--white);border-radius:8px;margin-bottom:6px;border-left:3px solid #f9b84b">'
             +'<div style="flex:1">'
@@ -7683,48 +7707,35 @@ function closeAdjustAmount(){
 async function confirmAdjustAmount(){
   const o = _allAdminOrders.find(x=>x.id===_adjustOrderId);
   if(!o){ closeAdjustAmount(); return; }
-  const newTotal = parseInt(document.getElementById('adjustAmtTotal').value)||0;
   const newDep   = parseInt(document.getElementById('adjustAmtDep').value)||0;
   const notify   = document.getElementById('adjustAmtNotify').checked;
+  const oldDep   = o.price || 0; // 舊訂金，用於通知內文
 
-  // 更新 items 裡的 price / deposit（按比例分配，這裡簡化為只更新 order.price 和 items 第一筆）
-  let items=[];
-  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
-  if(items.length){
-    // 重新計算每筆商品的訂金（按原比例重新分配）
-    const oldDep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||1;
-    items = items.map(i=>({
-      ...i,
-      price: Math.round(newTotal / items.reduce((s,x)=>s+(x.qty||1),0)),
-      deposit: oldDep > 0 ? Math.round((i.deposit||0)*(i.qty||1) * newDep / oldDep / (i.qty||1)) : newDep,
-    }));
-  }
-
+  // ✅ 只更新 orders.price（應付訂金），不動 note/items 裡的商品明細
   const btn = document.getElementById('adjustAmtConfirmBtn');
   if(btn){ btn.disabled=true; btn.textContent='更新中...'; }
 
-  const {error} = await _sb.from('orders').update({
-    price: newDep,
-    note: JSON.stringify(items)
-  }).eq('id', _adjustOrderId);
+  const {error} = await _sb.from('orders').update({ price: newDep }).eq('id', _adjustOrderId);
 
   if(btn){ btn.disabled=false; btn.textContent='確認更新'; }
 
   if(error){ showToast('❌ 更新失敗：'+error.message); return; }
 
-  // 同步本地快取
+  // 同步本地快取（只更新 price，不動 note）
   o.price = newDep;
-  o.note = JSON.stringify(items);
 
+  // 組通知內文
   if(notify && o.user_email){
-    await insertNotification(
-      o.user_email, 'order_price_change',
-      '📋 訂單金額已調整',
-      `您的訂單 ${o.order_code||('#'+o.id)} 金額已更新，應付金額：NT$ ${newDep.toLocaleString()}，請確認後完成付款。`,
-      o.id, null
-    );
-    // 同時寄 Email 通知
-    sendStatusEmailCustom(o, `您的訂單 ${o.order_code||('#'+o.id)} 金額已更新，應付金額：NT$ ${newDep.toLocaleString()}，請確認後完成付款。`, '訂單金額調整通知');
+    let _notifBody, _emailBody;
+    if(newDep <= 0){
+      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已調整為免訂金，請確認訂單及尾款。`;
+      _emailBody = _notifBody;
+    } else {
+      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已從 NT$ ${oldDep.toLocaleString()} 調整為 NT$ ${newDep.toLocaleString()}，請確認訂單及尾款，並盡速匯款。`;
+      _emailBody = _notifBody;
+    }
+    await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
+    sendStatusEmailCustom(o, _emailBody, '訂單金額調整通知');
   }
 
   closeAdjustAmount();
@@ -7732,18 +7743,25 @@ async function confirmAdjustAmount(){
   showToast('✅ 訂單金額已更新');
 }
 
-// 簡易自訂內容 Email 通知
+// 簡易自訂內容 Email 通知（調整金額用）
 function sendStatusEmailCustom(o, bodyMsg, subjectLabel){
   if(!o?.user_email) return;
+  if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId) return;
   try{
-    emailjs.send('service_geto','template_order_status',{
-      to_email:    o.user_email,
-      to_name:     o.customer_name||'顧客',
-      order_code:  o.order_code||('#'+o.id),
+    emailjs.init({ publicKey: emailjsConfig.publicKey });
+    emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+      to_name:        o.customer_name||'顧客',
+      to_email:       o.user_email,
+      order_num:      String(o.id),
       subject_status: subjectLabel,
-      status_label:   subjectLabel,
-      body_message:   bodyMsg,
-      reminder_html: '',
+      header_title:   subjectLabel,
+      header_sub:     `${o.customer_name||'您'} 您好，${bodyMsg}`,
+      items_html:     '',
+      amount_html:    `<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0;font-size:14px;color:#8a4500">${bodyMsg}</div>`,
+      bank_html:      '',
+      reminder_html:  '',
+      delivery:       o.store||'',
+      phone:          o.phone||'',
     });
   } catch(e){ console.warn('sendStatusEmailCustom error:', e); }
 }
