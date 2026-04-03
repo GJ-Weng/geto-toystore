@@ -5737,9 +5737,9 @@ async function saveProduct(){
   // ── 儲存成功後：發通知給受影響的客人 ──────────────────────
   if(editingId && (_priceChanged || _deadlineChanged)){
     const _savedProductId = editingId;
-    // 通知有待付款訂單的客人
+    // 通知有待付款/待確認訂單的客人（status='new'，不管有沒有回報末五碼都要通知）
     const _affOrders = (_allAdminOrders||[]).filter(o=>
-      o.status==='new' && !o.payment_code && o.user_email &&
+      o.status==='new' && o.user_email &&
       (() => {
         try{ return JSON.parse(o.note||'[]').some(it=>String(it.product_id)===String(_savedProductId)); }
         catch(e){ return String(o.product_id)===String(_savedProductId); }
@@ -5755,16 +5755,14 @@ async function saveProduct(){
           await _sb.from('orders').update({ price: _newDep, note: JSON.stringify(_items) }).eq('id', _ao.id);
           _ao.price = _newDep; _ao.note = JSON.stringify(_items);
         } catch(e){ console.warn('update order price error:', e); }
-        await insertNotification(_ao.user_email, 'price_change',
-          '💰 商品價格已更新',
-          `您訂單中的「${name}」售價已調整為 NT$ ${price.toLocaleString()}，請確認後完成付款。`,
-          _ao.id, _savedProductId);
+        const _priceNotifBody = `您訂單中的「${name}」售價已從 NT$ ${_oldPrice.toLocaleString()} 調整為 NT$ ${price.toLocaleString()}，請確認後完成付款。`;
+        await insertNotification(_ao.user_email, 'price_change', '💰 商品價格已更新', _priceNotifBody, _ao.id, _savedProductId);
+        sendStatusEmailCustom(_ao, _priceNotifBody, '商品價格調整通知');
       }
       if(_deadlineChanged){
-        await insertNotification(_ao.user_email, 'deadline_change',
-          '📅 結單時間已調整',
-          `您訂單中的「${name}」結單日期已更新為 ${newDeadline||'未設定'}，請盡快確認並完成付款。`,
-          _ao.id, _savedProductId);
+        const _deadlineNotifBody = `您訂單中的「${name}」結單日期已從 ${_oldDeadline||'未設定'} 調整為 ${newDeadline||'未設定'}，請盡快確認並完成付款。`;
+        await insertNotification(_ao.user_email, 'deadline_change', '📅 結單時間已調整', _deadlineNotifBody, _ao.id, _savedProductId);
+        sendStatusEmailCustom(_ao, _deadlineNotifBody, '結單時間調整通知');
       }
     }
   }
@@ -7686,7 +7684,8 @@ document.addEventListener('click', e=>{
 
 // ─── 調整訂單金額 Modal ─────────────────────────────────────
 let _adjustOrderId = null;
-let _adjustItems = []; // 暫存正在編輯的 items
+let _adjustItems = [];      // 暫存正在編輯的 items
+let _adjustOldPrices = [];  // 舊單價快照，用於比對通知
 
 function openAdjustAmount(orderId){
   const o = _allAdminOrders.find(x=>x.id===orderId);
@@ -7696,7 +7695,8 @@ function openAdjustAmount(orderId){
   let items=[];
   try{ items=JSON.parse(o.note||'[]'); }catch(e){}
   if(!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:o.price}];
-  _adjustItems = items.map(i=>({...i})); // 深拷貝，避免污染原資料
+  _adjustItems    = items.map(i=>({...i}));        // 深拷貝，供編輯
+  _adjustOldPrices = items.map(i=>i.price||0);     // 保存舊單價，供通知比對
 
   document.getElementById('adjustAmtOrderNum').textContent = o.order_code||('#'+o.id);
   document.getElementById('adjustAmtDep').value = o.price || 0;
@@ -7754,6 +7754,7 @@ function closeAdjustAmount(){
   document.getElementById('adjustAmtModal').style.display='none';
   _adjustOrderId = null;
   _adjustItems = [];
+  _adjustOldPrices = [];
 }
 
 async function confirmAdjustAmount(){
@@ -7780,12 +7781,34 @@ async function confirmAdjustAmount(){
 
   // 通知
   if(notify && o.user_email){
-    let _notifBody;
-    if(newDep <= 0){
-      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已調整為免訂金，請確認訂單及尾款。`;
-    } else {
-      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已從 NT$ ${oldDep.toLocaleString()} 調整為 NT$ ${newDep.toLocaleString()}，請確認訂單及尾款，並盡速匯款。`;
+    // 找出單價有變動的商品
+    const _changedLines = _adjustItems.map((item, idx) => {
+      const oldPrice = _adjustOldPrices[idx] ?? 0;
+      const newPrice = item.price || 0;
+      if(oldPrice === newPrice) return null;
+      const shortName = (item.product_name||'').slice(0,20) + ((item.product_name||'').length>20?'…':'');
+      const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
+      return `・${shortName}${varStr}：NT$ ${oldPrice.toLocaleString()} → NT$ ${newPrice.toLocaleString()}`;
+    }).filter(Boolean);
+
+    const _depChanged = newDep !== oldDep;
+    let _depLine = '';
+    if(_depChanged){
+      _depLine = newDep <= 0
+        ? `・應付訂金：NT$ ${oldDep.toLocaleString()} → 免訂金`
+        : `・應付訂金：NT$ ${oldDep.toLocaleString()} → NT$ ${newDep.toLocaleString()}`;
     }
+
+    const _allLines = [..._changedLines, _depLine].filter(Boolean);
+    let _notifBody;
+    if(_allLines.length === 0){
+      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額資訊已更新，請確認訂單。`;
+    } else {
+      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額已調整：\n\n${_allLines.join('\n')}`;
+      if(newDep > 0) _notifBody += '\n\n請確認訂單及尾款，並盡速匯款。';
+      else _notifBody += '\n\n請確認訂單及尾款。';
+    }
+
     await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
     sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知');
   }
