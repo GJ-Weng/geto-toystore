@@ -5775,31 +5775,29 @@ async function saveProduct(){
       }
     }
 
-    // ── 通知有收藏此商品的客人（排除已在上面通知過的訂單客人）──────────
+    // ── 通知有收藏此商品的客人（收藏通知獨立發送，不排除已收到訂單通知的人）──────────
     try{
-      const _notifiedEmails = new Set(_affOrders.map(o=>o.user_email).filter(Boolean));
+      const _pidStr = String(_savedProductId);
       const _pidNum = parseInt(_savedProductId);
-      const _pidVal = isNaN(_pidNum) ? _savedProductId : _pidNum;
-      // favourites 表已有 user_email 欄位（需先執行 ALTER TABLE）
-      const {data: _favRows} = await _sb.from('favourites')
-        .select('user_email')
-        .contains('product_ids', [_pidVal])
-        .not('user_email', 'is', null);
+      // product_ids 可能存字串"61"或數字61，兩種都要查
+      const [{data: _favRows1}, {data: _favRows2}] = await Promise.all([
+        _sb.from('favourites').select('user_email').contains('product_ids', [_pidStr]).not('user_email','is',null),
+        isNaN(_pidNum) ? {data:[]} : _sb.from('favourites').select('user_email').contains('product_ids', [_pidNum]).not('user_email','is',null),
+      ]);
+      // 合併去重
+      const _favEmails = new Set([
+        ...(_favRows1||[]).map(r=>r.user_email),
+        ...(_favRows2||[]).map(r=>r.user_email),
+      ].filter(Boolean));
 
-      if(_favRows && _favRows.length){
-        for(const _fRow of _favRows){
-          const _favEmail = _fRow.user_email;
-          if(!_favEmail || _notifiedEmails.has(_favEmail)) continue;
-
-          if(_priceChanged){
-            const _favPriceBody = `您收藏的「${name}」售價已從 NT$ ${_oldPrice.toLocaleString()} 調整為 NT$ ${price.toLocaleString()}。`;
-            await insertNotification(_favEmail, 'price_change', '💰 收藏商品價格更新', _favPriceBody, null, _savedProductId);
-          }
-          if(_deadlineChanged){
-            const _favDeadlineBody = `您收藏的「${name}」結單日期已從 ${_oldDeadline||'未設定'} 調整為 ${newDeadline||'未設定'}。`;
-            await insertNotification(_favEmail, 'deadline_change', '📅 收藏商品結單時間調整', _favDeadlineBody, null, _savedProductId);
-          }
-          _notifiedEmails.add(_favEmail);
+      for(const _favEmail of _favEmails){
+        if(_priceChanged){
+          const _favPriceBody = `您收藏的「${name}」售價已從 NT$ ${_oldPrice.toLocaleString()} 調整為 NT$ ${price.toLocaleString()}。`;
+          await insertNotification(_favEmail, 'price_change', '💰 收藏商品價格更新', _favPriceBody, null, _savedProductId);
+        }
+        if(_deadlineChanged){
+          const _favDeadlineBody = `您收藏的「${name}」結單日期已從 ${_oldDeadline||'未設定'} 調整為 ${newDeadline||'未設定'}。`;
+          await insertNotification(_favEmail, 'deadline_change', '📅 收藏商品結單時間調整', _favDeadlineBody, null, _savedProductId);
         }
       }
     } catch(e){ console.warn('notify favs error:', e); }
