@@ -803,6 +803,18 @@ textarea.fi{min-height:64px;resize:vertical}
 
 @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes ipPulse{0%,100%{box-shadow:0 0 0 0 rgba(234,88,12,.4)}50%{box-shadow:0 0 0 6px rgba(234,88,12,0)}}
+
+/* ─── 通知面板 ──────────────────────────────── */
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;display:flex;gap:10px;align-items:flex-start}
+.notif-item:hover{background:#f8f8f8}
+.notif-item.unread{background:#fffbf0}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:#e74c3c;flex-shrink:0;margin-top:5px}
+.notif-dot.read{background:#ddd}
+.notif-body{flex:1;min-width:0}
+.notif-title{font-size:13px;font-weight:600;color:var(--ink);line-height:1.4;margin-bottom:2px}
+.notif-body-text{font-size:12px;color:var(--ink2);line-height:1.5}
+.notif-time{font-size:10px;color:var(--ink3);margin-top:4px}
+.notif-empty{padding:32px;text-align:center;color:var(--ink3);font-size:13px}
 .ip-bell-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid;font-size:12px;font-weight:600;cursor:pointer;background:none;transition:all .2s;line-height:1.4;white-space:nowrap}
 .ip-bell-btn.has-alert{border-color:#ea580c;color:#ea580c;background:#fff7ed;animation:ipPulse 2s infinite}
 .ip-bell-btn.has-alert:hover{background:#ffedd5}
@@ -823,7 +835,6 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <div class="nlinks">
       <a onclick="goHome()">商品</a>
-      <a onclick="openCart()">購物車</a>
       <a onclick="goOrders()">我的訂單</a>
       <a onclick="goFavs()" id="navFavsLink">我的收藏 <span id="navFavsBadge" style="display:none;font-size:11px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;margin-left:2px;font-weight:700"></span></a>
       <button onclick="goToIpAlerts()" id="navIpBell" class="ip-bell-btn no-alert" style="display:none">
@@ -840,6 +851,19 @@ textarea.fi{min-height:64px;resize:vertical}
       <button class="nbtn" onclick="openCart()">
         🛒 <span class="ntxt">購物車 </span><span class="cbadge" id="cartCount">0</span>
       </button>
+      <!-- 通知鈴鐺 -->
+      <div id="notifBellWrap" style="display:none;position:relative">
+        <button class="nbtn" id="notifBell" onclick="toggleNotifPanel()" style="position:relative;font-size:18px;padding:0 10px">
+          🔔<span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;font-size:10px;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1"></span>
+        </button>
+        <div id="notifPanel" style="display:none;position:absolute;right:0;top:44px;width:340px;max-height:480px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:600;overflow:hidden;flex-direction:column">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:14px;font-weight:700">通知</span>
+            <button onclick="markAllNotifsRead()" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer">全部已讀</button>
+          </div>
+          <div id="notifList" style="overflow-y:auto;max-height:400px"></div>
+        </div>
+      </div>
       <div id="authArea"></div>
     </div>
   </div>
@@ -1616,6 +1640,37 @@ textarea.fi{min-height:64px;resize:vertical}
         style="flex:1;height:42px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
         💬 線上客服
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- 調整訂單金額 Modal -->
+<div id="adjustAmtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeAdjustAmount()">
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">✏️ 調整訂單金額</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:4px">訂單 <b id="adjustAmtOrderNum"></b></div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:16px;background:#f5f5f5;border-radius:6px;padding:8px 10px" id="adjustAmtItems"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:4px">總金額 NT$</label>
+        <input id="adjustAmtTotal" type="number" min="0"
+          style="width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:15px;font-family:monospace;outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:4px">應付訂金 NT$</label>
+        <input id="adjustAmtDep" type="number" min="0"
+          style="width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:15px;font-family:monospace;outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);margin-bottom:16px;cursor:pointer">
+      <input type="checkbox" id="adjustAmtNotify" style="width:16px;height:16px">
+      通知客人金額已調整（站內通知 + Email）
+    </label>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeAdjustAmount()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
+      <button id="adjustAmtConfirmBtn" onclick="confirmAdjustAmount()" style="flex:2;height:42px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認更新</button>
     </div>
   </div>
 </div>
@@ -4076,6 +4131,18 @@ async function submitCheckoutOrder(){
 
   persist(); updBadge();
   sessionStorage.removeItem('tf_terms_agreed');
+
+  // 寫入下單站內通知
+  if(user?.email){
+    const _orderNums = [stockOrderNum,preOrderNum].filter(Boolean).join(' / ');
+    const _depTotal = stockDep + preDep;
+    const _notifBody = _depTotal > 0
+      ? `訂單 ${_orderNums} 已建立，應付訂金 NT$ ${_depTotal.toLocaleString()}，請於 48 小時內完成匯款。`
+      : `訂單 ${_orderNums} 已建立，我們會盡快為您處理。`;
+    insertNotification(user.email, 'order_status', '🎉 訂單已成立', _notifBody,
+      null, null);
+  }
+
   showConfirmPage({stockOrderNum, preOrderNum, stockDep, preDep, hasMixed, hasStock, hasPre, delivery:selectedDelivery, pickupLoc:selectedPickupLoc, nearestDeadline});
   } catch(err){
     console.error('❌ submitCheckoutOrder error:', err);
@@ -4614,6 +4681,8 @@ _sbReady.then(() => {
       showToast('👋 歡迎，'+user.name.split(' ')[0]+'！');
       // 登入後從 Supabase 載入購物車、收藏、IP追蹤
       loadUserDataFromSb();
+      // 登入後載入站內通知
+      loadNotifications();
       // 登入後檢查 IP 開單通知
       setTimeout(checkIpNotifications, 500);
       // 登入後拉訂單重建限購記錄(確保與伺服器同步)
@@ -4631,6 +4700,8 @@ _sbReady.then(() => {
     cart = []; // 登出時清空購物車（Supabase 保留，下次登入重新載入）
     orderedQtyMap = {}; // 登出時清除已下單記錄
     localStorage.removeItem('tf_ordered_v2');
+    _notifCache = []; // 清通知快取
+    renderNotifBell(); // 隱藏鈴鐺
     persist();
     renderAuth();
     updBadge();
@@ -5568,10 +5639,11 @@ async function saveProduct(){
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
   const variantPrices = getVariantPrices();
   const _ptype = document.getElementById('fType').value;
+  const newDeadline = document.getElementById('fDeadline').value;
   const data={imageUrl:imgUrl,imageUrls:[..._adminImgs],name,brand,price,deposit,variantPrices,
     limit:document.getElementById('fLimit').value.trim(),
     type:_ptype,
-    deadline:document.getElementById('fDeadline').value,
+    deadline:newDeadline,
     arrival:document.getElementById('fArrival').value.trim(),
     ip:document.getElementById('fIP').value,
     form:document.getElementById('fForm').value,
@@ -5583,6 +5655,46 @@ async function saveProduct(){
     variantStocks: _ptype==='現貨' ? getVariantStocks() : {},
     stockStatus: _ptype==='現貨' ? (document.getElementById('fStockStatus')?.value||'in_stock') : 'in_stock',
   };
+
+  // ── 偵測編輯時的價格/結單日期變動 ──────────────────────────
+  let _priceChanged = false, _deadlineChanged = false;
+  let _oldPrice = 0, _oldDeadline = '';
+  if(editingId){
+    const _oldProduct = products.find(x=>String(x.id)===String(editingId));
+    if(_oldProduct){
+      _oldPrice    = _oldProduct.price || 0;
+      _oldDeadline = _oldProduct.deadline || '';
+      _priceChanged    = _oldPrice !== price;
+      _deadlineChanged = _oldDeadline !== newDeadline;
+    }
+  }
+
+  // 若有影響訂單的變動，先跳確認彈窗
+  if(editingId && (_priceChanged || _deadlineChanged)){
+    // 計算影響的待付款訂單數與收藏人數
+    const _affectedOrders = (_allAdminOrders||[]).filter(o=>
+      o.status==='new' && !o.payment_code &&
+      (() => {
+        try{ return JSON.parse(o.note||'[]').some(it=>String(it.product_id)===String(editingId)); }
+        catch(e){ return String(o.product_id)===String(editingId); }
+      })()
+    );
+    const _favCount = (() => {
+      try{
+        const _favs = JSON.parse(localStorage.getItem('tf_favs')||'[]');
+        return 0; // 無法從前台直接取得所有人收藏數，顯示0
+      } catch(e){ return 0; }
+    })();
+
+    let _confirmMsg = '';
+    if(_priceChanged) _confirmMsg += `・商品售價：NT$ ${_oldPrice.toLocaleString()} → NT$ ${price.toLocaleString()}\n`;
+    if(_deadlineChanged) _confirmMsg += `・結單日期：${_oldDeadline||'未設定'} → ${newDeadline||'未設定'}\n`;
+    _confirmMsg += `\n影響 ${_affectedOrders.length} 筆待付款訂單`;
+    _confirmMsg += '\n\n儲存後將自動通知相關客人，確定嗎？';
+
+    if(!confirm(_confirmMsg)) return;
+  }
+
   const btn = document.querySelector('.fsave');
   if(btn){btn.disabled=true;btn.textContent='儲存中...';}
   let err;
@@ -5598,6 +5710,42 @@ async function saveProduct(){
     showToast('❌ 儲存失敗：'+(err.message||'請確認 Supabase products 表格是否存在'));
     return;
   }
+
+  // ── 儲存成功後：發通知給受影響的客人 ──────────────────────
+  if(editingId && (_priceChanged || _deadlineChanged)){
+    const _savedProductId = editingId;
+    // 通知有待付款訂單的客人
+    const _affOrders = (_allAdminOrders||[]).filter(o=>
+      o.status==='new' && !o.payment_code && o.user_email &&
+      (() => {
+        try{ return JSON.parse(o.note||'[]').some(it=>String(it.product_id)===String(_savedProductId)); }
+        catch(e){ return String(o.product_id)===String(_savedProductId); }
+      })()
+    );
+    for(const _ao of _affOrders){
+      if(_priceChanged){
+        // 更新訂單金額（price 欄位與 items.price）
+        try{
+          let _items = JSON.parse(_ao.note||'[]');
+          _items = _items.map(it => String(it.product_id)===String(_savedProductId) ? {...it, price} : it);
+          const _newDep = _items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || _ao.price;
+          await _sb.from('orders').update({ price: _newDep, note: JSON.stringify(_items) }).eq('id', _ao.id);
+          _ao.price = _newDep; _ao.note = JSON.stringify(_items);
+        } catch(e){ console.warn('update order price error:', e); }
+        await insertNotification(_ao.user_email, 'price_change',
+          '💰 商品價格已更新',
+          `您訂單中的「${name}」售價已調整為 NT$ ${price.toLocaleString()}，請確認後完成付款。`,
+          _ao.id, _savedProductId);
+      }
+      if(_deadlineChanged){
+        await insertNotification(_ao.user_email, 'deadline_change',
+          '📅 結單時間已調整',
+          `您訂單中的「${name}」結單日期已更新為 ${newDeadline||'未設定'}，請盡快確認並完成付款。`,
+          _ao.id, _savedProductId);
+      }
+    }
+  }
+
   // 先顯示成功，背景靜默 sync（避免等待 sync 造成 UI 卡頓）
   if(editingId){ showToast('✓ 已更新商品'); }
   else{ showToast('✓ 已新增商品'); }
@@ -5972,6 +6120,7 @@ function _aoRenderCards(){
           ${canPart        ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
           ${canShip        ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 全部出貨</button>`:''}
           ${canCancel      ?`<button class="aoc-btn aoc-btn-cancel" onclick="aoUpdateStatus(${o.id},'cancelled')">取消訂單</button>`:''}
+          ${o.status==='new'?`<button class="aoc-btn" style="border-color:#d97706;background:#fffbeb;color:#d97706" onclick="openAdjustAmount(${o.id})">✏️ 調整金額</button>`:''}
           ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#f0b429;background:#fffbea;color:#946800" onclick="gen711Script(${o.id})">📦 賣貨便賣場</button>`:''}
           ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#b5d0f5;background:#e8f0fc;color:#1a56c4" onclick="sendShipEmail(${o.id})">📧 寄賣場連結</button>`:''}
           ${!_oIsPickup    ?`<button class="aoc-btn" style="border-color:#7c3aed;background:#f5f3ff;color:#7c3aed" onclick="openPostModal(${o.id})">📮 郵寄出貨</button>`:''}
@@ -6040,6 +6189,19 @@ async function aoUpdateStatus(id, newStatus){
   };
   if(o?.user_email && _shouldEmail[newStatus]){
     sendStatusEmail(o, newStatus);
+  }
+
+  // 寫站內通知
+  if(o?.user_email){
+    const _notifMap = {
+      paid:         { title:'✅ 訂金已確認', body:`您的訂單 ${o.order_code||('#'+o.id)} 訂金已收到，訂單正式成立！` },
+      partial:      { title:'📦 商品部分出貨', body:`您的訂單 ${o.order_code||('#'+o.id)} 已部分出貨，請注意收件通知。` },
+      shipped:      { title:'🚚 商品已出貨', body:`您的訂單 ${o.order_code||('#'+o.id)} 已完成出貨，感謝您的購買！` },
+      pickup_ready: { title:'🏪 商品已到貨可自取', body:`您的訂單 ${o.order_code||('#'+o.id)} 商品已到達自取點，請盡快取貨。` },
+      cancelled:    { title:'❌ 訂單已取消', body:`您的訂單 ${o.order_code||('#'+o.id)} 已取消。如有疑問請聯繫客服。` },
+    };
+    const _nm = _notifMap[newStatus];
+    if(_nm) insertNotification(o.user_email, 'order_status', _nm.title, _nm.body, o.id, null);
   }
 }
 
@@ -7359,6 +7521,233 @@ function showToast(m){
   clearTimeout(_t);_t=setTimeout(()=>t.classList.remove('show'),3000);
 }
 
+// ─── 通知系統 ─────────────────────────────────────────────────
+let _notifCache = [];
+
+// 寫入一筆通知到 Supabase notifications 表
+async function insertNotification(userEmail, type, title, body, orderId=null, productId=null){
+  if(!_sb || !userEmail) return;
+  try{
+    await _sb.from('notifications').insert([{
+      user_email: userEmail,
+      type, title, body,
+      order_id: orderId,
+      product_id: productId ? parseInt(productId) : null,
+      is_read: false,
+    }]);
+  } catch(e){ console.warn('insertNotification error:', e); }
+}
+
+// 讀取當前登入用戶的通知
+async function loadNotifications(){
+  if(!_sb || !user?.email) return;
+  await _sbReady;
+  try{
+    const {data, error} = await _sb.from('notifications')
+      .select('*')
+      .eq('user_email', user.email)
+      .order('created_at', {ascending:false})
+      .limit(50);
+    if(error) return;
+    _notifCache = data || [];
+    renderNotifBell();
+    renderNotifList();
+  } catch(e){ console.warn('loadNotifications error:', e); }
+}
+
+// 渲染鈴鐺徽章數字
+function renderNotifBell(){
+  const wrap = document.getElementById('notifBellWrap');
+  const badge = document.getElementById('notifBadge');
+  if(!wrap) return;
+  if(!user?.email){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  const unread = _notifCache.filter(n=>!n.is_read).length;
+  if(unread > 0){
+    badge.style.display='flex';
+    badge.textContent = unread > 99 ? '99+' : unread;
+  } else {
+    badge.style.display='none';
+  }
+}
+
+// 渲染通知列表
+function renderNotifList(){
+  const list = document.getElementById('notifList');
+  if(!list) return;
+  if(!_notifCache.length){
+    list.innerHTML = '<div class="notif-empty">暫無通知</div>';
+    return;
+  }
+  list.innerHTML = _notifCache.map(n => {
+    const timeStr = _notifTimeAgo(n.created_at);
+    const unreadCls = n.is_read ? '' : 'unread';
+    const dotCls = n.is_read ? 'read' : '';
+    return `<div class="notif-item ${unreadCls}" onclick="onNotifClick(${n.id},${n.order_id||'null'},'${n.type}')">
+      <div class="notif-dot ${dotCls}"></div>
+      <div class="notif-body">
+        <div class="notif-title">${n.title}</div>
+        <div class="notif-body-text">${n.body}</div>
+        <div class="notif-time">${timeStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 通知時間格式化
+function _notifTimeAgo(isoStr){
+  if(!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff/60000);
+  if(mins < 1) return '剛剛';
+  if(mins < 60) return mins + ' 分鐘前';
+  const hrs = Math.floor(mins/60);
+  if(hrs < 24) return hrs + ' 小時前';
+  const days = Math.floor(hrs/24);
+  if(days < 30) return days + ' 天前';
+  return new Date(isoStr).toLocaleDateString('zh-TW');
+}
+
+// 點擊通知（標記已讀 + 跳轉）
+async function onNotifClick(notifId, orderId, type){
+  // 標記此筆已讀
+  if(_sb){
+    await _sb.from('notifications').update({is_read:true}).eq('id', notifId);
+    const n = _notifCache.find(x=>x.id===notifId);
+    if(n) n.is_read = true;
+    renderNotifBell();
+    renderNotifList();
+  }
+  // 跳轉
+  if(orderId && (type==='order_status'||type==='order_price_change')){
+    toggleNotifPanel(); // 關閉面板
+    goOrders();
+  }
+}
+
+// 全部已讀
+async function markAllNotifsRead(){
+  if(!_sb || !user?.email) return;
+  await _sb.from('notifications').update({is_read:true}).eq('user_email', user.email).eq('is_read', false);
+  _notifCache.forEach(n=>n.is_read=true);
+  renderNotifBell();
+  renderNotifList();
+}
+
+// 切換通知面板顯示
+function toggleNotifPanel(){
+  const panel = document.getElementById('notifPanel');
+  if(!panel) return;
+  const isOpen = panel.style.display === 'flex';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  panel.style.flexDirection = 'column';
+  if(!isOpen) loadNotifications(); // 開啟時重新載入
+}
+
+// 點擊面板外關閉
+document.addEventListener('click', e=>{
+  const wrap = document.getElementById('notifBellWrap');
+  const panel = document.getElementById('notifPanel');
+  if(wrap && panel && !wrap.contains(e.target) && panel.style.display==='flex'){
+    panel.style.display='none';
+  }
+});
+
+// ─── 調整訂單金額 Modal ─────────────────────────────────────
+let _adjustOrderId = null;
+
+function openAdjustAmount(orderId){
+  const o = _allAdminOrders.find(x=>x.id===orderId);
+  if(!o){ showToast('❌ 找不到訂單'); return; }
+  _adjustOrderId = orderId;
+  let items=[];
+  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+  if(!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:o.price}];
+
+  const totalPrice = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0) || o.price||0;
+  const totalDep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price||0;
+
+  document.getElementById('adjustAmtOrderNum').textContent = o.order_code||('#'+o.id);
+  document.getElementById('adjustAmtItems').textContent = items.map(i=>`${i.product_name}${i.variant&&i.variant!=='單一規格'?' ('+i.variant+')':''} ×${i.qty||1}`).join('、');
+  document.getElementById('adjustAmtTotal').value = totalPrice;
+  document.getElementById('adjustAmtDep').value = totalDep;
+  document.getElementById('adjustAmtNotify').checked = true;
+  document.getElementById('adjustAmtModal').style.display='flex';
+}
+
+function closeAdjustAmount(){
+  document.getElementById('adjustAmtModal').style.display='none';
+  _adjustOrderId = null;
+}
+
+async function confirmAdjustAmount(){
+  const o = _allAdminOrders.find(x=>x.id===_adjustOrderId);
+  if(!o){ closeAdjustAmount(); return; }
+  const newTotal = parseInt(document.getElementById('adjustAmtTotal').value)||0;
+  const newDep   = parseInt(document.getElementById('adjustAmtDep').value)||0;
+  const notify   = document.getElementById('adjustAmtNotify').checked;
+
+  // 更新 items 裡的 price / deposit（按比例分配，這裡簡化為只更新 order.price 和 items 第一筆）
+  let items=[];
+  try{ items=JSON.parse(o.note||'[]'); }catch(e){}
+  if(items.length){
+    // 重新計算每筆商品的訂金（按原比例重新分配）
+    const oldDep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||1;
+    items = items.map(i=>({
+      ...i,
+      price: Math.round(newTotal / items.reduce((s,x)=>s+(x.qty||1),0)),
+      deposit: oldDep > 0 ? Math.round((i.deposit||0)*(i.qty||1) * newDep / oldDep / (i.qty||1)) : newDep,
+    }));
+  }
+
+  const btn = document.getElementById('adjustAmtConfirmBtn');
+  if(btn){ btn.disabled=true; btn.textContent='更新中...'; }
+
+  const {error} = await _sb.from('orders').update({
+    price: newDep,
+    note: JSON.stringify(items)
+  }).eq('id', _adjustOrderId);
+
+  if(btn){ btn.disabled=false; btn.textContent='確認更新'; }
+
+  if(error){ showToast('❌ 更新失敗：'+error.message); return; }
+
+  // 同步本地快取
+  o.price = newDep;
+  o.note = JSON.stringify(items);
+
+  if(notify && o.user_email){
+    await insertNotification(
+      o.user_email, 'order_price_change',
+      '📋 訂單金額已調整',
+      `您的訂單 ${o.order_code||('#'+o.id)} 金額已更新，應付金額：NT$ ${newDep.toLocaleString()}，請確認後完成付款。`,
+      o.id, null
+    );
+    // 同時寄 Email 通知
+    sendStatusEmailCustom(o, `您的訂單 ${o.order_code||('#'+o.id)} 金額已更新，應付金額：NT$ ${newDep.toLocaleString()}，請確認後完成付款。`, '訂單金額調整通知');
+  }
+
+  closeAdjustAmount();
+  _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+  showToast('✅ 訂單金額已更新');
+}
+
+// 簡易自訂內容 Email 通知
+function sendStatusEmailCustom(o, bodyMsg, subjectLabel){
+  if(!o?.user_email) return;
+  try{
+    emailjs.send('service_geto','template_order_status',{
+      to_email:    o.user_email,
+      to_name:     o.customer_name||'顧客',
+      order_code:  o.order_code||('#'+o.id),
+      subject_status: subjectLabel,
+      status_label:   subjectLabel,
+      body_message:   bodyMsg,
+      reminder_html: '',
+    });
+  } catch(e){ console.warn('sendStatusEmailCustom error:', e); }
+}
+
 // ─── INIT ─────────────────────────────────────────────────
 updBadge(); buildEmojiGrid(); updateNavFavsBadge();
 // EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
@@ -7438,6 +7827,9 @@ setInterval(()=>{
   }
   renderAuth(); // 確定狀態後才渲染
   updBadge();
+  // 載入通知（登入後才顯示鈴鐺）
+  if(user?.email){ loadNotifications(); }
+  else { renderNotifBell(); }
   // hash 恢復在 syncProductsFromSupabase 後執行，確保 products 已載入
 })();
 </script>
