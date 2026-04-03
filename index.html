@@ -1646,24 +1646,31 @@ textarea.fi{min-height:64px;resize:vertical}
 
 <!-- 調整訂單金額 Modal -->
 <div id="adjustAmtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeAdjustAmount()">
-  <div style="background:var(--white);border-radius:14px;width:420px;max-width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+  <div style="background:var(--white);border-radius:14px;width:520px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
     <div style="font-size:16px;font-weight:700;margin-bottom:4px">✏️ 調整訂單金額</div>
-    <div style="font-size:12px;color:var(--ink3);margin-bottom:4px">訂單 <b id="adjustAmtOrderNum"></b></div>
-    <div style="font-size:12px;color:var(--ink2);margin-bottom:16px;background:#f5f5f5;border-radius:6px;padding:8px 10px" id="adjustAmtItems"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      <div>
-        <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:4px">總金額 NT$</label>
-        <input id="adjustAmtTotal" type="number" min="0"
-          style="width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:15px;font-family:monospace;outline:none;box-sizing:border-box"
-          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:16px">訂單 <b id="adjustAmtOrderNum"></b></div>
+
+    <!-- 商品列表（逐項編輯單價）-->
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 52px 110px 90px;gap:0;background:#f5f5f5;padding:8px 12px;font-size:11px;font-weight:700;color:var(--ink3);border-bottom:1px solid var(--border)">
+        <span>商品</span><span style="text-align:center">數量</span><span style="text-align:right">單價 NT$</span><span style="text-align:right">小計</span>
       </div>
-      <div>
-        <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:4px">應付訂金 NT$</label>
-        <input id="adjustAmtDep" type="number" min="0"
-          style="width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:15px;font-family:monospace;outline:none;box-sizing:border-box"
-          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      <div id="adjustAmtItemRows"></div>
+      <div style="display:grid;grid-template-columns:1fr 52px 110px 90px;gap:0;padding:10px 12px;border-top:1px solid var(--border);background:#fffbf0">
+        <span style="font-size:13px;font-weight:700;color:var(--ink);grid-column:1/4">總計</span>
+        <span id="adjustAmtTotalDisplay" style="font-size:14px;font-weight:800;color:var(--red);text-align:right"></span>
       </div>
     </div>
+
+    <!-- 應付訂金 -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 14px;background:#fff4e5;border-radius:8px;border:1px solid #ffd6a0">
+      <label style="font-size:13px;font-weight:700;color:#8a4500;white-space:nowrap">應付訂金 NT$</label>
+      <input id="adjustAmtDep" type="number" min="0"
+        style="flex:1;border:1.5px solid #ffd6a0;border-radius:6px;padding:8px 12px;font-size:15px;font-family:monospace;outline:none;background:#fff"
+        onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='#ffd6a0'">
+      <span style="font-size:11px;color:#8a4500;white-space:nowrap">（0 = 免訂金）</span>
+    </div>
+
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);margin-bottom:16px;cursor:pointer">
       <input type="checkbox" id="adjustAmtNotify" style="width:16px;height:16px">
       通知客人金額已調整（站內通知 + Email）
@@ -7679,63 +7686,108 @@ document.addEventListener('click', e=>{
 
 // ─── 調整訂單金額 Modal ─────────────────────────────────────
 let _adjustOrderId = null;
+let _adjustItems = []; // 暫存正在編輯的 items
 
 function openAdjustAmount(orderId){
   const o = _allAdminOrders.find(x=>x.id===orderId);
   if(!o){ showToast('❌ 找不到訂單'); return; }
   _adjustOrderId = orderId;
+
   let items=[];
   try{ items=JSON.parse(o.note||'[]'); }catch(e){}
   if(!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty||1,price:o.price,deposit:o.price}];
-
-  const totalPrice = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0) || o.price||0;
-  const totalDep = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price||0;
+  _adjustItems = items.map(i=>({...i})); // 深拷貝，避免污染原資料
 
   document.getElementById('adjustAmtOrderNum').textContent = o.order_code||('#'+o.id);
-  document.getElementById('adjustAmtItems').textContent = items.map(i=>`${i.product_name}${i.variant&&i.variant!=='單一規格'?' ('+i.variant+')':''} ×${i.qty||1}`).join('、');
-  document.getElementById('adjustAmtTotal').value = totalPrice;
-  document.getElementById('adjustAmtDep').value = totalDep;
+  document.getElementById('adjustAmtDep').value = o.price || 0;
   document.getElementById('adjustAmtNotify').checked = true;
+
+  _renderAdjustItemRows();
   document.getElementById('adjustAmtModal').style.display='flex';
+}
+
+function _renderAdjustItemRows(){
+  const rows = document.getElementById('adjustAmtItemRows');
+  if(!rows) return;
+  rows.innerHTML = _adjustItems.map((item, idx) => {
+    const name = (item.product_name||'').slice(0,26) + ((item.product_name||'').length>26?'…':'');
+    const variant = item.variant && item.variant!=='單一規格'
+      ? `<div style="font-size:10px;color:var(--ink3);margin-top:1px">${item.variant}</div>` : '';
+    const qty = item.qty||1;
+    const subtotal = (item.price||0) * qty;
+    return `<div style="display:grid;grid-template-columns:1fr 52px 110px 90px;gap:0;padding:10px 12px;border-bottom:1px solid var(--border);align-items:center">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--ink);line-height:1.4">${name}</div>
+        ${variant}
+      </div>
+      <div style="text-align:center;font-size:13px;color:var(--ink2)">×${qty}</div>
+      <div style="text-align:right">
+        <input type="number" min="0" value="${item.price||0}"
+          data-idx="${idx}"
+          oninput="_onAdjustPriceInput(this)"
+          style="width:100px;border:1.5px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:13px;font-family:monospace;text-align:right;outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'">
+      </div>
+      <div id="adjustSubtotal_${idx}" style="text-align:right;font-size:13px;font-weight:600;color:var(--ink)">NT$ ${subtotal.toLocaleString()}</div>
+    </div>`;
+  }).join('');
+  _updateAdjustTotal();
+}
+
+function _onAdjustPriceInput(el){
+  const idx = parseInt(el.dataset.idx);
+  const newPrice = parseInt(el.value)||0;
+  _adjustItems[idx].price = newPrice;
+  const qty = _adjustItems[idx].qty||1;
+  const sub = document.getElementById('adjustSubtotal_'+idx);
+  if(sub) sub.textContent = 'NT$ ' + (newPrice*qty).toLocaleString();
+  _updateAdjustTotal();
+}
+
+function _updateAdjustTotal(){
+  const total = _adjustItems.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+  const el = document.getElementById('adjustAmtTotalDisplay');
+  if(el) el.textContent = 'NT$ ' + total.toLocaleString();
 }
 
 function closeAdjustAmount(){
   document.getElementById('adjustAmtModal').style.display='none';
   _adjustOrderId = null;
+  _adjustItems = [];
 }
 
 async function confirmAdjustAmount(){
   const o = _allAdminOrders.find(x=>x.id===_adjustOrderId);
   if(!o){ closeAdjustAmount(); return; }
-  const newDep   = parseInt(document.getElementById('adjustAmtDep').value)||0;
-  const notify   = document.getElementById('adjustAmtNotify').checked;
-  const oldDep   = o.price || 0; // 舊訂金，用於通知內文
+  const newDep  = parseInt(document.getElementById('adjustAmtDep').value)||0;
+  const notify  = document.getElementById('adjustAmtNotify').checked;
+  const oldDep  = o.price || 0;
 
-  // ✅ 只更新 orders.price（應付訂金），不動 note/items 裡的商品明細
   const btn = document.getElementById('adjustAmtConfirmBtn');
   if(btn){ btn.disabled=true; btn.textContent='更新中...'; }
 
-  const {error} = await _sb.from('orders').update({ price: newDep }).eq('id', _adjustOrderId);
+  const {error} = await _sb.from('orders').update({
+    price: newDep,
+    note:  JSON.stringify(_adjustItems),
+  }).eq('id', _adjustOrderId);
 
   if(btn){ btn.disabled=false; btn.textContent='確認更新'; }
-
   if(error){ showToast('❌ 更新失敗：'+error.message); return; }
 
-  // 同步本地快取（只更新 price，不動 note）
+  // 同步本地快取
   o.price = newDep;
+  o.note  = JSON.stringify(_adjustItems);
 
-  // 組通知內文
+  // 通知
   if(notify && o.user_email){
-    let _notifBody, _emailBody;
+    let _notifBody;
     if(newDep <= 0){
       _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已調整為免訂金，請確認訂單及尾款。`;
-      _emailBody = _notifBody;
     } else {
       _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 訂金已從 NT$ ${oldDep.toLocaleString()} 調整為 NT$ ${newDep.toLocaleString()}，請確認訂單及尾款，並盡速匯款。`;
-      _emailBody = _notifBody;
     }
     await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
-    sendStatusEmailCustom(o, _emailBody, '訂單金額調整通知');
+    sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知');
   }
 
   closeAdjustAmount();
