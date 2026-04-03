@@ -5757,12 +5757,16 @@ async function saveProduct(){
         } catch(e){ console.warn('update order price error:', e); }
         const _priceNotifBody = `您訂單中的「${name}」售價已從 NT$ ${_oldPrice.toLocaleString()} 調整為 NT$ ${price.toLocaleString()}，請確認後完成付款。`;
         await insertNotification(_ao.user_email, 'price_change', '💰 商品價格已更新', _priceNotifBody, _ao.id, _savedProductId);
-        sendStatusEmailCustom(_ao, _priceNotifBody, '商品價格調整通知');
+        sendStatusEmailCustom(_ao, _priceNotifBody, '商品價格調整通知', [
+          { label: name.slice(0,22)+(name.length>22?'…':''), oldVal: `NT$ ${_oldPrice.toLocaleString()}`, newVal: `NT$ ${price.toLocaleString()}` }
+        ]);
       }
       if(_deadlineChanged){
         const _deadlineNotifBody = `您訂單中的「${name}」結單日期已從 ${_oldDeadline||'未設定'} 調整為 ${newDeadline||'未設定'}，請盡快確認並完成付款。`;
         await insertNotification(_ao.user_email, 'deadline_change', '📅 結單時間已調整', _deadlineNotifBody, _ao.id, _savedProductId);
-        sendStatusEmailCustom(_ao, _deadlineNotifBody, '結單時間調整通知');
+        sendStatusEmailCustom(_ao, _deadlineNotifBody, '結單時間調整通知', [
+          { label: `${name.slice(0,22)+(name.length>22?'…':'')} 結單日期`, oldVal: _oldDeadline||'未設定', newVal: newDeadline||'未設定' }
+        ]);
       }
     }
   }
@@ -7810,7 +7814,23 @@ async function confirmAdjustAmount(){
     }
 
     await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
-    sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知');
+
+    // 組 Email 的表格明細
+    const _emailRows = [];
+    _adjustItems.forEach((item, idx) => {
+      const oldPrice = _adjustOldPrices[idx] ?? 0;
+      const newPrice = item.price || 0;
+      if(oldPrice === newPrice) return;
+      const shortName = (item.product_name||'').slice(0,22) + ((item.product_name||'').length>22?'…':'');
+      const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
+      _emailRows.push({ label: shortName+varStr, oldVal: `NT$ ${oldPrice.toLocaleString()}`, newVal: `NT$ ${newPrice.toLocaleString()}` });
+    });
+    if(_depChanged) _emailRows.push({
+      label: '應付訂金',
+      oldVal: `NT$ ${oldDep.toLocaleString()}`,
+      newVal: newDep <= 0 ? '免訂金' : `NT$ ${newDep.toLocaleString()}`
+    });
+    sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知', _emailRows);
   }
 
   closeAdjustAmount();
@@ -7818,21 +7838,53 @@ async function confirmAdjustAmount(){
   showToast('✅ 訂單金額已更新');
 }
 
-// 簡易自訂內容 Email 通知（調整金額用）
-function sendStatusEmailCustom(o, bodyMsg, subjectLabel){
+// 異動通知 Email（調整金額、改價格、改結單日期用）
+function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
   if(!o?.user_email) return;
   if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId) return;
+
+  // detailRows = [{label, oldVal, newVal}] 或 null
+  // 有 detailRows → 用表格格式；沒有 → 純文字
+  let _itemsHtml = '';
+  if(detailRows && detailRows.length){
+    const _rows = detailRows.map(r=>`
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;color:#555;width:40%">${r.label}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;color:#999;text-decoration:line-through;white-space:nowrap">${r.oldVal}</td>
+        <td style="padding:8px 4px;border-bottom:1px solid #eee;font-size:13px;color:#999">→</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;font-weight:700;color:#c9a84c;white-space:nowrap">${r.newVal}</td>
+      </tr>`).join('');
+    _itemsHtml = `
+      <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden;margin:4px 0 8px">
+        <thead>
+          <tr style="background:#f5f5f5">
+            <th style="padding:8px 12px;font-size:11px;color:#888;font-weight:600;text-align:left">項目</th>
+            <th style="padding:8px 12px;font-size:11px;color:#888;font-weight:600;text-align:left">原本</th>
+            <th style="padding:8px 4px"></th>
+            <th style="padding:8px 12px;font-size:11px;color:#888;font-weight:600;text-align:left">更新後</th>
+          </tr>
+        </thead>
+        <tbody>${_rows}</tbody>
+      </table>`;
+  }
+
+  // 底部提示文字（去掉bodyMsg裡重複的細節，只保留行動指引）
+  const _hasPayment = bodyMsg.includes('匯款') || bodyMsg.includes('付款');
+  const _reminderHtml = _hasPayment
+    ? `<div style="margin-top:8px;font-size:13px;color:#e67300;font-weight:600">⚠️ 請確認訂單及尾款，並盡速完成匯款。</div>`
+    : `<div style="margin-top:8px;font-size:13px;color:#555">請確認訂單，如有疑問歡迎聯繫我們。</div>`;
+
   try{
     emailjs.init({ publicKey: emailjsConfig.publicKey });
     emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
       to_name:        o.customer_name||'顧客',
       to_email:       o.user_email,
-      order_num:      String(o.id),
+      order_num:      String(o.order_code||o.id),
       subject_status: subjectLabel,
       header_title:   subjectLabel,
-      header_sub:     `${o.customer_name||'您'} 您好，${bodyMsg}`,
-      items_html:     '',
-      amount_html:    `<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin:12px 0;font-size:14px;color:#8a4500">${bodyMsg}</div>`,
+      header_sub:     `${o.customer_name||'您'} 您好，您的訂單 <b>${o.order_code||('#'+o.id)}</b> 有以下異動，請確認：`,
+      items_html:     _itemsHtml,
+      amount_html:    _reminderHtml,
       bank_html:      '',
       reminder_html:  '',
       delivery:       o.store||'',
