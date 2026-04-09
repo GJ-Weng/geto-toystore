@@ -1249,7 +1249,13 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg"><label class="fl">商品類型</label><select class="fi" id="fType" onchange="onTypeChange()"><option value="預購">預購</option><option value="現貨">現貨</option><option value="未分類">未分類</option></select></div>
         </div>
         <div class="fr">
-          <div class="fg"><label class="fl">結單日期</label><input class="fi" id="fDeadline" type="date"></div>
+          <div class="fg"><label class="fl">結單日期</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input class="fi" id="fDeadline" type="date" style="flex:1" oninput="_syncDeadlineText(this.value)">
+              <input class="fi" id="fDeadlineText" placeholder="或直接輸入 2026/04/13" style="flex:1;font-size:13px"
+                oninput="_parseDeadlineText(this.value)">
+            </div>
+          </div>
           <div class="fg"><label class="fl">預計到貨</label><input class="fi" id="fArrival" placeholder="例：2026-08"></div>
         </div>
         <div class="fr">
@@ -2179,6 +2185,30 @@ window.addEventListener('popstate', (e)=>{
   else if(_hash==='#profile'){ showView('profileView',false); renderProfile(); }
   else if(_hash==='#favs'){ showView('favsView',false); renderFavsPage(); }
   else { showView('shopView',false); renderShop(); }
+});
+
+// 跨分頁同步：偵測其他分頁儲存商品後，自動重新整理本分頁的商品資料
+window.addEventListener('storage', (e)=>{
+  // 另一個分頁清除了快取時間戳 → 代表有人儲存了商品
+  if(e.key === 'tf_p_ts' && !e.newValue){
+    // 稍微延遲避免和儲存中的分頁搶資源
+    setTimeout(()=>{
+      syncProductsFromSupabase().then(()=>{
+        renderShop();
+        // 若後台商品列表開著也同步更新
+        const _tab2 = document.getElementById('tab2');
+        if(_tab2 && _tab2.style.display !== 'none') renderAdminList();
+      }).catch(()=>{});
+    }, 800);
+  }
+  // 另一個分頁釋放了儲存鎖 → 可以繼續
+  if(e.key === 'tf_saving_lock' && !e.newValue){
+    const btn = document.querySelector('.fsave');
+    if(btn && btn.disabled) {
+      btn.disabled = false;
+      btn.textContent = '儲存商品';
+    }
+  }
 });
 function showShop(){ showView('shopView'); renderShop(); }
 function showDetail(){ showView('detailView'); }
@@ -5610,6 +5640,8 @@ function editP(id){
   document.getElementById('fLimit').value=p.limit||'';
   document.getElementById('fType').value=p.type;
   document.getElementById('fDeadline').value=p.deadline||'';
+  const _fDTxt = document.getElementById('fDeadlineText');
+  if(_fDTxt) _fDTxt.value = p.deadline ? p.deadline.replace(/-/g,'/') : '';
   document.getElementById('fArrival').value=p.arrival||'';
   document.getElementById('fIP').value=p.ip||'';
   document.getElementById('fForm').value=p.form||'';
@@ -5723,16 +5755,31 @@ async function saveProduct(){
     if(!confirm(_confirmMsg)) return;
   }
 
+  // ── 跨分頁儲存鎖：防止兩個分頁同時儲存造成衝突 ──────────────
+  const _lockKey = 'tf_saving_lock';
+  const _lockVal = Date.now() + '_' + Math.random().toString(36).slice(2);
+  const _existingLock = localStorage.getItem(_lockKey);
+  if(_existingLock){
+    const _lockAge = Date.now() - parseInt(_existingLock.split('_')[0]||'0');
+    if(_lockAge < 15000){ // 15秒內有其他分頁在儲存
+      showToast('⚠️ 另一個分頁正在儲存中，請稍後再試');
+      return;
+    }
+  }
+  localStorage.setItem(_lockKey, _lockVal);
+
   const btn = document.querySelector('.fsave');
   if(btn){btn.disabled=true;btn.textContent='儲存中...';}
   let err;
   try {
     err = await saveProductToSupabase({...data, cnt: editingId ? (products.find(x=>String(x.id)===String(editingId))?.cnt||0) : 0}, editingId);
   } catch(e) {
+    localStorage.removeItem(_lockKey);
     if(btn){btn.disabled=false;btn.textContent='儲存商品';}
     showToast('❌ 儲存失敗：'+e.message);
     return;
   }
+  localStorage.removeItem(_lockKey); // 解鎖
   if(btn){btn.disabled=false;btn.textContent='儲存商品';}
   if(err && !err.newId){
     showToast('❌ 儲存失敗：'+(err.message||'請確認 Supabase products 表格是否存在'));
@@ -5808,17 +5855,66 @@ async function saveProduct(){
   else{ showToast('✓ 已新增商品'); }
   localStorage.removeItem('tf_p_ts'); // 清快取時間戳，強制下次 sync
   acRememberProduct();
-  resetForm();renderAdminList();renderShop();
+
+  // 新增商品時：立即把新商品加入本地 products，不等 sync
+  if(!editingId && err?.newId){
+    const _newP = {
+      id: err.newId, name, brand, price, deposit,
+      limit: data.limit||'', type: data.type, deadline: data.deadline||'',
+      arrival: data.arrival||'', ip: data.ip||'', form: data.form||'',
+      variants: data.variants||[], emoji: data.emoji||selEmoji||'🧸',
+      imageUrl: data.imageUrl||'', imageUrls: data.imageUrls||[],
+      variantPrices: data.variantPrices||{}, variantStocks: data.variantStocks||{},
+      description: data.description||'', status: data.status||'published',
+      isNew: true, cnt: 0, stock: data.stock||0, stockStatus: data.stockStatus||'in_stock',
+    };
+    products.unshift(_newP); // 加到最前面（最新上架）
+  }
+  // 編輯商品時：更新本地 products 對應項目
+  if(editingId){
+    const _idx = products.findIndex(x=>String(x.id)===String(editingId));
+    if(_idx >= 0){
+      products[_idx] = {...products[_idx], name, brand, price, deposit,
+        limit: data.limit||'', type: data.type, deadline: data.deadline||'',
+        arrival: data.arrival||'', ip: data.ip||'', form: data.form||'',
+        variants: data.variants||[], emoji: data.emoji||selEmoji||'🧸',
+        imageUrl: data.imageUrl||'', imageUrls: data.imageUrls||[],
+        variantPrices: data.variantPrices||{}, variantStocks: data.variantStocks||{},
+        description: data.description||'', status: data.status||'published',
+        stock: data.stock||0, stockStatus: data.stockStatus||'in_stock',
+      };
+    }
+  }
+
+  resetForm(); renderAdminList(); renderShop();
   swTab(2); // 儲存後自動切到商品列表
-  // 背景靜默更新（不阻塞 UI）
-  syncProductsFromSupabase().catch(e=>console.warn('background sync error:', e));
+  // 背景靜默更新（確保 sync 完成後也更新商品列表）
+  syncProductsFromSupabase().then(()=>{ renderAdminList(); }).catch(e=>console.warn('background sync error:', e));
 }
+// 結單日期：date picker → 文字欄位
+function _syncDeadlineText(val){
+  const el = document.getElementById('fDeadlineText');
+  if(el) el.value = val ? val.replace(/-/g,'/') : '';
+}
+// 結單日期：文字欄位 → date picker（支援 2026/04/13 或 2026-04-13）
+function _parseDeadlineText(val){
+  const dp = document.getElementById('fDeadline');
+  if(!dp) return;
+  const cleaned = val.trim().replace(/\//g,'-');
+  // 符合 YYYY-MM-DD 格式才填入
+  if(/^\d{4}-\d{2}-\d{2}$/.test(cleaned)){
+    dp.value = cleaned;
+  } else {
+    dp.value = '';
+  }
+}
+
 function resetForm(){
   editingId=null;
   _adminImgs=[];
   renderAdminImgPreviews();
   // 清除所有文字欄位
-  ['fName','fBrand','fLimit','fDeadline','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   document.getElementById('fType').value='預購';
