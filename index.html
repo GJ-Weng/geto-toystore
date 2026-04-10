@@ -302,8 +302,10 @@ textarea.omi{min-height:64px;resize:vertical}
 .fg{display:flex;flex-direction:column;gap:4px}
 .fl{font-size:11px;font-weight:500;color:var(--ink2)}
 .fl .req{color:#E24B4A;margin-left:2px}
-.fi{border:1px solid var(--border2);border-radius:var(--r);padding:8px 11px;font-size:13px;outline:none;transition:border-color .15s;background:var(--white);color:var(--ink);width:100%}
+.fi{border:1px solid var(--border2);border-radius:var(--r);padding:8px 11px;font-size:13px;outline:none;transition:border-color .15s,background .15s;background:var(--white);color:var(--ink);width:100%}
 .fi:focus{border-color:#888}
+.fi.filled{background:#eef7f0;border-color:#a8d5b5}
+.fi.filled:focus{border-color:#3B6D11}
 textarea.fi{min-height:64px;resize:vertical}
 /* 商品類型 toggle */
 .ftype-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;width:fit-content}
@@ -729,7 +731,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .img-preview-name{font-size:12px;color:var(--ink2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .img-preview-rm{width:24px;height:24px;border:none;background:none;cursor:pointer;color:var(--ink3);font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:color .15s;border-radius:4px}
 .img-preview-rm:hover{color:var(--red);background:var(--red-light)}
-.img-hint{font-size:11px;color:var(--ink3);line-height:1.5}
+
 
 
 /* ─── PROFILE VIEW ──────────────────────────────────── */
@@ -1247,7 +1249,7 @@ textarea.fi{min-height:64px;resize:vertical}
   <div class="apb">
 
     <!-- TAB 1: 新增商品 -->
-    <div id="tab1">
+    <div id="tab1" oninput="_updateFilledState()" onchange="_updateFilledState()">
       <div class="fc">
         <div class="ft" id="formTitle">新增商品</div>
 
@@ -1258,6 +1260,7 @@ textarea.fi{min-height:64px;resize:vertical}
             <div class="img-upload-wrap">
               <div class="img-upload-row">
                 <input class="fi" id="fImgUrl" placeholder="貼上圖片網址，貼上即自動新增" onkeydown="onImgUrlKeydown(event)" onpaste="setTimeout(()=>_autoAddImgUrl(),0)">
+                <button type="button" class="img-upload-btn" onclick="_pasteImageFromClipboard()" title="截圖後點此貼上">📋 貼上截圖</button>
                 <button type="button" class="img-upload-btn" onclick="document.getElementById('fImgFile').click()">📁 從電腦上傳</button>
                 <input type="file" id="fImgFile" accept="image/*" multiple style="display:none" onchange="onImgFileChange(this)">
               </div>
@@ -1268,7 +1271,6 @@ textarea.fi{min-height:64px;resize:vertical}
                 onclick="document.getElementById('fImgFile').click()">
                 <div class="dz-icon">🖼️</div>
                 <div class="dz-text">拖拉圖片到這裡，或點此選擇</div>
-                <div class="dz-hint">也可以直接 Ctrl+V 貼上截圖或複製的圖片</div>
               </div>
               <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
             </div>
@@ -5036,9 +5038,11 @@ function onImgUrlKeydown(e){
 
 // 監聽全域貼上事件（在後台編輯商品時可直接 Ctrl+V 貼上圖片）
 document.addEventListener('paste', function(e){
-  // 只在後台編輯表單可見時作用
-  const form = document.getElementById('adminForm');
-  if(!form || form.style.display==='none') return;
+  // 只在後台開著且在 tab1（新增/編輯商品）時作用
+  const ap = document.getElementById('ap');
+  const tab1 = document.getElementById('tab1');
+  if(!ap || !ap.classList.contains('open')) return;
+  if(!tab1 || tab1.style.display === 'none') return;
   const items = e.clipboardData?.items;
   if(!items) return;
   const imageFiles = [];
@@ -5842,6 +5846,7 @@ function editP(id){
   document.getElementById('editBadge').style.display='';
   document.getElementById('formTitle').textContent='編輯商品';
   swTab(1);
+  setTimeout(_updateFilledState, 50); // 略延遲確保值都填好了
   // 滾動到後台頂部
   const ap = document.getElementById('ap');
   if(ap) ap.scrollTo({top:0, behavior:'smooth'});
@@ -6055,10 +6060,29 @@ async function saveProduct(continueAdd=false){
   // 背景靜默更新（確保 sync 完成後也更新商品列表）
   syncProductsFromSupabase().then(()=>{ renderAdminList(); }).catch(e=>console.warn('background sync error:', e));
 }
-// 結單日期：date picker → 文字欄位
+// ─── 表單欄位填寫狀態（綠色背景） ────────────────────────────
+const _FORM_FIELDS = ['fName','fBrand','fPrice','fDeposit','fLimit','fIP','fForm',
+  'fDeadlineText','fArrival','fVariants','fDesc','fStock'];
+
+function _updateFilledState(){
+  _FORM_FIELDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    const hasVal = el.value && el.value.trim() !== '';
+    el.classList.toggle('filled', hasVal);
+  });
+  // select 欄位
+  ['fStatus','fStockStatus'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('filled', !!el.value);
+  });
+}
+
+// ─── 結單日期：date picker → 文字欄位
 function _syncDeadlineText(val){
   const el = document.getElementById('fDeadlineText');
   if(el) el.value = val ? val.replace(/-/g,'/') : '';
+  _updateFilledState();
 }
 // 結單日期：文字欄位 → date picker（支援 2026/04/13 或 2026-04-13）
 function _parseDeadlineText(val){
@@ -6071,9 +6095,45 @@ function _parseDeadlineText(val){
   } else {
     dp.value = '';
   }
+  _updateFilledState();
 }
 
 // ─── 圖片網址貼上自動新增 ─────────────────────────────────────
+// ─── 貼上截圖按鈕：主動讀取剪貼簿 ──────────────────────────
+async function _pasteImageFromClipboard(){
+  try{
+    // 使用 Clipboard API 主動讀取（不受游標位置限制）
+    if(!navigator.clipboard?.read){
+      showToast('⚠️ 此瀏覽器不支援剪貼簿讀取，請改用拖拉或從電腦上傳');
+      return;
+    }
+    const clipItems = await navigator.clipboard.read();
+    const imageFiles = [];
+    for(const clipItem of clipItems){
+      for(const type of clipItem.types){
+        if(type.startsWith('image/')){
+          const blob = await clipItem.getType(type);
+          const file = new File([blob], 'paste_'+Date.now()+'.'+type.split('/')[1], {type});
+          imageFiles.push(file);
+        }
+      }
+    }
+    if(imageFiles.length === 0){
+      showToast('⚠️ 剪貼簿沒有圖片，請先截圖或複製圖片');
+      return;
+    }
+    onImgFileChange({ files: imageFiles });
+    showToast('📋 已貼上 '+imageFiles.length+' 張圖片');
+  } catch(e){
+    if(e.name === 'NotAllowedError'){
+      showToast('⚠️ 請允許瀏覽器存取剪貼簿（點網址列左側的鎖頭圖示）');
+    } else {
+      showToast('⚠️ 無法讀取剪貼簿：'+e.message);
+    }
+  }
+}
+
+// ─── 圖片網址貼上自動新增 ──────────────────────────────────────
 function _autoAddImgUrl(){
   const inp = document.getElementById('fImgUrl');
   if(!inp) return;
@@ -6087,26 +6147,50 @@ function _autoAddImgUrl(){
 
 // ─── 商品名稱自動拆解品牌 / IP ────────────────────────────────
 let _nameParsed = {}; // 暫存解析結果
+
+// 品牌縮寫對照表
+const _BRAND_ALIAS = {
+  'MH':   'MegaHouse',
+  'GSC':  'Good Smile Company',
+  'BAN':  'BANDAI',
+  'FUR':  'Furyu',
+  'KOT':  'Kotobukiya',
+  'ALT':  'Alter',
+  'MAX':  'Max Factory',
+};
+
 function _autoFillFromName(val){
   const hint = document.getElementById('fNameHint');
   if(!val.trim()){ if(hint) hint.style.display='none'; _nameParsed={}; return; }
 
-  // 抓品牌：名稱開頭的全大寫英文單字（2字元以上）
-  const _brandMatch = val.match(/^([A-Z][A-Z0-9\-\.]{1,})/);
-  const _suggestBrand = _brandMatch ? _brandMatch[1] : '';
+  // 抓品牌：名稱開頭的英文單字（允許大小寫混合、含 - 和 .，至少2字元）
+  const _brandMatch = val.match(/^([A-Za-z][A-Za-z0-9\-\.]{1,})/);
+  let _suggestBrand = _brandMatch ? _brandMatch[1] : '';
 
-  // 抓IP：對比 acMemory.ip 裡的關鍵字
+  // 縮寫展開（優先）：MH → MegaHouse
+  if(_suggestBrand){
+    const _alias = _BRAND_ALIAS[_suggestBrand.toUpperCase()];
+    if(_alias) _suggestBrand = _alias;
+  }
+
+  // 如果抓到的開頭英文是歷史記憶裡的品牌，優先用記憶裡的完整名稱
+  const _brandList = acMemory.brand || [];
+  const _matchedBrand = _brandList.find(b =>
+    val.toLowerCase().startsWith(b.toLowerCase()) ||
+    (b.includes('/') && val.toLowerCase().startsWith(b.split('/')[0].trim().toLowerCase()))
+  );
+  if(_matchedBrand) _suggestBrand = _matchedBrand.split('/')[0].trim();
+
+  // 抓IP：對比 acMemory.ip 裡的關鍵字（包含名稱中任何位置）
   let _suggestIP = '';
   const _ipList = acMemory.ip || [];
   for(const ip of _ipList){
-    // 全名比對 or 常見縮寫比對
-    const _short = ip.replace(/[！!的、\s]/g,'').slice(0,4);
-    if(val.includes(ip) || (ip.length>=2 && val.toLowerCase().includes(ip.toLowerCase()))){
+    if(val.includes(ip) || val.toLowerCase().includes(ip.toLowerCase())){
       _suggestIP = ip; break;
     }
   }
 
-  // 只有有建議才顯示 hint
+  // 有品牌或IP可以建議，且對應欄位尚未填寫時，才顯示 hint
   const _brandFilled = document.getElementById('fBrand')?.value.trim();
   const _ipFilled    = document.getElementById('fIP')?.value.trim();
   const _hasSuggest  = (_suggestBrand && !_brandFilled) || (_suggestIP && !_ipFilled);
@@ -6152,6 +6236,11 @@ function copyP(id){
     document.getElementById('fDeadline').value    = p.deadline;
     document.getElementById('fDeadlineText').value = p.deadline.replace(/-/g,'/');
   }
+  // 如果有規格，展開規格列
+  if((p.variants||[]).length > 0){
+    const _fVR = document.getElementById('fVariantsRow');
+    if(_fVR) _fVR.style.display = '';
+  }
   // emoji
   selEmoji = p.emoji || EMOJIS[0];
   buildEmojiGrid();
@@ -6161,8 +6250,7 @@ function copyP(id){
   showToast('📋 已複製商品設定，請填入名稱、售價和圖片');
   const ap = document.getElementById('ap');
   if(ap) ap.scrollTo({top:0, behavior:'smooth'});
-  // focus 到名稱欄
-  setTimeout(()=>document.getElementById('fName')?.focus(), 100);
+  setTimeout(()=>{ document.getElementById('fName')?.focus(); _updateFilledState(); }, 100);
 }
 
 function resetForm(){
@@ -6173,7 +6261,7 @@ function resetForm(){
   if(hint) hint.style.display='none';
   renderAdminImgPreviews();
   // 清除所有文字欄位
-  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   setFType('預購');
@@ -6189,6 +6277,7 @@ function resetForm(){
   const fv = document.getElementById('fVariants'); if(fv) fv.value='';
   restoreVariantPrices({}, {}); // 清除規格價格和庫存 UI
   onTypeChange(); // 最後才呼叫，依 fType 更新顯示
+  _updateFilledState(); // 清除所有綠色填寫狀態
 }
 
 // ─── ORDER LIST (ADMIN) ──────────────────────────────────
