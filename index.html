@@ -488,6 +488,17 @@ textarea.fi{min-height:64px;resize:vertical}
   .nbtn-cart{display:none!important}
   /* 聊聊按鈕手機版顯示 */
   #navChatBtn{display:flex!important}
+  /* 手機版 Nav 精簡：隱藏不必要元素 */
+  .nsearch{display:none!important}
+  #notifBellWrap{display:none!important}
+  #authArea{display:none!important}
+  .nlinks{display:none!important}
+  #navSearchBtn{display:flex!important}
+  /* 手機版搜尋覆蓋層 */
+  #mobileSearchOverlay{display:none}
+  #mobileSearchOverlay.open{display:flex}
+  /* Crisp 氣泡手機版完全隱藏 */
+  #crisp-chatbox,div[data-id="crisp"],[class*="crisp"]{display:none!important}
   /* csFloatBtn 手機版完全隱藏（頂部已有聊聊按鈕） */
   #csFloatBtn{display:none!important}
   /* .filter-btn（頁面內那顆）手機版隱藏，已有 FAB */
@@ -896,12 +907,16 @@ textarea.fi{min-height:64px;resize:vertical}
       <button>🔍</button>
     </div>
     <div class="nacts">
-      <!-- 聊聊按鈕：手機版顯示，桌機版隱藏 -->
-      <button id="navChatBtn" onclick="if(window.$crisp){$crisp.push(['do','chat:open'])}" 
-        style="display:none;height:34px;padding:0 12px;border-radius:var(--r);font-size:13px;color:var(--gold);background:rgba(201,168,76,.12);border:1.5px solid rgba(201,168,76,.5);align-items:center;gap:5px;cursor:pointer"
+      <!-- 搜尋icon：手機版顯示 -->
+      <button id="navSearchBtn" onclick="_toggleMobileSearch()"
+        style="display:none;height:34px;width:34px;border-radius:var(--r);color:var(--ink2);background:none;border:none;cursor:pointer;align-items:center;justify-content:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <!-- 聊聊按鈕：手機版顯示（純icon），桌機版隱藏 -->
+      <button id="navChatBtn" onclick="_openMobileChat()"
+        style="display:none;height:34px;width:34px;border-radius:var(--r);color:var(--gold);background:rgba(201,168,76,.12);border:1.5px solid rgba(201,168,76,.5);align-items:center;justify-content:center;cursor:pointer"
         title="線上客服">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        <span class="ntxt">客服</span>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       </button>
       <button class="nbtn nbtn-cart" onclick="openCart()">
         🛒 <span class="ntxt">購物車 </span><span class="cbadge" id="cartCount">0</span>
@@ -922,6 +937,18 @@ textarea.fi{min-height:64px;resize:vertical}
       <div id="authArea"></div>
     </div>
   </div>
+</div>
+
+<!-- 手機版搜尋覆蓋層 -->
+<div id="mobileSearchOverlay" style="display:none;position:fixed;top:54px;left:0;right:0;z-index:350;background:var(--white);padding:10px 12px;border-bottom:1px solid var(--border);box-shadow:0 4px 12px rgba(0,0,0,.12);align-items:center;gap:8px">
+  <div style="flex:1;display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);border-radius:30px;overflow:hidden">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" style="margin-left:12px;flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="mobileSearchInput" type="text" placeholder="搜尋商品名稱..."
+      oninput="_onMobileSearch(this.value)"
+      style="flex:1;border:none;background:transparent;padding:8px 10px;font-size:14px;outline:none">
+    <button onclick="_clearMobileSearch()" id="mobileSearchClear" style="display:none;padding:0 10px;background:none;border:none;font-size:16px;color:var(--ink3);cursor:pointer">✕</button>
+  </div>
+  <button onclick="_toggleMobileSearch()" style="background:none;border:none;font-size:13px;color:var(--ink3);cursor:pointer;white-space:nowrap;padding:0 4px">取消</button>
 </div>
 
 <!-- SHOP VIEW -->
@@ -1236,6 +1263,21 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
     </div>
 
+    <!-- 快速入口：手機版顯示 -->
+    <div id="profileMobileActions" style="display:none;margin-bottom:16px">
+      <div class="profile-card" style="padding:0;overflow:hidden">
+        <button onclick="openFaq()" style="width:100%;height:48px;background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;padding:0 16px;gap:10px;font-size:14px;color:var(--ink)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          常見問題 FAQ
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="2" style="margin-left:auto"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button onclick="_openMobileChat()" style="width:100%;height:48px;background:none;border:none;cursor:pointer;display:flex;align-items:center;padding:0 16px;gap:10px;font-size:14px;color:var(--ink)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          線上客服
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="2" style="margin-left:auto"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
     <button class="profile-logout-btn" onclick="logout()">登出</button>
     <div style="text-align:center"><button style="font-size:12px;color:var(--ink3);background:none;border:none;cursor:pointer" onclick="if(confirm('確定刪除帳號？此操作無法復原'))logout()">刪除帳號</button></div>
   </div>
@@ -2384,6 +2426,60 @@ function showCheckoutPage(){
   renderCheckoutPage();
   showView('checkoutView');
 }
+// ── 手機版 Crisp 氣泡隱藏 ────────────────────────────
+function _hideCrispOnMobile(){
+  if(window.innerWidth > 880) return;
+  if(window.$crisp){
+    try{ $crisp.push(['do','chat:hide']); }catch(e){}
+  }
+}
+window.CRISP_READY_TRIGGER = function(){ _hideCrispOnMobile(); };
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(_hideCrispOnMobile, 2000);
+});
+
+// ── 手機版聊聊開啟（先顯示再開） ─────────────────────
+function _openMobileChat(){
+  if(window.$crisp){
+    try{
+      $crisp.push(['do','chat:show']);
+      $crisp.push(['do','chat:open']);
+      // 關掉後再隱藏
+      $crisp.push(['on','chat:closed', function(){
+        setTimeout(_hideCrispOnMobile, 500);
+      }]);
+    }catch(e){}
+  }
+}
+
+// ── 手機版搜尋覆蓋層 ─────────────────────────────────
+function _toggleMobileSearch(){
+  const overlay = document.getElementById('mobileSearchOverlay');
+  if(!overlay) return;
+  const isOpen = overlay.classList.contains('open');
+  if(isOpen){
+    overlay.classList.remove('open');
+    overlay.style.display = 'none';
+    // 清空並同步
+    const inp = document.getElementById('mobileSearchInput');
+    if(inp){ inp.value=''; _onMobileSearch(''); }
+  } else {
+    overlay.style.display = 'flex';
+    overlay.classList.add('open');
+    setTimeout(()=>{ const inp=document.getElementById('mobileSearchInput'); if(inp) inp.focus(); }, 80);
+  }
+}
+function _onMobileSearch(val){
+  const mainInp = document.getElementById('searchInput');
+  if(mainInp){ mainInp.value = val; onSearch(); }
+  const clr = document.getElementById('mobileSearchClear');
+  if(clr) clr.style.display = val ? '' : 'none';
+}
+function _clearMobileSearch(){
+  const inp = document.getElementById('mobileSearchInput');
+  if(inp){ inp.value=''; inp.focus(); _onMobileSearch(''); }
+}
+
 // ── 手機版底部 Tab Bar ────────────────────────────────
 function _mtabGo(tab){
   // 切換 active 樣式
@@ -2467,6 +2563,9 @@ function renderProfile(){
   if(dp) dp.textContent = userProfile.phone||'未填寫';
   if(dp) dp.className = 'profile-val'+(userProfile.phone?'':' empty');
   if(de) de.textContent = user?.email||'—';
+  // 手機版才顯示 FAQ / 客服快速入口
+  const mobileActs = document.getElementById('profileMobileActions');
+  if(mobileActs) mobileActs.style.display = window.innerWidth <= 880 ? '' : 'none';
 }
 
 function toggleProfileEdit(forceOpen){
