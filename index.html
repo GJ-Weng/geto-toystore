@@ -5071,8 +5071,8 @@ function onImgDrop(e){
 async function onImgFileChange(input){
   const files = Array.from(input.files||[]);
   if(!files.length) return;
-  const btn = document.querySelector('.img-upload-btn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ 上傳中…'; }
+  const btn = document.getElementById('fImgFile')?.previousElementSibling;
+  if(btn && btn.classList.contains('img-upload-btn')){ btn.disabled=true; btn.textContent='⏳ 上傳中…'; }
   let uploaded = 0;
   for(const file of files){
     if(file.size > 5*1024*1024){ showToast('⚠️ 圖片請壓縮至 5MB 以內：'+file.name); continue; }
@@ -5127,23 +5127,51 @@ function acSave(){
   });
 }
 
-// 從 Supabase 載入 acMemory（登入後呼叫）
+// 從 Supabase 載入 acMemory，並同時從 products 表掃描所有曾用過的 ip/brand/form
 async function acLoadFromSupabase(){
   try{
     await _sbReady;
     if(!_sb) return;
-    const {data, error} = await _sb.from('admin_settings').select('value').eq('key','ac_memory').maybeSingle();
-    if(error || !data) return;
-    const _remote = data.value;
-    if(!_remote) return;
-    // 合併本地和遠端（遠端優先，但確保三個 key 都存在）
+
+    // 同時查 admin_settings 和 products
+    const [settingsRes, productsRes] = await Promise.all([
+      _sb.from('admin_settings').select('value').eq('key','ac_memory').maybeSingle(),
+      _sb.from('products').select('ip,brand,form').not('ip','is',null),
+    ]);
+
+    // 從 admin_settings 取記憶
+    const _remote = settingsRes.data?.value || {};
+
+    // 從 products 表收集所有曾用過的值
+    const _fromProducts = { ip: [], brand: [], form: [] };
+    for(const p of (productsRes.data || [])){
+      if(p.ip   && p.ip.trim())   _fromProducts.ip.push(p.ip.trim());
+      if(p.brand && p.brand.trim()){
+        // brand 可能是 "BANDAI / 扭蛋" 格式，只取第一段
+        const _b = p.brand.split('/')[0].trim();
+        if(_b) _fromProducts.brand.push(_b);
+      }
+      if(p.form  && p.form.trim()) _fromProducts.form.push(p.form.trim());
+    }
+    // 去重
+    _fromProducts.ip    = [...new Set(_fromProducts.ip)];
+    _fromProducts.brand = [...new Set(_fromProducts.brand)];
+    _fromProducts.form  = [...new Set(_fromProducts.form)];
+
+    // 三來源合併：products（最完整）→ admin_settings（最近用過）→ 本地
     acMemory = {
-      ip:    _mergeAcList(_remote.ip    || [], acMemory.ip    || []),
-      form:  _mergeAcList(_remote.form  || [], acMemory.form  || []),
-      brand: _mergeAcList(_remote.brand || [], acMemory.brand || []),
+      ip:    _mergeAcList(_remote.ip    || [], _mergeAcList(_fromProducts.ip,    acMemory.ip    || [])),
+      form:  _mergeAcList(_remote.form  || [], _mergeAcList(_fromProducts.form,  acMemory.form  || [])),
+      brand: _mergeAcList(_remote.brand || [], _mergeAcList(_fromProducts.brand, acMemory.brand || [])),
     };
     localStorage.setItem('tf_acm', JSON.stringify(acMemory));
-    console.log('[acMemory] 已從 Supabase 同步');
+
+    // 把合併後的完整記憶同步回 admin_settings
+    _sb.from('admin_settings').upsert({
+      key: 'ac_memory', value: acMemory, updated_at: new Date().toISOString()
+    }, { onConflict: 'key' }).then(()=>{});
+
+    console.log(`[acMemory] 同步完成 — IP:${acMemory.ip.length} 品牌:${acMemory.brand.length} 形式:${acMemory.form.length}`);
   } catch(e){ console.warn('acLoadFromSupabase error:', e); }
 }
 
@@ -6163,25 +6191,26 @@ function _autoFillFromName(val){
   const hint = document.getElementById('fNameHint');
   if(!val.trim()){ if(hint) hint.style.display='none'; _nameParsed={}; return; }
 
-  // 抓品牌：名稱開頭的英文單字（允許大小寫混合、含 - 和 .，至少2字元）
-  const _brandMatch = val.match(/^([A-Za-z][A-Za-z0-9\-\.]{1,})/);
+  // 抓品牌：名稱開頭的英文單字（允許大小寫混合、含 - 和 .，至少1字元以上）
+  const _brandMatch = val.match(/^([A-Za-z][A-Za-z0-9\-\.]*)/);
   let _suggestBrand = _brandMatch ? _brandMatch[1] : '';
 
-  // 縮寫展開（優先）：MH → MegaHouse
+  // 先查縮寫對照表（最高優先）：MH → MegaHouse
   if(_suggestBrand){
     const _alias = _BRAND_ALIAS[_suggestBrand.toUpperCase()];
-    if(_alias) _suggestBrand = _alias;
+    if(_alias){ _suggestBrand = _alias; }
+    else {
+      // 縮寫沒有對應 → 再查歷史記憶（避免歷史記憶裡的 MH 覆蓋掉展開後的 MegaHouse）
+      const _brandList = acMemory.brand || [];
+      const _matchedBrand = _brandList.find(b =>
+        val.toLowerCase().startsWith(b.toLowerCase()) ||
+        (b.includes('/') && val.toLowerCase().startsWith(b.split('/')[0].trim().toLowerCase()))
+      );
+      if(_matchedBrand) _suggestBrand = _matchedBrand.split('/')[0].trim();
+    }
   }
 
-  // 如果抓到的開頭英文是歷史記憶裡的品牌，優先用記憶裡的完整名稱
-  const _brandList = acMemory.brand || [];
-  const _matchedBrand = _brandList.find(b =>
-    val.toLowerCase().startsWith(b.toLowerCase()) ||
-    (b.includes('/') && val.toLowerCase().startsWith(b.split('/')[0].trim().toLowerCase()))
-  );
-  if(_matchedBrand) _suggestBrand = _matchedBrand.split('/')[0].trim();
-
-  // 抓IP：對比 acMemory.ip 裡的關鍵字（包含名稱中任何位置）
+  // 抓IP：對比 acMemory.ip 裡所有用過的 IP，名稱中任何位置比對
   let _suggestIP = '';
   const _ipList = acMemory.ip || [];
   for(const ip of _ipList){
