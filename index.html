@@ -301,9 +301,26 @@ textarea.omi{min-height:64px;resize:vertical}
 .fr.c1{grid-template-columns:1fr}
 .fg{display:flex;flex-direction:column;gap:4px}
 .fl{font-size:11px;font-weight:500;color:var(--ink2)}
+.fl .req{color:#E24B4A;margin-left:2px}
 .fi{border:1px solid var(--border2);border-radius:var(--r);padding:8px 11px;font-size:13px;outline:none;transition:border-color .15s;background:var(--white);color:var(--ink);width:100%}
 .fi:focus{border-color:#888}
 textarea.fi{min-height:64px;resize:vertical}
+/* 商品類型 toggle */
+.ftype-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;width:fit-content}
+.ftype-btn{padding:7px 16px;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--ink2);font-family:var(--font);transition:all .15s}
+.ftype-btn.act{background:var(--ink);color:#fff}
+.ftype-btn:not(.act):hover{background:var(--bg)}
+/* 結單日期整合輸入 */
+.deadline-wrap{display:flex;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;background:var(--white)}
+.deadline-wrap:focus-within{border-color:#888}
+.deadline-wrap input[type=text]{flex:1;border:none;padding:8px 11px;font-size:13px;outline:none;background:transparent;color:var(--ink);font-family:var(--font)}
+.deadline-wrap .dl-cal{width:36px;flex-shrink:0;border-left:1px solid var(--border2);background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:var(--ink3)}
+.deadline-wrap .dl-cal:hover{background:var(--border);color:var(--ink)}
+.deadline-wrap input[type=date]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+/* 歷史tag */
+.ac-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.ac-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);border:1px solid var(--border2);color:var(--ink2);cursor:pointer;transition:all .12s}
+.ac-tag:hover{border-color:var(--ink2);color:var(--ink)}
 .fa{display:flex;gap:8px;padding-top:14px;border-top:1px solid var(--border);margin-top:6px;align-items:center}
 .fsave{height:36px;padding:0 20px;background:var(--ink);color:#fff;border-radius:var(--r);font-size:13px;font-weight:500;transition:opacity .15s;border:none;cursor:pointer}
 .fsave:hover{opacity:.85}
@@ -1233,54 +1250,137 @@ textarea.fi{min-height:64px;resize:vertical}
     <div id="tab1">
       <div class="fc">
         <div class="ft" id="formTitle">新增商品</div>
-        <div class="fr">
-          <div class="fg"><label class="fl">商品名稱 *</label><input class="fi" id="fName" placeholder="例：BANPRESTO 排球少年 絨毛吊偶 vol.2"></div>
-          <div class="fg"><label class="fl">品牌 / 分類</label>
-            <div class="ac-wrap">
-              <input class="fi" id="fBrand" placeholder="例：BANPRESTO / 絨毛　（廠牌 / 分類）" autocomplete="off" oninput="acInput('fBrand','brand')" onblur="acBlur('fBrand')" onfocus="acInput('fBrand','brand')">
-              <div class="ac-list" id="fBrand-list"></div>
+
+        <!-- 圖片區 -->
+        <div class="fr c1" style="margin-bottom:14px">
+          <div class="fg">
+            <label class="fl">商品圖片 <span style="font-size:10px;color:var(--ink3)" id="imgCountLabel">(0/10)</span></label>
+            <div class="img-upload-wrap">
+              <div class="img-upload-row">
+                <input class="fi" id="fImgUrl" placeholder="貼上圖片網址，貼上即自動新增" onkeydown="onImgUrlKeydown(event)" onpaste="setTimeout(()=>_autoAddImgUrl(),0)">
+                <button type="button" class="img-upload-btn" onclick="document.getElementById('fImgFile').click()">📁 從電腦上傳</button>
+                <input type="file" id="fImgFile" accept="image/*" multiple style="display:none" onchange="onImgFileChange(this)">
+              </div>
+              <div class="img-drop-zone" id="imgDropZone"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="onImgDrop(event)"
+                onclick="document.getElementById('fImgFile').click()">
+                <div class="dz-icon">🖼️</div>
+                <div class="dz-text">拖拉圖片到這裡，或點此選擇</div>
+                <div class="dz-hint">也可以直接 Ctrl+V 貼上截圖或複製的圖片</div>
+              </div>
+              <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
             </div>
           </div>
         </div>
-        <div class="fr" style="grid-template-columns:1fr 1fr 1fr 1fr">
-          <div class="fg"><label class="fl">售價 NT$ *</label><input class="fi" id="fPrice" type="number" placeholder="320"></div>
-          <div class="fg"><label class="fl">訂金 NT$（0＝不收）</label><input class="fi" id="fDeposit" type="number" placeholder="0" min="0"></div>
-          <div class="fg"><label class="fl">每人限購</label><input class="fi" id="fLimit" placeholder="例：2件"></div>
-          <div class="fg"><label class="fl">商品類型</label><select class="fi" id="fType" onchange="onTypeChange()"><option value="預購">預購</option><option value="現貨">現貨</option><option value="未分類">未分類</option></select></div>
-        </div>
-        <div class="fr">
-          <div class="fg"><label class="fl">結單日期</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input class="fi" id="fDeadline" type="date" style="flex:1" oninput="_syncDeadlineText(this.value)">
-              <input class="fi" id="fDeadlineText" placeholder="或直接輸入 2026/04/13" style="flex:1;font-size:13px"
-                oninput="_parseDeadlineText(this.value)">
+
+        <!-- 商品類型 + 狀態 + IP主題 -->
+        <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">商品類型</label>
+            <div class="ftype-toggle">
+              <button class="ftype-btn act" id="fTypeBtn_預購" onclick="setFType('預購')">預購</button>
+              <button class="ftype-btn" id="fTypeBtn_現貨" onclick="setFType('現貨')">現貨</button>
+              <button class="ftype-btn" id="fTypeBtn_未分類" onclick="setFType('未分類')">未分類</button>
             </div>
+            <input type="hidden" id="fType" value="預購">
           </div>
-          <div class="fg"><label class="fl">預計到貨</label><input class="fi" id="fArrival" placeholder="例：2026-08"></div>
-        </div>
-        <div class="fr">
-          <div class="fg"><label class="fl">IP主題</label>
+          <div class="fg">
+            <label class="fl">上架狀態</label>
+            <select class="fi" id="fStatus" style="width:100px"><option value="published">上架</option><option value="unlisted">下架</option></select>
+          </div>
+          <div class="fg" style="flex:1;min-width:140px">
+            <label class="fl">IP主題</label>
             <div class="ac-wrap">
-              <input class="fi" id="fIP" placeholder="例：葬送的芙莉蓮" autocomplete="off" oninput="acInput('fIP','ip')" onblur="acBlur('fIP')" onfocus="acInput('fIP','ip')">
+              <input class="fi" id="fIP" placeholder="例：Love Live" autocomplete="off" oninput="acInput('fIP','ip');_renderAcTags('fIP','ip')" onblur="acBlur('fIP')" onfocus="acInput('fIP','ip');_renderAcTags('fIP','ip')">
               <div class="ac-list" id="fIP-list"></div>
             </div>
+            <div class="ac-tags" id="fIP-tags"></div>
           </div>
-          <div class="fg"><label class="fl">商品類型</label>
-            <div class="ac-wrap">
-              <input class="fi" id="fForm" placeholder="例：絨毛、Figure、景品" autocomplete="off" oninput="acInput('fForm','form')" onblur="acBlur('fForm')" onfocus="acInput('fForm','form')">
-              <div class="ac-list" id="fForm-list"></div>
+        </div>
+
+        <!-- 商品名稱 + 每人限購 -->
+        <div style="display:grid;grid-template-columns:1fr 110px;gap:12px;margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">商品名稱 <span class="req">*</span></label>
+            <div style="position:relative">
+              <input class="fi" id="fName" placeholder="例：PLUM 1/7 LL! 虹咲學園 宮下愛" oninput="_autoFillFromName(this.value)">
+              <span id="fNameHint" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:#7c3aed;cursor:pointer;background:var(--white);padding:0 4px" onclick="_applyNameParse()" title="點擊套用">✨ 自動填入</span>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="fl">每人限購 <span class="req">*</span></label>
+            <input class="fi" id="fLimit" placeholder="例：2件" value="2件">
+          </div>
+        </div>
+
+        <!-- 新增規格連結 -->
+        <div style="margin-bottom:12px">
+          <span style="font-size:13px;color:#7c3aed;cursor:pointer" onclick="document.getElementById('fVariantsRow').style.display=document.getElementById('fVariantsRow').style.display==='none'?'':'none'">＋ 新增商品規格（如顏色、尺寸）</span>
+        </div>
+        <div id="fVariantsRow" style="display:none;margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">規格（逗號分隔）</label>
+            <input class="fi" id="fVariants" placeholder="例：A款,B款,C款" oninput="renderVariantPrices()">
+            <div class="vp-grid" id="variantPriceGrid" style="display:none">
+              <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>
             </div>
           </div>
         </div>
-        <div class="fr c1"><div class="fg">
-          <label class="fl">規格（選填，用逗號分隔）</label>
-          <input class="fi" id="fVariants" placeholder="例：小栗帽,玉藻十字,美浦波旁,米浴" oninput="renderVariantPrices()">
-          <div class="vp-grid" id="variantPriceGrid" style="display:none">
-            <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>
+
+        <!-- 售價 + 品牌分類 -->
+        <div class="fr" style="margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">售價 NT$ <span class="req">*</span></label>
+            <input class="fi" id="fPrice" type="number" placeholder="0">
           </div>
-        </div></div>
-        <!-- 現貨庫存欄位（type=現貨時顯示）-->
-        <div class="fr" id="fStockRow" style="display:none">
+          <div class="fg">
+            <label class="fl">品牌 / 分類 <span class="req">*</span></label>
+            <div class="ac-wrap">
+              <input class="fi" id="fBrand" placeholder="例：PLUM / PVC" autocomplete="off" oninput="acInput('fBrand','brand');_renderAcTags('fBrand','brand')" onblur="acBlur('fBrand')" onfocus="acInput('fBrand','brand');_renderAcTags('fBrand','brand')">
+              <div class="ac-list" id="fBrand-list"></div>
+            </div>
+            <div class="ac-tags" id="fBrand-tags"></div>
+          </div>
+        </div>
+
+        <!-- 訂金 + 商品形式 -->
+        <div class="fr" style="margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">訂金 NT$</label>
+            <input class="fi" id="fDeposit" type="number" placeholder="不填 = 無訂金" min="0">
+          </div>
+          <div class="fg">
+            <label class="fl">商品形式</label>
+            <div class="ac-wrap">
+              <input class="fi" id="fForm" placeholder="例：Figure、絨毛、景品" autocomplete="off" oninput="acInput('fForm','form');_renderAcTags('fForm','form')" onblur="acBlur('fForm')" onfocus="acInput('fForm','form');_renderAcTags('fForm','form')">
+              <div class="ac-list" id="fForm-list"></div>
+            </div>
+            <div class="ac-tags" id="fForm-tags"></div>
+          </div>
+        </div>
+
+        <!-- 結單日期 + 預計到貨 -->
+        <div class="fr" style="margin-bottom:12px" id="fDeadlineRow">
+          <div class="fg">
+            <label class="fl">結單日期 <span class="req">*</span></label>
+            <div class="deadline-wrap">
+              <input type="text" id="fDeadlineText" placeholder="2026/04/30" oninput="_parseDeadlineText(this.value)">
+              <div class="dl-cal" title="選擇日期">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <input type="date" id="fDeadline" oninput="_syncDeadlineText(this.value)" title="選擇日期">
+              </div>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="fl">預計到貨 <span class="req">*</span></label>
+            <input class="fi" id="fArrival" placeholder="例：2026-08">
+          </div>
+        </div>
+
+        <!-- 現貨庫存（type=現貨時顯示）-->
+        <div class="fr" id="fStockRow" style="display:none;margin-bottom:12px">
           <div class="fg">
             <label class="fl">庫存數量（0＝無限制）</label>
             <input class="fi" id="fStock" type="number" min="0" placeholder="0" value="0">
@@ -1294,34 +1394,25 @@ textarea.fi{min-height:64px;resize:vertical}
             </select>
           </div>
         </div>
-        <div class="fr c1"><div class="fg">
-          <label class="fl">商品說明 <span style="font-size:11px;color:var(--ink3)">（特典內容、尺寸、注意事項等）</span></label>
-          <textarea class="fi" id="fDesc" placeholder="例：全高約 14cm，附初回特典購入憑證 1 張。商品為非賣品。" rows="3" style="resize:vertical"></textarea>
-        </div></div>
-        <div class="fr c1"><div class="fg"><label class="fl">上架狀態</label><select class="fi" id="fStatus"><option value="published">上架</option><option value="unlisted">下架</option></select></div></div>
-        <div class="fr c1"><div class="fg"><label class="fl">商品圖片（可多張）</label>
-          <div class="img-upload-wrap">
-            <div class="img-upload-row">
-              <input class="fi" id="fImgUrl" placeholder="貼上圖片網址 https://...jpg，按 Enter 新增" onkeydown="onImgUrlKeydown(event)">
-              <button type="button" class="img-upload-btn" onclick="document.getElementById('fImgFile').click()">📁 從電腦上傳</button>
-              <input type="file" id="fImgFile" accept="image/*" multiple style="display:none" onchange="onImgFileChange(this)">
-            </div>
-            <div class="img-drop-zone" id="imgDropZone"
-              ondragover="event.preventDefault();this.classList.add('drag-over')"
-              ondragleave="this.classList.remove('drag-over')"
-              ondrop="onImgDrop(event)"
-              onclick="document.getElementById('fImgFile').click()">
-              <div class="dz-icon">🖼️</div>
-              <div class="dz-text">拖拉圖片到這裡，或點此選擇</div>
-              <div class="dz-hint">也可以直接 Ctrl+V 貼上截圖或複製的圖片</div>
-            </div>
-            <div class="img-hint">可貼網址按 Enter、從電腦選取、或直接拖拉圖片（第一張為主圖）</div>
-            <div id="imgPreviewList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+
+        <!-- 商品說明 -->
+        <div class="fr c1" style="margin-bottom:12px">
+          <div class="fg">
+            <label class="fl">商品說明 <span style="font-size:10px;color:var(--ink3)">（特典內容、尺寸、注意事項等）</span></label>
+            <textarea class="fi" id="fDesc" placeholder="例：全高約 14cm，附初回特典購入憑證 1 張。商品為非賣品。" rows="3"></textarea>
           </div>
-        </div></div>
-        <div class="fg" style="margin-bottom:12px"><label class="fl">商品圖示（無圖片時顯示）</label><div class="eg" id="eg"></div></div>
+        </div>
+
+        <!-- 商品圖示 -->
+        <div class="fg" style="margin-bottom:14px">
+          <label class="fl">商品圖示（無圖片時顯示）</label>
+          <div class="eg" id="eg"></div>
+        </div>
+
+        <!-- 按鈕列 -->
         <div class="fa">
-          <button class="fsave" onclick="saveProduct()">儲存商品</button>
+          <button class="fsave" onclick="saveProduct()">新增商品</button>
+          <button class="fsave" style="background:#7c3aed" onclick="saveProduct(true)">儲存並繼續新增</button>
           <button class="fcan" onclick="resetForm()">清除</button>
           <span class="ebadge" id="editBadge" style="display:none">編輯模式</span>
         </div>
@@ -4771,6 +4862,8 @@ _sbReady.then(() => {
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   buildEmojiGrid();renderAdminList();renderOrderList();
+  // 載入 acMemory（品牌/IP/商品類型歷史記錄）
+  acLoadFromSupabase();
   document.getElementById('ap').classList.add('open');
   const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='none';
 }
@@ -4888,6 +4981,8 @@ let _adminImgs = [];
 function renderAdminImgPreviews(){
   const list = document.getElementById('imgPreviewList');
   if(!list) return;
+  const _countEl = document.getElementById('imgCountLabel');
+  if(_countEl) _countEl.textContent = `(${_adminImgs.length}/10)`;
   if(!_adminImgs.length){ list.innerHTML=''; return; }
   list.innerHTML = _adminImgs.map((src,i)=>
     '<div draggable="true" data-imgidx="'+i+'" ondragstart="imgDragStart(event,'+i+')" ondragover="imgDragOver(event)" ondrop="imgDrop(event,'+i+')" ondragend="imgDragEnd(event)"'
@@ -5005,14 +5100,56 @@ function clearImgField(){
 
 // ─── AUTOCOMPLETE ────────────────────────────────────────
 // 記憶用過的 IP / Form / Brand
-let acMemory = JSON.parse(localStorage.getItem('tf_acm')||JSON.stringify({
+const _AC_DEFAULTS = {
   ip:   ['寶可夢','鬼滅之刃','排球少年','賽馬娘','咒術迴戰','葬送的芙莉蓮','SPY×FAMILY','進擊的巨人'],
   form: ['絨毛','吊偶','Figure','模型','積木','卡牌','扭蛋','景品','盲盒'],
   brand:['BANPRESTO','Furyu','Good Smile','MegaHouse','LEGO','Tamiya','Kotobukiya']
-}));
+};
+let acMemory = JSON.parse(localStorage.getItem('tf_acm') || JSON.stringify(_AC_DEFAULTS));
 
+// 儲存到 localStorage + 非同步寫入 Supabase
 function acSave(){
   localStorage.setItem('tf_acm', JSON.stringify(acMemory));
+  // 非同步寫入 Supabase（不阻塞 UI）
+  _sbReady.then(()=>{
+    if(!_sb) return;
+    _sb.from('admin_settings').upsert({
+      key: 'ac_memory',
+      value: acMemory,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' }).then(({error})=>{
+      if(error) console.warn('acMemory Supabase 寫入失敗:', error.message);
+    });
+  });
+}
+
+// 從 Supabase 載入 acMemory（登入後呼叫）
+async function acLoadFromSupabase(){
+  try{
+    await _sbReady;
+    if(!_sb) return;
+    const {data, error} = await _sb.from('admin_settings').select('value').eq('key','ac_memory').maybeSingle();
+    if(error || !data) return;
+    const _remote = data.value;
+    if(!_remote) return;
+    // 合併本地和遠端（遠端優先，但確保三個 key 都存在）
+    acMemory = {
+      ip:    _mergeAcList(_remote.ip    || [], acMemory.ip    || []),
+      form:  _mergeAcList(_remote.form  || [], acMemory.form  || []),
+      brand: _mergeAcList(_remote.brand || [], acMemory.brand || []),
+    };
+    localStorage.setItem('tf_acm', JSON.stringify(acMemory));
+    console.log('[acMemory] 已從 Supabase 同步');
+  } catch(e){ console.warn('acLoadFromSupabase error:', e); }
+}
+
+// 合併兩個清單（保持順序、去重、限30筆）
+function _mergeAcList(remote, local){
+  const merged = [...remote];
+  for(const v of local){
+    if(!merged.includes(v)) merged.push(v);
+  }
+  return merged.slice(0, 30);
 }
 
 function acAddMemory(type, value){
@@ -5153,12 +5290,32 @@ function getPriceRange(p){
 }
 
 // ─── 現貨/預購 欄位切換 ─────────────────────────────────────
+function setFType(type){
+  document.getElementById('fType').value = type;
+  ['預購','現貨','未分類'].forEach(t=>{
+    const btn = document.getElementById('fTypeBtn_'+t);
+    if(btn) btn.classList.toggle('act', t===type);
+  });
+  onTypeChange();
+}
+
 function onTypeChange(){
   const type = document.getElementById('fType')?.value;
   const stockRow    = document.getElementById('fStockRow');
-  const deadlineRow = document.querySelector('#fDeadline')?.closest('.fr');
+  const deadlineRow = document.getElementById('fDeadlineRow');
   if(stockRow)    stockRow.style.display    = (type==='現貨') ? '' : 'none';
   if(deadlineRow) deadlineRow.style.display = (type==='預購') ? '' : 'none';
+}
+
+// 在輸入框下方顯示歷史記憶 tag
+function _renderAcTags(fieldId, type){
+  const tagsEl = document.getElementById(fieldId+'-tags');
+  if(!tagsEl) return;
+  const opts = (acMemory[type]||[]).slice(0,6);
+  if(!opts.length){ tagsEl.innerHTML=''; return; }
+  tagsEl.innerHTML = opts.map(v=>
+    `<span class="ac-tag" onmousedown="event.preventDefault();document.getElementById('${fieldId}').value='${v.replace(/'/g,"&#39;")}';acAddMemory('${type}','${v.replace(/'/g,"&#39;")}');document.getElementById('${fieldId}-tags').innerHTML=''">${v}</span>`
+  ).join('');
 }
 
 function buildEmojiGrid(){
@@ -5453,9 +5610,8 @@ function renderAdminList(){
         </div>
         <div class="aiac" style="flex-shrink:0">
           <button class="ab abe" onclick="editP('${pid}')">✏️ 編輯</button>
-          <button class="ab abt ${p.status==='published'?'on':'off'}" onclick="togStatus('${pid}')">
-            ${p.status==='published'?'✓ 上架中':'✕ 已下架'}
-          </button>
+          <button class="ab" style="border-color:#7c3aed;color:#7c3aed;background:#f5f3ff" onclick="copyP('${pid}')">📋 複製</button>
+          <button class="ab abt ${p.status==='published'?'on':'off'}" onclick="togStatus('${pid}')">${p.status==='published'?'✓ 上架中':'✕ 已下架'}</button>
           ${p.type==='預購'&&p.deadline&&!isDeadlinePassed(p.deadline)?`
             <button class="ab" style="border-color:#1a56c4;color:#1a56c4;background:#e8f0fc" onclick="openDeadlineModal('${pid}','extend')">📅 延長結單</button>
             <button class="ab" style="border-color:#e67300;color:#e67300;background:#fff8f0" onclick="forceCloseDeadline('${pid}')">⏹ 提早結單</button>
@@ -5638,10 +5794,13 @@ function editP(id){
   document.getElementById('fBrand').value=p.brand;
   document.getElementById('fPrice').value=p.price;
   document.getElementById('fLimit').value=p.limit||'';
-  document.getElementById('fType').value=p.type;
+  setFType(p.type||'預購');
   document.getElementById('fDeadline').value=p.deadline||'';
   const _fDTxt = document.getElementById('fDeadlineText');
   if(_fDTxt) _fDTxt.value = p.deadline ? p.deadline.replace(/-/g,'/') : '';
+  // 規格列展開
+  const _fVR = document.getElementById('fVariantsRow');
+  if(_fVR && (p.variants||[]).length > 0) _fVR.style.display='';
   document.getElementById('fArrival').value=p.arrival||'';
   document.getElementById('fIP').value=p.ip||'';
   document.getElementById('fForm').value=p.form||'';
@@ -5687,7 +5846,7 @@ function editP(id){
   const ap = document.getElementById('ap');
   if(ap) ap.scrollTo({top:0, behavior:'smooth'});
 }
-async function saveProduct(){
+async function saveProduct(continueAdd=false){
   const name=document.getElementById('fName').value.trim();
   const brand=document.getElementById('fBrand').value.trim();
   const price=parseInt(document.getElementById('fPrice').value)||0;
@@ -5887,7 +6046,12 @@ async function saveProduct(){
   }
 
   resetForm(); renderAdminList(); renderShop();
-  swTab(2); // 儲存後自動切到商品列表
+  if(continueAdd){
+    swTab(1); // 留在新增頁
+    setTimeout(()=>document.getElementById('fName')?.focus(), 100);
+  } else {
+    swTab(2); // 切到商品列表
+  }
   // 背景靜默更新（確保 sync 完成後也更新商品列表）
   syncProductsFromSupabase().then(()=>{ renderAdminList(); }).catch(e=>console.warn('background sync error:', e));
 }
@@ -5909,15 +6073,110 @@ function _parseDeadlineText(val){
   }
 }
 
+// ─── 圖片網址貼上自動新增 ─────────────────────────────────────
+function _autoAddImgUrl(){
+  const inp = document.getElementById('fImgUrl');
+  if(!inp) return;
+  const url = inp.value.trim();
+  if(!url.startsWith('http')) return;
+  _adminImgs.push(url);
+  inp.value = '';
+  renderAdminImgPreviews();
+  showToast('✅ 已加入圖片');
+}
+
+// ─── 商品名稱自動拆解品牌 / IP ────────────────────────────────
+let _nameParsed = {}; // 暫存解析結果
+function _autoFillFromName(val){
+  const hint = document.getElementById('fNameHint');
+  if(!val.trim()){ if(hint) hint.style.display='none'; _nameParsed={}; return; }
+
+  // 抓品牌：名稱開頭的全大寫英文單字（2字元以上）
+  const _brandMatch = val.match(/^([A-Z][A-Z0-9\-\.]{1,})/);
+  const _suggestBrand = _brandMatch ? _brandMatch[1] : '';
+
+  // 抓IP：對比 acMemory.ip 裡的關鍵字
+  let _suggestIP = '';
+  const _ipList = acMemory.ip || [];
+  for(const ip of _ipList){
+    // 全名比對 or 常見縮寫比對
+    const _short = ip.replace(/[！!的、\s]/g,'').slice(0,4);
+    if(val.includes(ip) || (ip.length>=2 && val.toLowerCase().includes(ip.toLowerCase()))){
+      _suggestIP = ip; break;
+    }
+  }
+
+  // 只有有建議才顯示 hint
+  const _brandFilled = document.getElementById('fBrand')?.value.trim();
+  const _ipFilled    = document.getElementById('fIP')?.value.trim();
+  const _hasSuggest  = (_suggestBrand && !_brandFilled) || (_suggestIP && !_ipFilled);
+
+  _nameParsed = { brand: _suggestBrand, ip: _suggestIP };
+  if(hint) hint.style.display = _hasSuggest ? '' : 'none';
+}
+
+function _applyNameParse(){
+  const { brand, ip } = _nameParsed;
+  const brandEl = document.getElementById('fBrand');
+  const ipEl    = document.getElementById('fIP');
+  if(brand && brandEl && !brandEl.value.trim()){
+    brandEl.value = brand;
+    acAddMemory('brand', brand);
+  }
+  if(ip && ipEl && !ipEl.value.trim()){
+    ipEl.value = ip;
+  }
+  const hint = document.getElementById('fNameHint');
+  if(hint) hint.style.display = 'none';
+  showToast('✨ 已自動填入品牌/IP');
+}
+
+// ─── 複製商品 ─────────────────────────────────────────────────
+function copyP(id){
+  const p = products.find(x=>String(x.id)===String(id));
+  if(!p){ showToast('找不到商品'); return; }
+
+  // 清空表單再填入複製的欄位
+  resetForm();
+
+  // 填入要複製的欄位（不含名稱、售價、圖片）
+  document.getElementById('fBrand').value   = p.brand   || '';
+  document.getElementById('fIP').value      = p.ip      || '';
+  document.getElementById('fForm').value    = p.form    || '';
+  setFType(p.type||'預購');
+  document.getElementById('fLimit').value   = p.limit   || '';
+  document.getElementById('fArrival').value = p.arrival || '';
+  document.getElementById('fDeposit').value = p.deposit != null ? p.deposit : 0;
+  document.getElementById('fStatus').value  = p.status  || 'published';
+  if(p.deadline){
+    document.getElementById('fDeadline').value    = p.deadline;
+    document.getElementById('fDeadlineText').value = p.deadline.replace(/-/g,'/');
+  }
+  // emoji
+  selEmoji = p.emoji || EMOJIS[0];
+  buildEmojiGrid();
+  onTypeChange();
+
+  swTab(1);
+  showToast('📋 已複製商品設定，請填入名稱、售價和圖片');
+  const ap = document.getElementById('ap');
+  if(ap) ap.scrollTo({top:0, behavior:'smooth'});
+  // focus 到名稱欄
+  setTimeout(()=>document.getElementById('fName')?.focus(), 100);
+}
+
 function resetForm(){
   editingId=null;
   _adminImgs=[];
+  _nameParsed={};
+  const hint = document.getElementById('fNameHint');
+  if(hint) hint.style.display='none';
   renderAdminImgPreviews();
   // 清除所有文字欄位
   ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
-  document.getElementById('fType').value='預購';
+  setFType('預購');
   const _fStock2 = document.getElementById('fStock'); if(_fStock2) _fStock2.value=0;
   const _fSS2 = document.getElementById('fStockStatus'); if(_fSS2) _fSS2.value='in_stock';
   document.getElementById('fIP').value='';
