@@ -467,6 +467,32 @@ textarea.fi{min-height:64px;resize:vertical}
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
 @media(max-width:880px){#mobilFilterFab{display:flex!important}}
 @media(min-width:881px){#mobilFilterFab{display:none!important}}
+/* ── 手機版底部 Tab Bar ─────────────────────────────── */
+#mobileTabBar{display:none}
+@media(max-width:880px){
+  /* 底部Tab Bar */
+  #mobileTabBar{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:490;
+    background:var(--white);border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .mtab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 0 5px;gap:3px;cursor:pointer;border:none;background:none;position:relative;transition:opacity .15s}
+  .mtab svg{width:20px;height:20px;stroke:#bbb;stroke-width:1.8;fill:none;transition:stroke .15s}
+  .mtab .mtlbl{font-size:10px;color:#bbb;transition:color .15s}
+  .mtab.act svg{stroke:#1a1a2e}
+  .mtab.act .mtlbl{color:#1a1a2e;font-weight:700}
+  .mtab-badge{position:absolute;top:4px;right:calc(50% - 14px);background:#E24B4A;color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  /* 所有主要內容區加底部間距，避免被Tab Bar遮住 */
+  .shopview,.fullview,.ap,.lay{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px))!important}
+  /* 購物車按鈕手機版隱藏 */
+  .nbtn-cart{display:none!important}
+  /* 聊聊按鈕手機版顯示 */
+  #navChatBtn{display:flex!important}
+  /* csFloatBtn 往上移避免被Tab Bar遮住 */
+  #csFloatBtn{bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
+  /* 篩選FAB往上移 */
+  #mobilFilterFab{bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
+}
 .sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500}
 .sb-backdrop.sb-open{display:block}
 .filter-btn{display:none;align-items:center;gap:6px;padding:7px 14px;background:var(--gold);border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15)}
@@ -868,7 +894,14 @@ textarea.fi{min-height:64px;resize:vertical}
       <button>🔍</button>
     </div>
     <div class="nacts">
-      <button class="nbtn" onclick="openCart()">
+      <!-- 聊聊按鈕：手機版顯示，桌機版隱藏 -->
+      <button id="navChatBtn" onclick="if(window.$crisp){$crisp.push(['do','chat:open'])}" 
+        style="display:none;height:34px;padding:0 12px;border-radius:var(--r);font-size:13px;color:var(--gold);background:rgba(201,168,76,.12);border:1.5px solid rgba(201,168,76,.5);align-items:center;gap:5px;cursor:pointer"
+        title="線上客服">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="ntxt">客服</span>
+      </button>
+      <button class="nbtn nbtn-cart" onclick="openCart()">
         🛒 <span class="ntxt">購物車 </span><span class="cbadge" id="cartCount">0</span>
       </button>
       <!-- 通知鈴鐺 -->
@@ -1203,6 +1236,15 @@ textarea.fi{min-height:64px;resize:vertical}
 
     <button class="profile-logout-btn" onclick="logout()">登出</button>
     <div style="text-align:center"><button style="font-size:12px;color:var(--ink3);background:none;border:none;cursor:pointer" onclick="if(confirm('確定刪除帳號？此操作無法復原'))logout()">刪除帳號</button></div>
+
+    <!-- 關於本站（手機版才顯示，桌機版有footer） -->
+    <div class="profile-card" id="profileAboutSection" style="display:none;margin-top:20px">
+      <div class="profile-sec-ttl" style="margin-bottom:12px">關於本站</div>
+      <div onclick="showAboutPage&&showAboutPage()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">關於我們</span><span style="color:var(--ink3);font-size:12px">→</span></div>
+      <div onclick="openTermsInfo&&openTermsInfo()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">購物須知</span><span style="color:var(--ink3);font-size:12px">→</span></div>
+      <div onclick="openServicePolicy&&openServicePolicy()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">服務政策</span><span style="color:var(--ink3);font-size:12px">→</span></div>
+      <div onclick="openPrivacy&&openPrivacy()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">隱私權政策</span><span style="color:var(--ink3);font-size:12px">→</span></div>
+    </div>
   </div>
 </div>
 
@@ -2335,7 +2377,7 @@ window.addEventListener('storage', (e)=>{
 });
 function showShop(){ showView('shopView'); renderShop(); }
 function showDetail(){ showView('detailView'); }
-function showCartPage(){ renderCartPage(); showView('cartView'); }
+function showCartPage(){ renderCartPage(); showView('cartView'); _mtabSync('cart'); }
 function showCheckoutPage(){
   // 每次進入結帳頁都重置按鈕狀態
   const btn = document.getElementById('checkoutSubmitBtn');
@@ -2349,6 +2391,33 @@ function showCheckoutPage(){
   renderCheckoutPage();
   showView('checkoutView');
 }
+// ── 手機版底部 Tab Bar ────────────────────────────────
+function _mtabGo(tab){
+  // 切換 active 樣式
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('act'));
+  const btn = document.getElementById('mtab-'+tab);
+  if(btn) btn.classList.add('act');
+  // 執行對應導覽
+  if(tab==='home')    { goHome(); }
+  else if(tab==='favs')    { goFavs(); }
+  else if(tab==='cart')    { openCart(); }
+  else if(tab==='orders')  { goOrders(); }
+  else if(tab==='profile') { goProfile(); }
+}
+
+function _mtabSync(tab){
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('act'));
+  const btn = document.getElementById('mtab-'+tab);
+  if(btn) btn.classList.add('act');
+}
+
+function _mtabUpdateCartBadge(count){
+  const badge = document.getElementById('mtabCartBadge');
+  if(!badge) return;
+  if(count > 0){ badge.textContent = count > 99 ? '99+' : count; badge.style.display='flex'; }
+  else { badge.style.display='none'; }
+}
+
 function goHome(){
   filter='全部'; subFilter=''; searchQ=''; currentPage=1;
   document.getElementById('ipAlertTag')?.remove();
@@ -2367,6 +2436,7 @@ function goHome(){
   renderShop();
   window.scrollTo(0,0);
   history.pushState({view:'shopView'}, '', window.location.pathname);
+  _mtabSync('home');
 }
 function toggleSidebar(){
   const sb = document.getElementById('sbPanel');
@@ -2392,6 +2462,7 @@ function goProfile(returnTo){
   _profileReturnTo = returnTo||null;
   renderProfile();
   showView('profileView');
+  _mtabSync('profile');
 }
 
 function renderProfile(){
@@ -2403,6 +2474,9 @@ function renderProfile(){
   if(dp) dp.textContent = userProfile.phone||'未填寫';
   if(dp) dp.className = 'profile-val'+(userProfile.phone?'':' empty');
   if(de) de.textContent = user?.email||'—';
+  // 手機版才顯示「關於本站」
+  const aboutSec = document.getElementById('profileAboutSection');
+  if(aboutSec) aboutSec.style.display = window.innerWidth <= 880 ? '' : 'none';
 }
 
 function toggleProfileEdit(forceOpen){
@@ -2472,6 +2546,7 @@ function goOrders(){
   ordersTabFilter='all';
   showView('ordersView');
   loadOrders();
+  _mtabSync('orders');
 }
 
 function goFavs(){
@@ -2479,6 +2554,7 @@ function goFavs(){
   if(!user){ openAuth(); return; }
   showView('favsView');
   renderFavsPage();
+  _mtabSync('favs');
 }
 
 function renderFavsPage(){
@@ -4688,9 +4764,13 @@ function toggleFav(id){
 }
 
 // ─── CART ─────────────────────────────────────────────────
-function updBadge(){document.getElementById('cartCount').textContent=cart.reduce((s,i)=>s+i.qty,0);}
-function openCart(){ showCartPage(); }
-function closeCart(){ showShop(); }
+function updBadge(){
+  const cnt = cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('cartCount').textContent=cnt;
+  _mtabUpdateCartBadge(cnt);
+}
+function openCart(){ showCartPage(); _mtabSync('cart'); }
+function closeCart(){ showShop(); _mtabSync('home'); }
 function clearCart(){ if(!cart.length)return; if(!confirm('確定清空購物車？'))return; cart=[];persist();updBadge();renderCartPage();}
 
 function renderCartPage(){
@@ -8537,6 +8617,31 @@ setInterval(()=>{
 </script>
 
 <!-- 手機版固定篩選按鈕 -->
+<!-- 手機版底部 Tab Bar -->
+<nav id="mobileTabBar" role="navigation">
+  <button class="mtab act" id="mtab-home" onclick="_mtabGo('home')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span class="mtlbl">商品</span>
+  </button>
+  <button class="mtab" id="mtab-favs" onclick="_mtabGo('favs')">
+    <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+    <span class="mtlbl">收藏</span>
+  </button>
+  <button class="mtab" id="mtab-cart" onclick="_mtabGo('cart')">
+    <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+    <span class="mtab-badge" id="mtabCartBadge" style="display:none">0</span>
+    <span class="mtlbl">購物車</span>
+  </button>
+  <button class="mtab" id="mtab-orders" onclick="_mtabGo('orders')">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <span class="mtlbl">訂單</span>
+  </button>
+  <button class="mtab" id="mtab-profile" onclick="_mtabGo('profile')">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="mtlbl">帳號</span>
+  </button>
+</nav>
+
 <button id="mobilFilterFab" onclick="toggleSidebar()"
   style="display:none;position:fixed;bottom:24px;left:16px;z-index:490;
     background:#1a1a2e;color:#fff;border:2.5px solid var(--gold);border-radius:50px;
