@@ -488,8 +488,10 @@ textarea.fi{min-height:64px;resize:vertical}
   .nbtn-cart{display:none!important}
   /* 聊聊按鈕手機版顯示 */
   #navChatBtn{display:flex!important}
-  /* csFloatBtn 往上移避免被Tab Bar遮住 */
-  #csFloatBtn{bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
+  /* csFloatBtn 手機版完全隱藏（頂部已有聊聊按鈕） */
+  #csFloatBtn{display:none!important}
+  /* .filter-btn（頁面內那顆）手機版隱藏，已有 FAB */
+  .filter-btn{display:none!important}
   /* 篩選FAB往上移 */
   #mobilFilterFab{bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
 }
@@ -1236,15 +1238,6 @@ textarea.fi{min-height:64px;resize:vertical}
 
     <button class="profile-logout-btn" onclick="logout()">登出</button>
     <div style="text-align:center"><button style="font-size:12px;color:var(--ink3);background:none;border:none;cursor:pointer" onclick="if(confirm('確定刪除帳號？此操作無法復原'))logout()">刪除帳號</button></div>
-
-    <!-- 關於本站（手機版才顯示，桌機版有footer） -->
-    <div class="profile-card" id="profileAboutSection" style="display:none;margin-top:20px">
-      <div class="profile-sec-ttl" style="margin-bottom:12px">關於本站</div>
-      <div onclick="showAboutPage&&showAboutPage()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">關於我們</span><span style="color:var(--ink3);font-size:12px">→</span></div>
-      <div onclick="openTermsInfo&&openTermsInfo()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">購物須知</span><span style="color:var(--ink3);font-size:12px">→</span></div>
-      <div onclick="openServicePolicy&&openServicePolicy()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">服務政策</span><span style="color:var(--ink3);font-size:12px">→</span></div>
-      <div onclick="openPrivacy&&openPrivacy()" class="profile-row" style="cursor:pointer"><span class="profile-lbl">隱私權政策</span><span style="color:var(--ink3);font-size:12px">→</span></div>
-    </div>
   </div>
 </div>
 
@@ -2474,9 +2467,6 @@ function renderProfile(){
   if(dp) dp.textContent = userProfile.phone||'未填寫';
   if(dp) dp.className = 'profile-val'+(userProfile.phone?'':' empty');
   if(de) de.textContent = user?.email||'—';
-  // 手機版才顯示「關於本站」
-  const aboutSec = document.getElementById('profileAboutSection');
-  if(aboutSec) aboutSec.style.display = window.innerWidth <= 880 ? '' : 'none';
 }
 
 function toggleProfileEdit(forceOpen){
