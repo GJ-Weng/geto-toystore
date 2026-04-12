@@ -475,42 +475,29 @@ textarea.fi{min-height:64px;resize:vertical}
   #navHamburger{display:flex!important}
   /* 手機版Logo居中 */
   #navLogoWrap{flex:1!important;justify-content:center!important;margin-right:0!important}
-  /* 手機版登入/頭像按鈕顯示 */
+  /* 手機版登入/頭像按鈕顯示，桌機版authArea隱藏 */
   #navAuthMobile{display:flex!important}
-  /* 手機版：桌機版authArea隱藏 */
   #authArea{display:none!important}
   /* 手機版：聊聊顯示 */
   #navChatBtn{display:flex!important}
-  /* 購物車：手機版隱藏文字 */
-  .nbtn-cart .ntxt{display:none!important}
-  /* 手機版Nav內的元素 */
+  /* 購物車：桌機版隱藏，手機版icon顯示 */
+  .nbtn-cart-desk{display:none!important}
+  .nbtn-cart-mobile{display:flex!important}
+  /* 手機版Nav內の元素隱藏 */
   .nlinks{display:none!important}
   #notifBellWrap{display:none!important}
-  #authArea{display:none!important}
-  /* 手機版Nav內的元素 */
   .nsearch{display:none!important}
-  /* 搜尋icon按鈕隱藏 */
   #navSearchBtn{display:none!important}
-  /* 聊聊按鈕手機版顯示 */
-  #navChatBtn{display:flex!important}
-  /* 手機版搜尋覆蓋層隱藏（不需要了） */
   #mobileSearchOverlay{display:none!important}
-  /* Crisp 手機版：預設隱藏啟動器，但不隱藏對話視窗 */
+  /* Crisp：只隱藏啟動器氣泡 */
   .crisp-client .cc-unoo{display:none!important}
   #crisp-chatbox .cc-nsqy{display:none!important}
-  /* csFloatBtn 手機版隱藏 */
   #csFloatBtn{display:none!important}
-  /* filter-btn 隱藏 */
   .filter-btn{display:none!important}
-  /* 篩選FAB 隱藏 */
   #mobilFilterFab{display:none!important}
-  /* 底部 Tab Bar 隱藏 */
   #mobileTabBar{display:none!important}
-  /* 手機版導覽區塊顯示 */
   #sbMobileNav{display:block!important}
-  /* 內容區不需要底部留空 */
   .shopview,.fullview,.ap,.lay{padding-bottom:0!important}
-  /* 搜尋列包在nav下方 */
   .nav{flex-wrap:wrap;height:auto!important}
   .navi{flex-wrap:nowrap}
   #mobileSearchWrap{display:flex!important;width:100%;padding:6px 12px 8px;background:var(--white)}
@@ -946,11 +933,14 @@ textarea.fi{min-height:64px;resize:vertical}
         style="display:none">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
-      <!-- 購物車 -->
-      <button class="nav-icon-btn nbtn-cart" onclick="openCart()" title="購物車" style="position:relative">
+      <!-- 購物車：桌機版（手機版隱藏） -->
+      <button class="nbtn nbtn-cart nbtn-cart-desk" onclick="openCart()" style="position:relative">
+        🛒 <span class="ntxt">購物車 </span><span id="cartCount" class="cbadge" style="display:none"></span>
+      </button>
+      <!-- 購物車：手機版 icon（桌機版隱藏） -->
+      <button class="nav-icon-btn nbtn-cart-mobile" onclick="openCart()" title="購物車" style="display:none;position:relative">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        <span class="nav-cart-badge" id="cartCount" style="display:none"></span>
-        <span class="ntxt" style="font-size:12px;margin-left:2px">購物車</span>
+        <span id="cartCountMobile" class="nav-cart-badge" style="display:none"></span>
       </button>
       <!-- 登入/頭像（桌機版：authArea；手機版：navAuthMobile） -->
       <div id="authArea"></div>
@@ -4945,8 +4935,12 @@ function toggleFav(id){
 // ─── CART ─────────────────────────────────────────────────
 function updBadge(){
   const cnt = cart.reduce((s,i)=>s+i.qty,0);
+  // 桌機版 badge
   const el = document.getElementById('cartCount');
   if(el){ el.textContent = cnt>0?cnt:''; el.style.display = cnt>0?'flex':'none'; }
+  // 手機版 badge
+  const el2 = document.getElementById('cartCountMobile');
+  if(el2){ el2.textContent = cnt>0?cnt:''; el2.style.display = cnt>0?'flex':'none'; }
   _mtabUpdateCartBadge(cnt);
 }
 function openCart(){ showCartPage(); _mtabSync('cart'); }
