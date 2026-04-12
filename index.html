@@ -529,7 +529,15 @@ textarea.fi{min-height:64px;resize:vertical}
   #mobileSearchWrap{display:flex!important;width:100%;padding:6px 12px 8px;background:var(--white)}
 }
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
-/* ── 手機版底部 Tab Bar（已停用） ── */
+/* 桌機版(>880px)：隱藏手機專屬元素 */
+@media(min-width:881px){
+  #navHamburger{display:none!important}
+  #navAuthMobile{display:none!important}
+  #notifBellWrapMobile{display:none!important}
+  #navChatBtn{display:none!important}
+  .nbtn-cart-mobile{display:none!important}
+  #mobileSearchWrap{display:none!important}
+}
 #mobileTabBar{display:none!important}
 .sb-backdrop{
   display:block;
@@ -2582,7 +2590,7 @@ function _updateMobileNavAuth(){
       btn.innerHTML = `<div style="width:30px;height:30px;border-radius:50%;background:var(--gold);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">${initial}</div>`;
     }
     btn.title = name;
-    if(chatBtn) chatBtn.style.display = 'flex'; // 登入：顯示聊聊
+    if(chatBtn) chatBtn.style.display = (window.innerWidth <= 880) ? 'flex' : 'none'; // 登入：手機才顯示聊聊
     _syncCrispUser(); // 綁定帳號到 Crisp
   }
 }
@@ -8948,18 +8956,20 @@ async function loadNotifications(){
 
 // 渲染鈴鐺徽章數字
 function renderNotifBell(){
-  const wrap = document.getElementById('notifBellWrap');
+  const wrap  = document.getElementById('notifBellWrap');
   const badge = document.getElementById('notifBadge');
-  const wrapM = document.getElementById('notifBellWrapMobile');
+  const wrapM  = document.getElementById('notifBellWrapMobile');
   const badgeM = document.getElementById('notifBadgeMobile');
   if(!wrap) return;
+  const isMobile = window.innerWidth <= 880;
   if(!user?.email){
     wrap.style.display='none';
     if(wrapM) wrapM.style.display='none';
     return;
   }
-  wrap.style.display='';
-  if(wrapM) wrapM.style.display='';
+  // 桌機只開 notifBellWrap，手機只開 notifBellWrapMobile
+  wrap.style.display  = isMobile ? 'none' : '';
+  if(wrapM) wrapM.style.display = isMobile ? '' : 'none';
   const unread = _notifCache.filter(n=>!n.is_read).length;
   [badge, badgeM].forEach(b=>{
     if(!b) return;
