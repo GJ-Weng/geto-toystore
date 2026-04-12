@@ -6218,27 +6218,57 @@ function toggleOrderPanel(pid){
 
 async function cleanupUnsoldPreorders(){
   await _sbReady;
-  // 找出「預購、已結單、無人下單（order_count=0）」的商品
-  const targets = products.filter(p=>
+  // 找出本機「預購、已結單」的候選商品
+  const candidates = products.filter(p=>
     p.type==='預購' &&
     isDeadlinePassed(p.deadline) &&
-    (p.cnt||0) === 0 &&
     p.status !== 'hidden'
   );
-  if(!targets.length){
-    showToast('✅ 沒有需要清理的商品');
+  if(!candidates.length){
+    showToast('✅ 沒有已結單的預購商品');
     return;
   }
-  const names = targets.slice(0,5).map(p=>p.name.slice(0,20)).join(', ') + (targets.length>5?' 等共 '+targets.length+' 件':'');
-  if(!confirm('以下 '+targets.length+' 件預購商品已結單且無人下單，確定刪除？\n\n'+names+'\n\n此操作無法復原。')) return;
+
+  showToast('⏳ 查詢訂單中…');
+
+  // 從 Supabase 即時查詢這些商品是否有人下單（不依賴本機 order_count）
+  const candidateIds = candidates.map(p=>String(p.id));
+  const {data: orderData} = await _sb.from('orders')
+    .select('note,status')
+    .neq('status','cancelled');
+
+  // 統計每個商品的實際有效訂單數
+  const orderedIds = new Set();
+  (orderData||[]).forEach(o=>{
+    try{
+      const items = JSON.parse(o.note||'[]');
+      items.forEach(it=>{
+        const pid = String(it.product_id||it.id||'');
+        if(pid) orderedIds.add(pid);
+      });
+    }catch(e){}
+  });
+
+  // 篩出真的無人下單的商品
+  const targets = candidates.filter(p=>!orderedIds.has(String(p.id)));
+
+  if(!targets.length){
+    showToast('✅ 所有已結單商品都有人下單，無需清理');
+    return;
+  }
+
+  const names = targets.slice(0,5).map(p=>p.name.slice(0,20)).join('\n') + (targets.length>5?`\n…等共 ${targets.length} 件`:'');
+  if(!confirm(`以下 ${targets.length} 件預購商品已結單且無人下單，確定刪除？\n\n${names}\n\n此操作無法復原。`)) return;
+
   let success=0, fail=0;
   for(const p of targets){
-    const {error} = await _sb.from('products').delete().eq('id',p.id);
-    if(!error){
+    try{
+      // 刪 DB 記錄（deleteProductFromSupabase 也會刪 Storage 圖片）
+      await deleteProductFromSupabase(p.id);
       const idx = products.findIndex(x=>x.id===p.id);
       if(idx>-1) products.splice(idx,1);
       success++;
-    } else { fail++; }
+    } catch(e){ fail++; }
   }
   showToast(`✅ 已刪除 ${success} 件${fail?'，失敗 '+fail+' 件':''}`);
   renderAdminList();
