@@ -168,7 +168,7 @@ input,select,textarea{font-family:var(--font)}
 .breadcrumb .bc-link:hover{color:var(--red)}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:flex-start}
 .dimgs{background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.dmain{height:460px;display:flex;align-items:center;justify-content:center;font-size:160px;background:#f8f8f6}
+.dmain{height:460px;display:flex;align-items:center;justify-content:center;font-size:160px;background:#f8f8f6;cursor:zoom-in}
 .dthumbs{display:flex;gap:8px;padding:10px 0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
 .dthumbs::-webkit-scrollbar{height:3px}
 .dthumbs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -423,6 +423,20 @@ textarea.fi{min-height:64px;resize:vertical}
   .fr.c3,.fr.c4{grid-template-columns:1fr!important}
 }
 
+/* ── 圖片燈箱 ─────────────────────────────────────── */
+#imgLightbox{display:none;position:fixed;inset:0;z-index:9900;background:rgba(0,0,0,.92);align-items:center;justify-content:center;flex-direction:column;touch-action:none}
+#imgLightbox.open{display:flex}
+#imgLightbox .lb-img{max-width:92vw;max-height:82vh;object-fit:contain;border-radius:6px;user-select:none;-webkit-user-drag:none;transition:opacity .2s}
+#imgLightbox .lb-close{position:fixed;top:16px;right:18px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:9901}
+#imgLightbox .lb-close:hover{background:rgba(255,255,255,.3)}
+#imgLightbox .lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:9901}
+#imgLightbox .lb-nav:hover{background:rgba(255,255,255,.3)}
+#imgLightbox .lb-prev{left:14px}
+#imgLightbox .lb-next{right:14px}
+#imgLightbox .lb-dots{display:flex;gap:8px;margin-top:14px}
+#imgLightbox .lb-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);cursor:pointer;transition:background .15s}
+#imgLightbox .lb-dot.act{background:#fff}
+#imgLightbox .lb-counter{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:13px}
 /* PULSE ANIMATION */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(4px)}}
@@ -1027,6 +1041,16 @@ textarea.fi{min-height:64px;resize:vertical}
   </div>
 </div>
 
+<!-- 圖片燈箱 -->
+<div id="imgLightbox" onclick="_lbBgClick(event)">
+  <button class="lb-close" onclick="_lbClose()">✕</button>
+  <button class="lb-nav lb-prev" onclick="_lbGo(-1)" id="lbPrev">&#8249;</button>
+  <img class="lb-img" id="lbImg" src="" alt="">
+  <div class="lb-dots" id="lbDots"></div>
+  <div class="lb-counter" id="lbCounter"></div>
+  <button class="lb-nav lb-next" onclick="_lbGo(1)" id="lbNext">&#8250;</button>
+</div>
+
 <!-- SIDEBAR BACKDROP -->
 <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
 <!-- SIDEBAR -->
@@ -1570,12 +1594,6 @@ textarea.fi{min-height:64px;resize:vertical}
             <label class="fl">商品說明 <span style="font-size:10px;color:var(--ink3)">（特典內容、尺寸、注意事項等）</span></label>
             <textarea class="fi" id="fDesc" placeholder="例：全高約 14cm，附初回特典購入憑證 1 張。商品為非賣品。" rows="3"></textarea>
           </div>
-        </div>
-
-        <!-- 商品圖示 -->
-        <div class="fg" style="margin-bottom:14px">
-          <label class="fl">商品圖示（無圖片時顯示）</label>
-          <div class="eg" id="eg"></div>
         </div>
 
         <!-- 按鈕列 -->
@@ -2620,7 +2638,69 @@ function _openMobileChat(){
   setTimeout(function(){ $crisp.push(['do','chat:open']); }, 100);
 }
 
-// ── 手機版下拉重整 (Pull-to-Refresh) ─────────────────────
+// ── 圖片燈箱 ─────────────────────────────────────────
+let _lbImgs = [], _lbIdx = 0;
+
+function openLightbox(imgs, startIdx){
+  _lbImgs = Array.isArray(imgs) ? imgs.filter(Boolean) : [imgs];
+  if(!_lbImgs.length) return;
+  _lbIdx = startIdx || 0;
+  _lbRender();
+  document.getElementById('imgLightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // 鍵盤支援
+  document.addEventListener('keydown', _lbKeydown);
+  // 手機滑動支援
+  _lbInitSwipe();
+}
+function _lbClose(){
+  document.getElementById('imgLightbox').classList.remove('open');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _lbKeydown);
+}
+function _lbBgClick(e){
+  if(e.target === document.getElementById('imgLightbox')) _lbClose();
+}
+function _lbRender(){
+  const img = document.getElementById('lbImg');
+  const dots = document.getElementById('lbDots');
+  const counter = document.getElementById('lbCounter');
+  const prev = document.getElementById('lbPrev');
+  const next = document.getElementById('lbNext');
+  img.style.opacity = '0';
+  img.src = _lbImgs[_lbIdx];
+  img.onload = ()=>{ img.style.opacity='1'; };
+  prev.style.display = _lbImgs.length > 1 ? '' : 'none';
+  next.style.display = _lbImgs.length > 1 ? '' : 'none';
+  counter.textContent = _lbImgs.length > 1 ? `${_lbIdx+1} / ${_lbImgs.length}` : '';
+  if(_lbImgs.length > 1){
+    dots.innerHTML = _lbImgs.map((_,i)=>`<div class="lb-dot${i===_lbIdx?' act':''}" onclick="_lbGoTo(${i})"></div>`).join('');
+  } else { dots.innerHTML = ''; }
+}
+function _lbGo(dir){
+  _lbIdx = (_lbIdx + dir + _lbImgs.length) % _lbImgs.length;
+  _lbRender();
+}
+function _lbGoTo(i){ _lbIdx = i; _lbRender(); }
+function _lbKeydown(e){
+  if(e.key==='Escape') _lbClose();
+  if(e.key==='ArrowLeft') _lbGo(-1);
+  if(e.key==='ArrowRight') _lbGo(1);
+}
+// 手機滑動
+let _lbTouchX = null;
+function _lbInitSwipe(){
+  const lb = document.getElementById('imgLightbox');
+  lb.ontouchstart = e=>{ _lbTouchX = e.touches[0].clientX; };
+  lb.ontouchend = e=>{
+    if(_lbTouchX === null) return;
+    const dx = e.changedTouches[0].clientX - _lbTouchX;
+    if(Math.abs(dx) > 50) _lbGo(dx < 0 ? 1 : -1);
+    _lbTouchX = null;
+  };
+}
+
+
 (function(){
   if(window.innerWidth > 880) return; // 只在手機版啟用
 
@@ -3294,7 +3374,7 @@ function renderOrdersList(){
             ? `<img src="${prod.imageUrl}" alt="">`
             : `${it.product_emoji||prod?.emoji||'📦'}`;
           return `<div class="order-card-item">
-            <div class="oci-img">${prod?.imageUrl?`<img src="${prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+            <div class="oci-img">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div class="oci-info">
               <div class="oci-name">${(it.product_name||'').slice(0,32)}${(it.product_name||'').length>32?'…':''}</div>
               ${it.variant?`<div class="oci-var">${it.variant}</div>`:''}
@@ -3392,7 +3472,7 @@ function openOrderDetail(orderId){
       ${items.map(it=>{
         const prod=products.find(p=>String(p.id)===String(it.product_id));
         return `<div class="od-item">
-          <div class="od-iimg">${prod?.imageUrl?`<img src="${prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+          <div class="od-iimg">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
           <div class="od-iinfo">
             <div class="od-iname">${it.product_name||''}</div>
             ${it.variant?`<div class="od-ivar">${it.variant}</div>`:''}
@@ -4001,7 +4081,7 @@ function openDetail(id){
   const _imgs = (Array.isArray(p.imageUrls)&&p.imageUrls.length) ? p.imageUrls : (p.imageUrl ? [p.imageUrl] : []);
   const _mainImg = _imgs[0] || PLACEHOLDER_IMG;
   const dMainEl = document.getElementById('dMainImg');
-  dMainEl.innerHTML=`<img src="${_mainImg}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  dMainEl.innerHTML=`<img src="${_mainImg}" alt="" style="max-width:100%;max-height:100%;object-fit:contain" onclick="openLightbox(_lbGetDetailImgs(),0)">`;
 
   // Thumbnails：過濾空字串，只顯示有效圖片
   const dThumbs = document.getElementById('dThumbs');
@@ -4129,7 +4209,23 @@ function selDetailImg(el, src){
   document.querySelectorAll('.dthumb').forEach(x=>x.classList.remove('act'));
   el.classList.add('act');
   const dMainEl = document.getElementById('dMainImg');
-  dMainEl.innerHTML=`<img src="${src}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  dMainEl.innerHTML=`<img src="${src}" alt="" style="max-width:100%;max-height:100%;object-fit:contain" onclick="openLightbox(_lbGetDetailImgs(),_lbGetDetailIdx('${src.replace(/'/g,'%27')}'))">`;
+}
+// 取得詳情頁目前所有圖片（供燈箱使用）
+function _lbGetDetailImgs(){
+  const thumbImgs = Array.from(document.querySelectorAll('#dThumbs .dthumb')).map(el=>{
+    const bg = el.style.backgroundImage;
+    return bg ? bg.replace(/url\(['"]?/,'').replace(/['"]?\)$/,'').replace(/%27/g,"'") : '';
+  }).filter(Boolean);
+  if(thumbImgs.length > 0) return thumbImgs;
+  // 單張圖：從主圖 img src 取
+  const mainImg = document.querySelector('#dMainImg img');
+  return mainImg ? [mainImg.src] : [];
+}
+function _lbGetDetailIdx(src){
+  const imgs = _lbGetDetailImgs();
+  const idx = imgs.indexOf(decodeURIComponent(src));
+  return idx >= 0 ? idx : 0;
 }
 function selVariant(el,v){
   document.querySelectorAll('.vchip').forEach(x=>x.classList.remove('sel'));
@@ -4670,7 +4766,7 @@ async function submitCheckoutOrder(){
     const dep = firstBuyerDep>0 && p?.type==='預購'
       ? Math.ceil(vp * 0.5)
       : getProductDeposit(p);
-    return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:dep};
+    return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',imageUrl:p?.imageUrl||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:dep};
   }); // price/deposit 存單價，總價 = price * qty
   const _makeRecord = (items, dep, orderNum, label) => ({
     product_name: items.map(i=>i.product_name).join(' / ')+(label?' ['+label+']':''),
@@ -5118,9 +5214,33 @@ async function saveProductToSupabase(productData, existingId){
 
 async function deleteProductFromSupabase(id){
   await _sbReady;
-  if(id && !String(id).startsWith('p')){
-    const {error} = await _sb.from('products').delete().eq('id', id);
-    if(error) console.warn('刪除商品失敗:', error);
+  if(!id || String(id).startsWith('p')) return;
+
+  // 先取商品圖片網址，準備刪 Storage 上的圖
+  const p = products.find(x=>String(x.id)===String(id));
+  const allImgUrls = [];
+  if(p?.imageUrl)   allImgUrls.push(p.imageUrl);
+  if(p?.imageUrls)  allImgUrls.push(...p.imageUrls);
+  // 若沒有 imageUrls（lazy-load），再查一次 DB
+  if(!p?.imageUrls?.length){
+    const {data:imgData} = await _sb.from('products').select('image_url,image_urls').eq('id',id).single();
+    if(imgData?.image_url)  allImgUrls.push(imgData.image_url);
+    if(imgData?.image_urls) allImgUrls.push(...(imgData.image_urls||[]));
+  }
+
+  // 刪 DB 記錄
+  const {error} = await _sb.from('products').delete().eq('id', id);
+  if(error){ console.warn('刪除商品失敗:', error); return; }
+
+  // 刪 Supabase Storage 圖片（只刪我們自己存的）
+  const STORAGE_BASE = 'https://zmglfuzeplmfyfcwnqpd.supabase.co/storage/v1/object/public/product-images/';
+  const filesToDelete = [...new Set(allImgUrls)]
+    .filter(u=>u && u.startsWith(STORAGE_BASE))
+    .map(u=>u.replace(STORAGE_BASE,''));
+  if(filesToDelete.length){
+    const {error:delErr} = await _sb.storage.from('product-images').remove(filesToDelete);
+    if(delErr) console.warn('刪除圖片失敗:', delErr);
+    else console.log(`[deleteProduct] 已刪除 ${filesToDelete.length} 張圖片`);
   }
 }
 
@@ -5533,7 +5653,7 @@ function _showNewOrderBanner(count, name, order){
 // ─── ADMIN ────────────────────────────────────────────────
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
-  buildEmojiGrid();renderAdminList();
+  renderAdminList();
   renderOrderList().then(()=>{
     // 訂單載入完成後才初始化輪詢（確保已知訂單清單正確）
     _knownNewOrderIds = null; // 重置，讓 _initKnownOrders 重新跑
@@ -6031,7 +6151,7 @@ function buildEmojiGrid(){
     `<button class="eo${e===selEmoji?' sel':''}" onclick="pickE('${e}')">${e}</button>`
   ).join('');
 }
-function pickE(e){selEmoji=e;buildEmojiGrid();}
+function pickE(e){selEmoji=e;}
 
 // ─── 後台商品列表搜尋/篩選 ───────────────────────────────────
 let _adminFilter = 'all'; // 'all' | 'active' | 'unlisted' | 'closed'
@@ -6546,7 +6666,7 @@ function editP(id){
   if(_fStock) _fStock.value = p.stock||0;
   if(_fStockStatus) _fStockStatus.value = p.stockStatus||'in_stock';
   onTypeChange(); // 根據商品類型顯示/隱藏欄位
-  selEmoji=p.emoji;buildEmojiGrid();
+  selEmoji=p.emoji;
   document.getElementById('editBadge').style.display='';
   document.getElementById('formTitle').textContent='編輯商品';
   swTab(1);
@@ -6838,15 +6958,45 @@ async function _pasteImageFromClipboard(){
 }
 
 // ─── 圖片網址貼上自動新增 ──────────────────────────────────────
-function _autoAddImgUrl(){
+async function _autoAddImgUrl(){
   const inp = document.getElementById('fImgUrl');
   if(!inp) return;
   const url = inp.value.trim();
   if(!url.startsWith('http')) return;
-  _adminImgs.push(url);
   inp.value = '';
-  renderAdminImgPreviews();
-  showToast('✅ 已加入圖片');
+
+  // 若已是 Supabase Storage 網址，直接用
+  if(url.includes('supabase.co/storage')){
+    _adminImgs.push(url);
+    renderAdminImgPreviews();
+    showToast('✅ 已加入圖片');
+    return;
+  }
+
+  // 嘗試下載並上傳到 Supabase Storage
+  showToast('⏳ 正在儲存圖片…');
+  try{
+    await _sbReady;
+    const resp = await fetch(url, {mode:'cors'});
+    if(!resp.ok) throw new Error('fetch failed');
+    const blob = await resp.blob();
+    const ext  = (blob.type.split('/')[1]||'jpg').replace('jpeg','jpg').replace('png','png').split(';')[0];
+    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+    const { error } = await _sb.storage.from('product-images').upload(fileName, blob, {
+      upsert: false, contentType: blob.type, cacheControl: '31536000'
+    });
+    if(error) throw error;
+    const { data: urlData } = _sb.storage.from('product-images').getPublicUrl(fileName);
+    _adminImgs.push(urlData.publicUrl);
+    renderAdminImgPreviews();
+    showToast('✅ 圖片已儲存至 Supabase');
+  } catch(e){
+    // CORS 或其他錯誤 → 退回用原始網址
+    console.warn('[imgSave] 無法下載圖片，使用原始網址:', e.message);
+    _adminImgs.push(url);
+    renderAdminImgPreviews();
+    showToast('⚠️ 無法複製圖片，使用原始網址（可能不穩定）');
+  }
 }
 
 // ─── 商品名稱自動拆解品牌 / IP ────────────────────────────────
@@ -6948,7 +7098,6 @@ function copyP(id){
   }
   // emoji
   selEmoji = p.emoji || EMOJIS[0];
-  buildEmojiGrid();
   onTypeChange();
 
   swTab(1);
@@ -6977,7 +7126,7 @@ function resetForm(){
   document.getElementById('fStatus').value='published';
   document.getElementById('editBadge').style.display='none';
   document.getElementById('formTitle').textContent='新增商品';
-  selEmoji=EMOJIS[0];buildEmojiGrid();
+  selEmoji=EMOJIS[0];
   // 清除規格欄位 UI（需先清 fVariants 再呼叫 restoreVariantPrices）
   const fv = document.getElementById('fVariants'); if(fv) fv.value='';
   restoreVariantPrices({}, {}); // 清除規格價格和庫存 UI
@@ -7284,13 +7433,17 @@ function _aoRenderCards(){
         <span class="aoc-id">#${o.id}</span>
         <span style="font-size:11px;font-family:monospace;color:#888;margin-left:4px">${o.order_code||''}</span>
         <span class="aoc-time">${dateStr} · ${o.store||''}</span>
+        ${_isPreorder
+          ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f0fc;color:#1a56c4">預購</span>`
+          : `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#eef7f1;color:#2e7d32">現貨</span>`
+        }
         <span class="aoc-status" style="background:${si.bg};color:${si.color}">${si.label}</span>
       </div>
       <div class="aoc-items">
         ${items.map(it=>{
           const prod=products.find(p=>String(p.id)===String(it.product_id));
           return `<div class="aoc-item">
-            <div class="aoc-img">${prod?.imageUrl?`<img src="${prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+            <div class="aoc-img">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div style="flex:1">
               <div class="aoc-iname">${(it.product_name||'').slice(0,36)}</div>
               ${it.variant?`<div class="aoc-ivar">${it.variant}</div>`:''}
@@ -9085,7 +9238,7 @@ function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
 }
 
 // ─── INIT ─────────────────────────────────────────────────
-updBadge(); buildEmojiGrid(); updateNavFavsBadge();
+updBadge(); updateNavFavsBadge();
 // EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
