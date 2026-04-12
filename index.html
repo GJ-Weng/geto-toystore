@@ -367,19 +367,19 @@ textarea.fi{min-height:64px;resize:vertical}
 
 /* ADMIN MOBILE */
 @media(max-width:768px){
-  /* 後台 nav tab 可水平捲動 */
-  .anav{padding:0 8px;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* 後台 nav：整合所有 anav 相關規則（避免重複覆蓋） */
+  .anav{padding:6px 8px;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
   .anav::-webkit-scrollbar{display:none}
   .anav>div:first-child{flex-shrink:0}
   .atab{height:32px;padding:0 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
+  .anav-tabs-desk{display:none!important}
+  .anav-tabs{display:flex!important}
+  .anav-tabs::-webkit-scrollbar{display:none}
   /* 表單 */
   .aw{padding:12px}
   .fc{padding:12px}
   .fr{grid-template-columns:1fr!important}
   .fr.c3,.fr.c4{grid-template-columns:1fr 1fr!important}
-  /* 後台 header */
-  .anav{padding:8px 12px}
-  .anav-tabs::-webkit-scrollbar{display:none}
   /* 訂單管理 */
   .ao-topbar{flex-wrap:wrap;gap:6px}
   .ao-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;min-width:0}
@@ -1426,23 +1426,32 @@ textarea.fi{min-height:64px;resize:vertical}
   <div class="anav">
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
       <span style="font-size:14px;font-weight:700">⚙️ 商品管理後台</span>
-      <!-- 匯款通知鈴鐺 -->
       <div style="position:relative">
         <button onclick="swTab(3);aoSetTab('new')" style="width:32px;height:32px;border:none;background:none;font-size:18px;cursor:pointer;position:relative" title="待確認匯款">🔔</button>
         <span id="payBell" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:800;border-radius:10px;padding:1px 4px;min-width:16px;text-align:center;line-height:14px;pointer-events:none">0</span>
       </div>
     </div>
+    <!-- 桌機版 tabs（在同一排，手機版由CSS隱藏） -->
+    <div class="anav-tabs-desk" style="display:flex;align-items:center;gap:4px;flex:1;margin:0 8px;overflow-x:auto">
+      <button class="atab act" id="t1" onclick="swTab(1)">新增商品</button>
+      <button class="atab" id="t2" onclick="swTab(2)">商品列表</button>
+      <button class="atab" id="t3" onclick="swTab(3)">訂單管理</button>
+      <button class="atab" id="t4" onclick="swTab(4)">匯款設定</button>
+      <button class="atab" id="t5" onclick="swTab(5)">📦 到貨追蹤</button>
+      <button class="atab" id="t6" onclick="swTab(6)">🏪 頑瘋樂</button>
+      <button class="atab" id="t7" onclick="swTab(7)">🚚 批次出貨</button>
+    </div>
     <button onclick="closeAdmin()" style="width:30px;height:30px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--ink3);flex-shrink:0">✕</button>
   </div>
-  <!-- Tab 捲動列 -->
-  <div style="display:flex;overflow-x:auto;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);background:var(--white);-webkit-overflow-scrolling:touch;scrollbar-width:none" class="anav-tabs">
-    <button class="atab act" id="t1" onclick="swTab(1)" style="white-space:nowrap;flex-shrink:0">新增商品</button>
-    <button class="atab" id="t2" onclick="swTab(2)" style="white-space:nowrap;flex-shrink:0">商品列表</button>
-    <button class="atab" id="t3" onclick="swTab(3)" style="white-space:nowrap;flex-shrink:0">訂單管理</button>
-    <button class="atab" id="t4" onclick="swTab(4)" style="white-space:nowrap;flex-shrink:0">匯款設定</button>
-    <button class="atab" id="t5" onclick="swTab(5)" style="white-space:nowrap;flex-shrink:0">📦 到貨追蹤</button>
-    <button class="atab" id="t6" onclick="swTab(6)" style="white-space:nowrap;flex-shrink:0">🏪 頑瘋樂</button>
-    <button class="atab" id="t7" onclick="swTab(7)" style="white-space:nowrap;flex-shrink:0">🚚 批次出貨</button>
+  <!-- 手機版 tabs 另起一行（桌機版隱藏） -->
+  <div class="anav-tabs" style="display:none;overflow-x:auto;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);background:var(--white);-webkit-overflow-scrolling:touch;scrollbar-width:none">
+    <button class="atab" id="t1m" onclick="swTab(1)">新增商品</button>
+    <button class="atab" id="t2m" onclick="swTab(2)">商品列表</button>
+    <button class="atab" id="t3m" onclick="swTab(3)">訂單管理</button>
+    <button class="atab" id="t4m" onclick="swTab(4)">匯款設定</button>
+    <button class="atab" id="t5m" onclick="swTab(5)">📦 到貨追蹤</button>
+    <button class="atab" id="t6m" onclick="swTab(6)">🏪 頑瘋樂</button>
+    <button class="atab" id="t7m" onclick="swTab(7)">🚚 批次出貨</button>
   </div>
   <div class="apb">
 
@@ -2959,6 +2968,8 @@ window.addEventListener('resize', ()=>{
       lay.insertBefore(bd, sb);
     }
   }
+  // 同步鈴鐺顯示（桌機/手機切換時）
+  if(typeof renderNotifBell === 'function') renderNotifBell();
 });
 
 let _profileReturnTo = null; // 記錄從哪裡進入個人資料
@@ -5699,7 +5710,10 @@ function closeAdmin(){
 }
 function swTab(n){
   [1,2,3,4,5,6,7].forEach(i=>{
+    // 桌機版 tabs（id: t1~t7）
     const t=document.getElementById('t'+i); if(t) t.classList.toggle('act',i===n);
+    // 手機版 tabs（id: t1m~t7m）
+    const tm=document.getElementById('t'+i+'m'); if(tm) tm.classList.toggle('act',i===n);
     const tb=document.getElementById('tab'+i); if(tb) tb.style.display=i===n?'':'none';
   });
   if(n===2){
