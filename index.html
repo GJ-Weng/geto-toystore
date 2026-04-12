@@ -489,9 +489,7 @@ textarea.fi{min-height:64px;resize:vertical}
   .nsearch{display:none!important}
   #navSearchBtn{display:none!important}
   #mobileSearchOverlay{display:none!important}
-  /* Crisp：只隱藏啟動器氣泡 */
-  .crisp-client .cc-unoo{display:none!important}
-  #crisp-chatbox .cc-nsqy{display:none!important}
+  /* Crisp 泡泡：靠 JS session:loaded 事件隱藏，CSS 無法穿透 iframe */
   #csFloatBtn{display:none!important}
   .filter-btn{display:none!important}
   #mobilFilterFab{display:none!important}
@@ -505,8 +503,16 @@ textarea.fi{min-height:64px;resize:vertical}
 @media(max-width:540px){.pgrid{grid-template-columns:repeat(2,1fr)}.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
 /* ── 手機版底部 Tab Bar（已停用） ── */
 #mobileTabBar{display:none!important}
-.sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:590}
-.sb-backdrop.sb-open{display:block}
+.sb-backdrop{
+  display:block;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.45);
+  z-index:590;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .32s cubic-bezier(.4,0,.2,1);
+}
+.sb-backdrop.sb-open{opacity:1;pointer-events:auto}
 .filter-btn{display:none;align-items:center;gap:6px;padding:7px 14px;background:var(--gold);border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 #sbCloseRow{display:none}
 @media(max-width:880px){#sbCloseRow{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}}
@@ -2496,18 +2502,15 @@ function _updateMobileNavAuth(){
   }
 }
 
-// ── 手機版 Crisp 氣泡隱藏 ────────────────────────────
+// ── 手機版 Crisp 氣泡隱藏（備用，主要靠初始化時的 session:loaded） ──
 function _hideCrispOnMobile(){
   if(window.innerWidth > 880) return;
   if(window.$crisp){
     try{ $crisp.push(['do','chat:hide']); }catch(e){}
   }
 }
-window.CRISP_READY_TRIGGER = function(){
-  if(window.innerWidth <= 880) _hideCrispOnMobile();
-};
 document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(_hideCrispOnMobile, 3000);
+  setTimeout(_hideCrispOnMobile, 2000); // 備用延遲
 });
 
 // ── 手機版聊聊開啟 ─────────────────────────────────
@@ -2535,7 +2538,115 @@ function _openMobileChat(){
   setTimeout(function(){ $crisp.push(['do','chat:open']); }, 100);
 }
 
-// ── 手機版搜尋（常駐搜尋列） ────────────────────────
+// ── 手機版下拉重整 (Pull-to-Refresh) ─────────────────────
+(function(){
+  if(window.innerWidth > 880) return; // 只在手機版啟用
+
+  const THRESHOLD = 72;   // 下拉多少px才觸發（px）
+  const MAX_PULL  = 100;  // 最多拉多遠
+
+  let startY = 0, pulling = false, triggered = false;
+  let indicator = null;
+
+  function _getIndicator(){
+    if(indicator) return indicator;
+    indicator = document.createElement('div');
+    indicator.id = 'pullIndicator';
+    indicator.style.cssText = `
+      position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-60px);
+      z-index:9998;width:40px;height:40px;border-radius:50%;
+      background:var(--white);box-shadow:0 2px 12px rgba(0,0,0,.15);
+      display:flex;align-items:center;justify-content:center;
+      transition:transform .2s ease;pointer-events:none;
+    `;
+    indicator.innerHTML = `
+      <svg id="pullArrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" style="transition:transform .2s">
+        <polyline points="19 8 12 15 5 8"/>
+      </svg>
+      <svg id="pullSpinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5" style="display:none;animation:ptr-spin .7s linear infinite">
+        <circle cx="12" cy="12" r="9" stroke-dasharray="28 56" stroke-linecap="round"/>
+      </svg>`;
+    document.body.appendChild(indicator);
+    // 加旋轉動畫
+    if(!document.getElementById('ptrStyle')){
+      const st = document.createElement('style');
+      st.id = 'ptrStyle';
+      st.textContent = '@keyframes ptr-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+    return indicator;
+  }
+
+  function _setPos(y){
+    const ind = _getIndicator();
+    const ratio = Math.min(y / THRESHOLD, 1);
+    const translateY = -60 + (y * 0.6);
+    ind.style.transform = `translateX(-50%) translateY(${translateY}px)`;
+    // 箭頭隨下拉旋轉
+    const arrow = document.getElementById('pullArrow');
+    if(arrow) arrow.style.transform = `rotate(${ratio * 180}deg)`;
+    // 達到閾值時顯示金色
+    ind.style.background = y >= THRESHOLD ? '#fffbef' : 'var(--white)';
+    if(arrow) arrow.setAttribute('stroke', y >= THRESHOLD ? 'var(--gold)' : '#aaa');
+  }
+
+  function _showLoading(){
+    const ind = _getIndicator();
+    ind.style.transform = `translateX(-50%) translateY(8px)`;
+    const arrow = document.getElementById('pullArrow');
+    const spinner = document.getElementById('pullSpinner');
+    if(arrow) arrow.style.display = 'none';
+    if(spinner) spinner.style.display = '';
+  }
+
+  function _hide(){
+    const ind = _getIndicator();
+    ind.style.transition = 'transform .3s ease';
+    ind.style.transform = `translateX(-50%) translateY(-60px)`;
+    setTimeout(()=>{ ind.style.transition = ''; }, 320);
+    const arrow = document.getElementById('pullArrow');
+    const spinner = document.getElementById('pullSpinner');
+    if(arrow){ arrow.style.display = ''; arrow.style.transform = ''; arrow.setAttribute('stroke','#aaa'); }
+    if(spinner) spinner.style.display = 'none';
+  }
+
+  document.addEventListener('touchstart', e=>{
+    // 只在主頁商品列表、且頁面在最頂端時才啟動
+    const shopView = document.getElementById('shopView');
+    if(!shopView || shopView.classList.contains('hide')) return;
+    if(window.scrollY > 5) return;
+    if(document.getElementById('sbPanel')?.classList.contains('sb-open')) return;
+    startY = e.touches[0].clientY;
+    pulling = true;
+    triggered = false;
+  }, {passive:true});
+
+  document.addEventListener('touchmove', e=>{
+    if(!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if(dy <= 0){ pulling = false; return; }
+    const pull = Math.min(dy * 0.5, MAX_PULL); // 阻力感
+    _setPos(pull);
+    if(pull >= THRESHOLD) triggered = true;
+  }, {passive:true});
+
+  document.addEventListener('touchend', async ()=>{
+    if(!pulling) return;
+    pulling = false;
+    if(!triggered){ _hide(); return; }
+
+    // 觸發重整
+    _showLoading();
+    try{
+      await syncProductsFromSupabase();
+      renderShop();
+    } catch(e){}
+    _hide();
+    showToast('✅ 商品已更新');
+  });
+})();
+
+
 function _onMobileSearch2(val){
   const mainInp = document.getElementById('searchInput');
   if(mainInp){ mainInp.value = val; onSearch(); }
@@ -2614,8 +2725,13 @@ function toggleSidebar(){
   const opening = !sb.classList.contains('sb-open');
   sb.classList.toggle('sb-open', opening);
   bd.classList.toggle('sb-open', opening);
-  document.body.style.overflow = opening ? 'hidden' : '';
-  if(opening) _updateSbUserInfo();
+  if(opening){
+    document.body.style.overflow = 'hidden';
+    _updateSbUserInfo();
+  } else {
+    // 等 sidebar 滑出動畫結束（320ms）再解鎖 scroll
+    setTimeout(()=>{ document.body.style.overflow = ''; }, 340);
+  }
 }
 function closeSidebar(){
   const sb = document.getElementById('sbPanel');
@@ -2623,7 +2739,7 @@ function closeSidebar(){
   if(!sb||!bd) return;
   sb.classList.remove('sb-open');
   bd.classList.remove('sb-open');
-  document.body.style.overflow = '';
+  setTimeout(()=>{ document.body.style.overflow = ''; }, 340);
 }
 
 let _profileReturnTo = null; // 記錄從哪裡進入個人資料
@@ -8984,6 +9100,22 @@ setInterval(()=>{
 </button>
 
 <!-- Crisp 即時客服 -->
-<script type="text/javascript">window.$crisp=[];window.CRISP_WEBSITE_ID="542612b8-cccd-418e-b9e5-053cc6659c4a";(function(){d=document;s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();</script>
+<script type="text/javascript">
+  window.$crisp = [];
+  window.CRISP_WEBSITE_ID = "542612b8-cccd-418e-b9e5-053cc6659c4a";
+  // 手機版：Crisp 一載入完就隱藏泡泡（nav 已有 💬 按鈕）
+  if(window.innerWidth <= 880){
+    window.$crisp.push(['safe', true]);
+    window.$crisp.push(['on', 'session:loaded', function(){
+      window.$crisp.push(['do', 'chat:hide']);
+    }]);
+  }
+  (function(){
+    var d=document, s=d.createElement('script');
+    s.src='https://client.crisp.chat/l.js';
+    s.async=1;
+    d.getElementsByTagName('head')[0].appendChild(s);
+  })();
+</script>
 </body>
 </html>
