@@ -2479,8 +2479,8 @@ function showCheckoutPage(){
 }
 // ── 手機版頭像/登入按鈕 ─────────────────────────────
 function _mobileAuthAction(){
-  if(user){ toggleSidebar(); } // 已登入 → 打開側拉選單（有用戶資訊+導覽）
-  else { openAuth(); }          // 未登入 → 打開登入框
+  if(user){ goProfile(); }  // 已登入 → 直接進個人資料
+  else { openAuth(); }       // 未登入 → 打開登入框
 }
 function _updateMobileNavAuth(){
   const btn = document.getElementById('navAuthMobile');
@@ -5212,7 +5212,12 @@ async function logout(){ await _sbReady;
 
 function renderAuth(){
   const el=document.getElementById('authArea');
-  if(!user){el.innerHTML=`<button class="nbtnp" onclick="openAuth()">登入</button>`;updateNavFavsBadge();return;}
+  if(!user){
+    el.innerHTML=`<button class="nbtnp" onclick="openAuth()">登入</button>`;
+    updateNavFavsBadge();
+    _updateMobileNavAuth(); // 登出後重置頭像為人像icon
+    return;
+  }
   const name = user.name||user.email||'用戶';
   const photo = user.photo||null;
   el.innerHTML=`
