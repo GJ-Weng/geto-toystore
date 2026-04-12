@@ -4805,7 +4805,7 @@ async function submitCheckoutOrder(){
     const dep = firstBuyerDep>0 && p?.type==='預購'
       ? Math.ceil(vp * 0.5)
       : getProductDeposit(p);
-    return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',imageUrl:p?.imageUrl||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:dep};
+    return {product_id:ci.id,product_name:p?.name||'',product_emoji:p?.emoji||'',imageUrl:p?.imageUrl||'',arrival:p?.arrival||'',variant:ci.variant||'',qty:ci.qty,price:vp,deposit:dep};
   }); // price/deposit 存單價，總價 = price * qty
   const _makeRecord = (items, dep, orderNum, label) => ({
     product_name: items.map(i=>i.product_name).join(' / ')+(label?' ['+label+']':''),
@@ -7452,8 +7452,22 @@ function _aoRenderCards(){
     const _oIsPickup  = (o.store||'').startsWith('自取');
     // 判斷是否有訂金(有訂金 = 預購訂單，需確認付款)
     const _hasDeposit = (o.price||0) > 0;
-    // 用 product_name 裡的 [預購] 標籤判斷訂單類型（更準確）
-    const _isPreorder = (o.product_name||'').includes('[預購]');
+    // 判斷是否預購單：多重信號確保準確
+    const _isPreorder = (()=>{
+      if(_hasDeposit) return true;
+      if((o.product_name||'').includes('[預購]')) return true;
+      // 查note裡每個商品
+      try{
+        const _items = JSON.parse(o.note||'[]');
+        return _items.some(it=>{
+          // 有到貨月份 → 預購
+          if(it.arrival) return true;
+          // 查商品type
+          const p = products.find(x=>String(x.id)===String(it.product_id||it.id));
+          return p?.type === '預購' || !!p?.arrival;
+        });
+      } catch(e){ return false; }
+    })();
     // 現貨訂單：price=0 且非預購，不需確認付款，直接進入「已成立」
     const _isStockOrder = !_hasDeposit && o.status==='new';
     const canPay       = _hasDeposit && o.status==='new'; // 只有有訂金才需確認付款
