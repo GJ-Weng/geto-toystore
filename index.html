@@ -989,67 +989,68 @@ textarea.fi{min-height:64px;resize:vertical}
   </div>
 </div>
 
+<!-- SIDEBAR BACKDROP -->
+<div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
+<!-- SIDEBAR -->
+<div class="sb" id="sbPanel">
+  <div class="sb-handle"></div>
+  <div id="sbCloseRow">
+    <span style="font-size:14px;font-weight:700;color:var(--ink)">選單</span>
+    <button onclick="closeSidebar()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 10px;border-radius:8px;display:flex;align-items:center;justify-content:center">✕</button>
+  </div>
+  <!-- 手機版：使用者資訊 + 導覽連結 -->
+  <div id="sbMobileNav" style="display:none;border-bottom:1px solid var(--border);padding:12px 0">
+    <div id="sbUserInfo" style="padding:4px 16px 12px;font-size:13px;color:var(--ink2)"></div>
+    <div onclick="goHome();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      商品列表
+    </div>
+    <div onclick="openCart();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+      購物車
+    </div>
+    <div onclick="goOrders();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      我的訂單
+    </div>
+    <div onclick="goProfile();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      個人資料
+    </div>
+  </div>
+  <div class="sb-inner sb-scroll">
+    <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
+    <div class="si" id="sbFavItem" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
+    <div class="ssep"></div>
+    <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
+    <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
+    <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
+    <div class="ssep"></div>
+    <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><div class="sg-left"><span>IP 主題</span><span class="sg-cnt" id="sgIpCnt"></span></div><span class="ar">▾</span></div>
+    <div class="ssub" id="ipSub"><div id="ipList"></div></div>
+    <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><div class="sg-left"><span>商品類型</span><span class="sg-cnt" id="sgTypeCnt"></span></div><span class="ar">▾</span></div>
+    <div class="ssub" id="typeSub"><div id="typeList"></div></div>
+    <div class="ssep"></div>
+    <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><div class="sg-left"><span>廠牌</span><span class="sg-cnt" id="sgBrandCnt"></span></div><span class="ar">▾</span></div>
+    <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
+      <div id="brandList"></div>
+    </div>
+    <div class="ssep"></div>
+    <div class="si" onclick="setFilter('未分類',this)"><span>未分類</span><span class="sn" id="sbOther">0</span></div>
+    <!-- 管理員限定：已結單 -->
+    <div class="ssep" id="sbAdminSep" style="display:none"></div>
+    <div class="si" id="sbClosedRow" style="display:none" onclick="setFilter('已結單',this)">
+      <span style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;background:#e67300;color:#fff;padding:1px 5px;border-radius:4px;font-weight:700">管</span>
+        已結單未下架
+      </span>
+      <span class="sn" id="sbClosed">0</span>
+    </div>
+  </div>
+</div>
+
 <div class="shopview" id="shopView">
   <div class="lay">
-    <!-- SIDEBAR BACKDROP -->
-    <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
-    <!-- SIDEBAR -->
-    <div class="sb" id="sbPanel">
-      <div class="sb-handle"></div>
-      <div id="sbCloseRow">
-        <span style="font-size:14px;font-weight:700;color:var(--ink)">選單</span>
-        <button onclick="closeSidebar()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink2);line-height:1;padding:4px 10px;border-radius:8px;display:flex;align-items:center;justify-content:center">✕</button>
-      </div>
-      <!-- 手機版：使用者資訊 + 導覽連結 -->
-      <div id="sbMobileNav" style="display:none;border-bottom:1px solid var(--border);padding:12px 0">
-        <div id="sbUserInfo" style="padding:4px 16px 12px;font-size:13px;color:var(--ink2)"></div>
-        <div onclick="goHome();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          商品列表
-        </div>
-        <div onclick="openCart();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
-          購物車
-        </div>
-        <div onclick="goOrders();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          我的訂單
-        </div>
-        <div onclick="goProfile();closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .15s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          個人資料
-        </div>
-      </div>
-      <div class="sb-inner sb-scroll">
-        <div class="si act" onclick="setFilter('全部',this)"><span>全部</span><span class="sn" id="sbAll">0</span></div>
-        <div class="si" id="sbFavItem" onclick="setFilter('我的收藏',this)"><span>我的收藏</span><span class="sn" id="sbFav">0</span></div>
-        <div class="ssep"></div>
-        <div class="si" onclick="setFilter('新上架',this)"><span>新上架</span><span class="sn" id="sbNew">0</span></div>
-        <div class="si" onclick="setFilter('現貨',this)"><span>現貨</span><span class="sn" id="sbStock">0</span></div>
-        <div class="si" onclick="setFilter('預購',this)"><span>預購</span><span class="sn" id="sbPre">0</span></div>
-        <div class="ssep"></div>
-        <div class="sghead" id="ipToggle" onclick="toggleGrp('ip')"><div class="sg-left"><span>IP 主題</span><span class="sg-cnt" id="sgIpCnt"></span></div><span class="ar">▾</span></div>
-        <div class="ssub" id="ipSub"><div id="ipList"></div></div>
-        <div class="sghead" id="typeToggle" onclick="toggleGrp('type')"><div class="sg-left"><span>商品類型</span><span class="sg-cnt" id="sgTypeCnt"></span></div><span class="ar">▾</span></div>
-        <div class="ssub" id="typeSub"><div id="typeList"></div></div>
-        <div class="ssep"></div>
-        <div class="sghead" id="brandToggle" onclick="toggleGrp('brand')"><div class="sg-left"><span>廠牌</span><span class="sg-cnt" id="sgBrandCnt"></span></div><span class="ar">▾</span></div>
-        <div class="ssub" id="brandSub" style="max-height:200px;overflow-y:auto">
-          <div id="brandList"></div>
-        </div>
-        <div class="ssep"></div>
-        <div class="si" onclick="setFilter('未分類',this)"><span>未分類</span><span class="sn" id="sbOther">0</span></div>
-        <!-- 管理員限定：已結單 -->
-        <div class="ssep" id="sbAdminSep" style="display:none"></div>
-        <div class="si" id="sbClosedRow" style="display:none" onclick="setFilter('已結單',this)">
-          <span style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:10px;background:#e67300;color:#fff;padding:1px 5px;border-radius:4px;font-weight:700">管</span>
-            已結單未下架
-          </span>
-          <span class="sn" id="sbClosed">0</span>
-        </div>
-      </div>
-    </div>
     <!-- MAIN -->
     <div class="main">
       <div class="mtop">
