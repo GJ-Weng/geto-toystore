@@ -6897,7 +6897,9 @@ function _aoRenderCards(){
     const _oIsPickup  = (o.store||'').startsWith('自取');
     // 判斷是否有訂金(有訂金 = 預購訂單，需確認付款)
     const _hasDeposit = (o.price||0) > 0;
-    // 現貨訂單：price=0，不需確認付款，直接進入「已成立」
+    // 用 product_name 裡的 [預購] 標籤判斷訂單類型（更準確）
+    const _isPreorder = (o.product_name||'').includes('[預購]');
+    // 現貨訂單：price=0 且非預購，不需確認付款，直接進入「已成立」
     const _isStockOrder = !_hasDeposit && o.status==='new';
     const canPay       = _hasDeposit && o.status==='new'; // 只有有訂金才需確認付款
     const canShip      = ['paid','partial'].includes(o.status) && !_oIsPickup;
@@ -6965,7 +6967,7 @@ function _aoRenderCards(){
       <div class="aoc-actions">
         ${isDone ? '' : `
           ${canPay         ?`<button class="aoc-btn aoc-btn-pay" onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
-          ${_isStockOrder  ?`<button class="aoc-btn aoc-btn-pay" onclick="aoMarkStockPaid(${o.id})">✓ 確認訂單成立</button>`:''}
+          ${_isStockOrder  ?`<button class="aoc-btn aoc-btn-pay" onclick="aoMarkStockPaid(${o.id},${_isPreorder})">✓ 確認訂單成立</button>`:''}
           ${canPickupReady ?`<button class="aoc-btn" style="border-color:#e67300;background:#fff4e5;color:#e67300;font-weight:700" onclick="aoUpdateStatus(${o.id},'pickup_ready')">🏪 通知自取</button>`:''}
           ${canPickupDone  ?`<button class="aoc-btn aoc-btn-ship" onclick="aoUpdateStatus(${o.id},'shipped')">✓ 已完成自取</button>`:''}
           ${canPart        ?`<button class="aoc-btn aoc-btn-part" onclick="aoUpdateStatus(${o.id},'partial')">部分出貨</button>`:''}
@@ -7402,10 +7404,11 @@ async function sendStatusEmail(o, newStatus){
   }
 }
 
-// 現貨訂單確認成立(不寄付款確認信)
-async function aoMarkStockPaid(id){
+// 訂單確認成立(不寄付款確認信)
+async function aoMarkStockPaid(id, isPreorder){
   await _sbReady;
-  if(!confirm('確定將此現貨訂單設為已成立？')) return;
+  const typeLabel = isPreorder ? '預購' : '現貨';
+  if(!confirm(`確定將此${typeLabel}訂單設為已成立？`)) return;
   const {error} = await _sb.from('orders').update({status:'paid'}).eq('id',id);
   if(error){ showToast('❌ 失敗：'+error.message); return; }
   const o = _allAdminOrders.find(x=>x.id===id);
