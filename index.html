@@ -1051,9 +1051,11 @@ textarea.fi{min-height:64px;resize:vertical}
   <button class="lb-nav lb-next" onclick="_lbGo(1)" id="lbNext">&#8250;</button>
 </div>
 
-<!-- SIDEBAR BACKDROP -->
-<div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
-<!-- SIDEBAR -->
+<div class="shopview" id="shopView">
+  <div class="lay">
+    <!-- SIDEBAR BACKDROP -->
+    <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
+    <!-- SIDEBAR -->
 <div class="sb" id="sbPanel">
   <div class="sb-handle"></div>
   <div id="sbCloseRow">
@@ -1114,10 +1116,6 @@ textarea.fi{min-height:64px;resize:vertical}
       <span class="sn" id="sbClosed">0</span>
     </div>
   </div>
-</div>
-
-<div class="shopview" id="shopView">
-  <div class="lay">
     <!-- MAIN -->
     <div class="main">
       <div class="mtop">
@@ -2914,13 +2912,21 @@ function toggleSidebar(){
   const bd = document.getElementById('sbBackdrop');
   if(!sb||!bd) return;
   const opening = !sb.classList.contains('sb-open');
+
+  // 手機版：開啟前先確保sidebar在body層（不被display:none的父層遮蔽）
+  if(opening && window.innerWidth <= 880){
+    if(sb.parentElement !== document.body){
+      document.body.appendChild(bd);
+      document.body.appendChild(sb);
+    }
+  }
+
   sb.classList.toggle('sb-open', opening);
   bd.classList.toggle('sb-open', opening);
   if(opening){
     document.body.style.overflow = 'hidden';
     _updateSbUserInfo();
   } else {
-    // 等 sidebar 滑出動畫結束（320ms）再解鎖 scroll
     setTimeout(()=>{ document.body.style.overflow = ''; }, 340);
   }
 }
@@ -2932,6 +2938,19 @@ function closeSidebar(){
   bd.classList.remove('sb-open');
   setTimeout(()=>{ document.body.style.overflow = ''; }, 340);
 }
+
+// 視窗縮放時，把sidebar放回.lay（避免桌機版跑版）
+window.addEventListener('resize', ()=>{
+  if(window.innerWidth > 880){
+    const sb = document.getElementById('sbPanel');
+    const bd = document.getElementById('sbBackdrop');
+    const lay = document.querySelector('#shopView .lay');
+    if(sb && lay && sb.parentElement !== lay){
+      lay.insertBefore(sb, lay.querySelector('.main') || null);
+      lay.insertBefore(bd, sb);
+    }
+  }
+});
 
 let _profileReturnTo = null; // 記錄從哪裡進入個人資料
 function goProfile(returnTo){
