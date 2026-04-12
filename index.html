@@ -5172,17 +5172,170 @@ _sbReady.then(() => {
 });
 }); // end _sbReady.then
 
+// ─── 新訂單輪詢通知 ────────────────────────────────────────
+let _newOrderPoller = null;      // setInterval handle
+let _knownNewOrderIds = null;    // 已知的 new 狀態訂單 id set
+let _originalTitle = document.title;
+let _titleBlink = null;
+
+// 開始輪詢（開啟管理員後台時呼叫）
+function startNewOrderPoller(){
+  if(_newOrderPoller) return; // 已在跑
+  // 先記錄目前已有的 new 訂單
+  _initKnownOrders();
+  // 每 30 秒查一次
+  _newOrderPoller = setInterval(_checkNewOrders, 30000);
+}
+
+// 停止輪詢（關閉管理員後台時呼叫）
+function stopNewOrderPoller(){
+  if(_newOrderPoller){ clearInterval(_newOrderPoller); _newOrderPoller=null; }
+  _stopTitleBlink();
+}
+
+// 初始化：把目前所有 new 訂單的 id 記錄起來
+function _initKnownOrders(){
+  if(_knownNewOrderIds !== null) return; // 已初始化過
+  const newOrders = _allAdminOrders.filter(o=>o.status==='new');
+  _knownNewOrderIds = new Set(newOrders.map(o=>String(o.id)));
+}
+
+// 實際查詢有沒有新訂單
+async function _checkNewOrders(){
+  if(!isAdmin()) return;
+  try{
+    await _sbReady;
+    const {data} = await _sb.from('orders')
+      .select('id,customer_name,product_name,created_at,price,status')
+      .eq('status','new')
+      .order('created_at',{ascending:false});
+    if(!data) return;
+
+    // 找出之前沒見過的 id
+    const incoming = data.filter(o => !_knownNewOrderIds.has(String(o.id)));
+    if(incoming.length === 0) return;
+
+    // 更新已知清單
+    data.forEach(o => _knownNewOrderIds.add(String(o.id)));
+
+    // 更新本地資料（把新訂單補進去）
+    incoming.forEach(o=>{
+      if(!_allAdminOrders.find(x=>x.id===o.id)){
+        _allAdminOrders.unshift(o);
+      }
+    });
+
+    // 觸發通知
+    _notifyNewOrders(incoming);
+
+  } catch(e){ console.warn('[newOrderPoller]', e); }
+}
+
+// 顯示通知
+function _notifyNewOrders(orders){
+  const count = orders.length;
+  const name  = orders[0]?.customer_name || '客人';
+
+  // 1. 播提示音
+  _playBeep();
+
+  // 2. title 閃爍
+  _startTitleBlink(count);
+
+  // 3. 頁面頂端 Toast（比較大、停留久）
+  _showNewOrderBanner(count, name, orders[0]);
+
+  // 4. 如果訂單列表頁面是開著的，自動重新整理
+  const tab3 = document.getElementById('tab3');
+  if(tab3 && tab3.style.display !== 'none'){
+    renderOrderList();
+  }
+}
+
+// 提示音（用 Web Audio API，不需要檔案）
+function _playBeep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+    g.gain.setValueAtTime(0.4, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    o.start(ctx.currentTime);
+    o.stop(ctx.currentTime + 0.5);
+  } catch(e){}
+}
+
+// title 閃爍
+function _startTitleBlink(count){
+  _stopTitleBlink();
+  let on = true;
+  _titleBlink = setInterval(()=>{
+    document.title = on ? `🔔 新訂單 (${count}) — ${_originalTitle}` : _originalTitle;
+    on = !on;
+  }, 1000);
+  // 點任意地方停止閃爍
+  document.addEventListener('click', _stopTitleBlink, {once:true});
+}
+function _stopTitleBlink(){
+  if(_titleBlink){ clearInterval(_titleBlink); _titleBlink=null; }
+  document.title = _originalTitle;
+}
+
+// 頁面頂端橫幅通知
+function _showNewOrderBanner(count, name, order){
+  const existing = document.getElementById('newOrderBanner');
+  if(existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'newOrderBanner';
+  div.style.cssText = `
+    position:fixed;top:0;left:0;right:0;z-index:9999;
+    background:#1a7f4b;color:#fff;
+    padding:12px 20px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    font-size:14px;font-weight:600;
+    box-shadow:0 4px 16px rgba(0,0,0,.2);
+    animation:slideDown .3s ease;
+  `;
+  const prod = (order?.product_name||'').replace(/\[.*?\]/g,'').trim().slice(0,30);
+  div.innerHTML = `
+    <span>🛎️ 有 <b>${count}</b> 筆新訂單！${name ? `（${name}${count>1?'等':''}）` : ''} ${prod ? `— ${prod}` : ''}</span>
+    <div style="display:flex;gap:8px">
+      <button onclick="swTab(3);_stopTitleBlink();document.getElementById('newOrderBanner')?.remove()"
+        style="height:28px;padding:0 14px;background:#fff;color:#1a7f4b;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
+        查看訂單
+      </button>
+      <button onclick="document.getElementById('newOrderBanner')?.remove()"
+        style="height:28px;width:28px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer">✕</button>
+    </div>
+  `;
+  document.body.prepend(div);
+
+  // 8 秒後自動消失
+  setTimeout(()=>{ div.remove(); _stopTitleBlink(); }, 8000);
+}
+
 // ─── ADMIN ────────────────────────────────────────────────
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
-  buildEmojiGrid();renderAdminList();renderOrderList();
-  // 載入 acMemory（品牌/IP/商品類型歷史記錄）
+  buildEmojiGrid();renderAdminList();
+  renderOrderList().then(()=>{
+    // 訂單載入完成後才初始化輪詢（確保已知訂單清單正確）
+    _knownNewOrderIds = null; // 重置，讓 _initKnownOrders 重新跑
+    _initKnownOrders();
+    startNewOrderPoller();
+  });
   acLoadFromSupabase();
   document.getElementById('ap').classList.add('open');
   const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='none';
 }
 function closeAdmin(){
   document.getElementById('ap').classList.remove('open');
+  stopNewOrderPoller();
   const _csf=document.getElementById('csFloatBtn'); if(_csf)_csf.style.display='';
 }
 function swTab(n){
