@@ -532,7 +532,7 @@ textarea.fi{min-height:64px;resize:vertical}
   .navi{flex-wrap:nowrap}
   #mobileSearchWrap{display:flex!important;width:100%;padding:6px 12px 8px;background:var(--white)}
 }
-@media(max-width:540px){.nlinks{display:none}.lay{padding:12px}.logo-text{display:none}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
+@media(max-width:540px){.nlinks{display:none}.lay{padding:12px}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
 /* 桌機版(>880px)：隱藏手機專屬元素 */
 @media(min-width:881px){
   #navHamburger{display:none!important}
@@ -1577,13 +1577,17 @@ textarea.fi{min-height:64px;resize:vertical}
         <div class="fr" style="margin-bottom:12px" id="fDeadlineRow">
           <div class="fg">
             <label class="fl">結單日期 <span class="req">*</span></label>
-            <div class="deadline-wrap">
-              <input type="text" id="fDeadlineText" placeholder="2026/04/30" oninput="_parseDeadlineText(this.value)">
-              <div class="dl-cal" title="選擇日期">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                <input type="date" id="fDeadline" oninput="_syncDeadlineText(this.value)" title="選擇日期">
+            <div style="display:flex;gap:6px;align-items:center">
+              <div class="deadline-wrap" style="flex:1">
+                <input type="text" id="fDeadlineText" placeholder="2026/04/30" oninput="_parseDeadlineText(this.value)">
+                <div class="dl-cal" title="選擇日期">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <input type="date" id="fDeadline" oninput="_syncDeadlineText(this.value)" title="選擇日期">
+                </div>
               </div>
+              <input type="time" id="fDeadlineTime" title="選填：指定結單時間（留空＝當天23:59）" style="width:96px;padding:7px 8px;font-size:13px;border:1px solid var(--border2);border-radius:var(--r);background:var(--white);color:var(--ink);outline:none;font-family:var(--font)">
             </div>
+            <div id="fRecentDeadlines" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
           <div class="fg">
             <label class="fl">預計到貨 <span class="req">*</span></label>
@@ -2062,9 +2066,16 @@ function parseLimit(limitStr){
 // 判斷是否已過結單日(結單當天 23:59:59 仍可購買，隔天起才關閉)
 function isDeadlinePassed(deadline){
   if(!deadline) return false;
-  // deadline = 'YYYY-MM-DD'，轉成當天台灣時間結束(23:59:59)
-  const [y,m,d] = deadline.split('-').map(Number);
-  // 用當地時間建立「結單當天 23:59:59」
+  // 支援 'YYYY-MM-DD' 和 'YYYY-MM-DD HH:MM' 兩種格式
+  const parts = deadline.trim().split(' ');
+  const [y,m,d] = parts[0].split('-').map(Number);
+  if(parts[1]){
+    // 有指定時間
+    const [hh,mm] = parts[1].split(':').map(Number);
+    const cutoff = new Date(y, m-1, d, hh, mm, 0, 0);
+    return new Date() > cutoff;
+  }
+  // 無時間 → 當天 23:59:59（舊資料相容）
   const cutoff = new Date(y, m-1, d, 23, 59, 59, 999);
   return new Date() > cutoff;
 }
@@ -3355,7 +3366,7 @@ function rebuildOrderedQtyMap(orders){
     let items=[];
     try{ items=JSON.parse(o.note||'[]'); }catch(e){}
     items.forEach(it=>{
-      const pid = String(it.product_id||'');
+      const pid = String(it.product_id||it.id||'');
       const v   = it.variant||'';
       if(!pid) return;
       if(!newMap[pid]) newMap[pid]={};
@@ -3422,7 +3433,7 @@ function renderOrdersList(){
             ? `<img src="${prod.imageUrl}" alt="">`
             : `${it.product_emoji||prod?.emoji||'📦'}`;
           return `<div class="order-card-item">
-            <div class="oci-img">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+            <div class="oci-img">${(it.imageUrl||prod?.imageUrl)?`<img loading="lazy" src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div class="oci-info">
               <div class="oci-name">${(it.product_name||'').slice(0,32)}${(it.product_name||'').length>32?'…':''}</div>
               ${it.variant?`<div class="oci-var">${it.variant}</div>`:''}
@@ -3520,7 +3531,7 @@ function openOrderDetail(orderId){
       ${items.map(it=>{
         const prod=products.find(p=>String(p.id)===String(it.product_id));
         return `<div class="od-item">
-          <div class="od-iimg">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+          <div class="od-iimg">${(it.imageUrl||prod?.imageUrl)?`<img loading="lazy" src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
           <div class="od-iinfo">
             <div class="od-iname">${it.product_name||''}</div>
             ${it.variant?`<div class="od-ivar">${it.variant}</div>`:''}
@@ -5696,6 +5707,7 @@ function _showNewOrderBanner(count, name, order){
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   renderAdminList();
+  _renderRecentDeadlines();
   renderOrderList().then(()=>{
     // 訂單載入完成後才初始化輪詢（確保已知訂單清單正確）
     _knownNewOrderIds = null; // 重置，讓 _initKnownOrders 重新跑
@@ -6697,9 +6709,12 @@ function editP(id){
   document.getElementById('fPrice').value=p.price;
   document.getElementById('fLimit').value=p.limit||'';
   setFType(p.type||'預購');
-  document.getElementById('fDeadline').value=p.deadline||'';
+  const _deadlineParts = (p.deadline||'').split(' ');
+  document.getElementById('fDeadline').value = _deadlineParts[0] || '';
   const _fDTxt = document.getElementById('fDeadlineText');
-  if(_fDTxt) _fDTxt.value = p.deadline ? p.deadline.replace(/-/g,'/') : '';
+  if(_fDTxt) _fDTxt.value = _deadlineParts[0] ? _deadlineParts[0].replace(/-/g,'/') : '';
+  const _fDTime = document.getElementById('fDeadlineTime');
+  if(_fDTime) _fDTime.value = _deadlineParts[1] || '';
   // 規格列展開
   const _fVR = document.getElementById('fVariantsRow');
   if(_fVR && (p.variants||[]).length > 0) _fVR.style.display='';
@@ -6761,7 +6776,12 @@ async function saveProduct(continueAdd=false){
   const deposit = depositVal!==''&&depositVal!=null ? parseInt(depositVal)||0 : 0;
   const variantPrices = getVariantPrices();
   const _ptype = document.getElementById('fType').value;
-  const newDeadline = document.getElementById('fDeadline').value;
+  const newDeadline = (()=>{
+    const d = document.getElementById('fDeadline').value;
+    const t = document.getElementById('fDeadlineTime')?.value;
+    if(!d) return '';
+    return t ? `${d} ${t}` : d;
+  })();
   const data={imageUrl:imgUrl,imageUrls:[..._adminImgs],name,brand,price,deposit,variantPrices,
     limit:document.getElementById('fLimit').value.trim(),
     type:_ptype,
@@ -6915,6 +6935,15 @@ async function saveProduct(continueAdd=false){
   // 先顯示成功，背景靜默 sync（避免等待 sync 造成 UI 卡頓）
   if(editingId){ showToast('✓ 已更新商品'); }
   else{ showToast('✓ 已新增商品'); }
+  // 記錄最近使用的結單時間（最多5筆）
+  if(newDeadline){
+    try{
+      const _recent = JSON.parse(localStorage.getItem('tf_recent_deadlines')||'[]');
+      const _updated = [newDeadline, ..._recent.filter(d=>d!==newDeadline)].slice(0,5);
+      localStorage.setItem('tf_recent_deadlines', JSON.stringify(_updated));
+      _renderRecentDeadlines();
+    }catch(e){}
+  }
   localStorage.removeItem('tf_p_ts'); // 清快取時間戳，強制下次 sync
   acRememberProduct();
 
@@ -6980,6 +7009,33 @@ function _updateFilledState(){
 function _syncDeadlineText(val){
   const el = document.getElementById('fDeadlineText');
   if(el) el.value = val ? val.replace(/-/g,'/') : '';
+  _updateFilledState();
+}
+// 渲染最近使用的結單時間標籤
+function _renderRecentDeadlines(){
+  const wrap = document.getElementById('fRecentDeadlines');
+  if(!wrap) return;
+  try{
+    const list = JSON.parse(localStorage.getItem('tf_recent_deadlines')||'[]');
+    if(!list.length){ wrap.style.display='none'; return; }
+    wrap.style.display='flex';
+    wrap.innerHTML = '<span style="font-size:11px;color:var(--ink3);flex-shrink:0">最近：</span>'
+      + list.map(d=>{
+        const parts = d.split(' ');
+        const label = parts[1] ? parts[0].slice(5).replace('-','/')+' '+parts[1] : parts[0].slice(5).replace('-','/');
+        return `<button type="button" onclick="_applyRecentDeadline('${d}')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border2);border-radius:10px;background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap">${label}</button>`;
+      }).join('');
+  }catch(e){ wrap.style.display='none'; }
+}
+// 點選最近結單時間 → 填入欄位
+function _applyRecentDeadline(val){
+  const parts = val.split(' ');
+  const dateEl = document.getElementById('fDeadline');
+  const textEl = document.getElementById('fDeadlineText');
+  const timeEl = document.getElementById('fDeadlineTime');
+  if(dateEl) dateEl.value = parts[0];
+  if(textEl) textEl.value = parts[0].replace(/-/g,'/');
+  if(timeEl) timeEl.value = parts[1]||'';
   _updateFilledState();
 }
 // 結單日期：文字欄位 → date picker（支援 2026/04/13 或 2026-04-13）
@@ -7189,7 +7245,7 @@ function resetForm(){
   if(hint) hint.style.display='none';
   renderAdminImgPreviews();
   // 清除所有文字欄位
-  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
+  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   setFType('預購');
@@ -7530,7 +7586,7 @@ function _aoRenderCards(){
         ${items.map(it=>{
           const prod=products.find(p=>String(p.id)===String(it.product_id));
           return `<div class="aoc-item">
-            <div class="aoc-img">${(it.imageUrl||prod?.imageUrl)?`<img src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
+            <div class="aoc-img">${(it.imageUrl||prod?.imageUrl)?`<img loading="lazy" src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div style="flex:1">
               <div class="aoc-iname">${(it.product_name||'').slice(0,36)}</div>
               ${it.variant?`<div class="aoc-ivar">${it.variant}</div>`:''}
