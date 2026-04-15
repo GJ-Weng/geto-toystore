@@ -1743,6 +1743,11 @@ textarea.fi{min-height:64px;resize:vertical}
         </div>
         <div class="fr"><div class="fg"><label class="fl">Public Key</label><input class="fi" id="sEjsKey" placeholder="your_public_key"></div></div>
         <div class="fr"><div class="fg"><label class="fl">Service ID</label><input class="fi" id="sEjsSvc" placeholder="service_xxxxxxx"></div><div class="fg"><label class="fl">Template ID</label><input class="fi" id="sEjsTpl" placeholder="template_xxxxxxx"></div></div>
+        <div style="display:flex;align-items:center;gap:10px;margin:10px 0;padding:10px 14px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:var(--r)">
+          <input type="checkbox" id="sEjsTestMode" style="width:16px;height:16px;cursor:pointer" onchange="toggleEmailTestMode(this.checked)">
+          <label for="sEjsTestMode" style="font-size:13px;font-weight:600;color:#4c1d95;cursor:pointer">📧 測試模式（不耗 EmailJS 流量，信件只印在 Console）</label>
+          <span id="sEjsTestBadge" style="display:none;font-size:11px;background:#7c3aed;color:#fff;padding:2px 8px;border-radius:10px;font-weight:700">啟用中</span>
+        </div>
         <div class="fa">
           <button class="fsave" onclick="saveEmailJS()">儲存 EmailJS 設定</button>
           <button class="fcan" onclick="testEmail()">📧 寄測試信</button>
@@ -2158,11 +2163,15 @@ let emailjsConfig = {
   publicKey:  _EJS_DEFAULTS.publicKey,
   serviceId:  _EJS_DEFAULTS.serviceId,
   templateId: _EJS_DEFAULTS.templateId,
+  testMode:   false,
 };
 
 function initEmailJS(){
-  // 從 localStorage 讀最新設定
-  // 永遠用 hardcode 預設值
+  // testMode 從 localStorage 讀（key 永遠用 hardcode，testMode 允許動態切換）
+  try{
+    const _saved = JSON.parse(localStorage.getItem('tf_ejs')||'{}');
+    if(_saved.testMode) emailjsConfig.testMode = true;
+  }catch(e){}
   if(emailjsConfig.publicKey) {
     emailjs.init({ publicKey: emailjsConfig.publicKey });
   } else {
@@ -2171,6 +2180,12 @@ function initEmailJS(){
 }
 
 async function sendOrderEmail({ customerName, customerEmail, orderNum, items, total, dep, tail, delivery, phone, settings, nearestDeadline=null }){
+  if(emailjsConfig.testMode){
+    console.log('%c📧 [測試模式] sendOrderEmail — 不耗流量，信件未實際寄出', 'color:#7c3aed;font-weight:700');
+    console.log('收件人：', customerEmail, '｜姓名：', customerName, '｜訂單：', orderNum);
+    console.log('商品：', items);
+    return;
+  }
   // 重新從 localStorage 讀取最新設定(防止快取過期)
   // 永遠用 hardcode，不從 localStorage 覆蓋
 
@@ -5731,6 +5746,7 @@ function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   renderAdminList();
   _renderRecentDeadlines();
+  _syncEmailTestModeUI();
   renderOrderList().then(()=>{
     // 訂單載入完成後才初始化輪詢（確保已知訂單清單正確）
     _knownNewOrderIds = null; // 重置，讓 _initKnownOrders 重新跑
@@ -5805,12 +5821,26 @@ function saveEmailJS(){
   const svc = document.getElementById('sEjsSvc')?.value.trim()||'';
   const tpl = document.getElementById('sEjsTpl')?.value.trim()||'';
   if(!key||!svc||!tpl){ showToast('⚠️ 請填寫完整的 Public Key、Service ID、Template ID'); return; }
-  emailjsConfig = { publicKey:key, serviceId:svc, templateId:tpl };
-  // 立刻 init 並存入 localStorage
+  emailjsConfig = { publicKey:key, serviceId:svc, templateId:tpl, testMode: emailjsConfig.testMode||false };
   emailjs.init({ publicKey: key });
   localStorage.setItem('tf_ejs', JSON.stringify(emailjsConfig));
   persist();
   showToast('✅ EmailJS 設定已儲存，請按「寄測試信」確認');
+}
+
+function toggleEmailTestMode(on){
+  emailjsConfig.testMode = !!on;
+  localStorage.setItem('tf_ejs', JSON.stringify(emailjsConfig));
+  const badge = document.getElementById('sEjsTestBadge');
+  if(badge) badge.style.display = on ? '' : 'none';
+  showToast(on ? '🟣 測試模式已啟用，寄信只會印在 Console' : '✅ 測試模式已關閉，恢復正常寄信');
+}
+
+function _syncEmailTestModeUI(){
+  const cb = document.getElementById('sEjsTestMode');
+  const badge = document.getElementById('sEjsTestBadge');
+  if(cb){ cb.checked = !!emailjsConfig.testMode; }
+  if(badge){ badge.style.display = emailjsConfig.testMode ? '' : 'none'; }
 }
 async function testEmail(){
   if(!user?.email){ showToast('⚠️ 請先登入'); return; }
@@ -8129,6 +8159,11 @@ function searchCustomer(){
 }
 
 async function sendStatusEmail(o, newStatus){
+  if(emailjsConfig.testMode){
+    console.log('%c📧 [測試模式] sendStatusEmail — 不耗流量，信件未實際寄出', 'color:#7c3aed;font-weight:700');
+    console.log('收件人：', o.user_email, '｜訂單：', o.order_code||o.id, '｜新狀態：', newStatus);
+    return;
+  }
   if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId) return;
 
   let items = [];
@@ -9485,6 +9520,11 @@ async function confirmAdjustAmount(){
 // 異動通知 Email（調整金額、改價格、改結單日期用）
 function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
   if(!o?.user_email) return;
+  if(emailjsConfig.testMode){
+    console.log('%c📧 [測試模式] sendStatusEmailCustom — 不耗流量，信件未實際寄出', 'color:#7c3aed;font-weight:700');
+    console.log('收件人：', o.user_email, '｜主旨：', subjectLabel, '｜內容：', bodyMsg);
+    return;
+  }
   if(!emailjsConfig.publicKey||!emailjsConfig.serviceId||!emailjsConfig.templateId) return;
 
   // detailRows = [{label, oldVal, newVal}] 或 null
