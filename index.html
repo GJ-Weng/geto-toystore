@@ -1524,6 +1524,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg">
             <label class="fl">每人限購 <span class="req">*</span></label>
             <input class="fi" id="fLimit" placeholder="例：2件" value="2件">
+            <div id="fRecentLimit" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
         </div>
 
@@ -1546,6 +1547,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg">
             <label class="fl">售價 NT$ <span class="req">*</span></label>
             <input class="fi" id="fPrice" type="number" placeholder="0">
+            <div id="fRecentPrice" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
           <div class="fg">
             <label class="fl">品牌 / 分類 <span class="req">*</span></label>
@@ -1562,6 +1564,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg">
             <label class="fl">訂金 NT$</label>
             <input class="fi" id="fDeposit" type="number" placeholder="不填 = 無訂金" min="0">
+            <div id="fRecentDeposit" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
           <div class="fg">
             <label class="fl">商品形式</label>
@@ -1592,6 +1595,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg">
             <label class="fl">預計到貨 <span class="req">*</span></label>
             <input class="fi" id="fArrival" placeholder="例：2026-08">
+            <div id="fRecentArrival" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
         </div>
 
@@ -1600,6 +1604,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div class="fg">
             <label class="fl">庫存數量（0＝無限制）</label>
             <input class="fi" id="fStock" type="number" min="0" placeholder="0" value="0">
+            <div id="fRecentStock" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;margin-top:5px"></div>
           </div>
           <div class="fg">
             <label class="fl">缺貨狀態</label>
@@ -5745,7 +5750,7 @@ function _showNewOrderBanner(count, name, order){
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   renderAdminList();
-  _renderRecentDeadlines();
+  _renderAllRecentFields();
   _syncEmailTestModeUI();
   renderOrderList().then(()=>{
     // 訂單載入完成後才初始化輪詢（確保已知訂單清單正確）
@@ -5770,6 +5775,7 @@ function swTab(n){
     const tm=document.getElementById('t'+i+'m'); if(tm) tm.classList.toggle('act',i===n);
     const tb=document.getElementById('tab'+i); if(tb) tb.style.display=i===n?'':'none';
   });
+  if(n===1) _renderAllRecentFields();
   if(n===2){
     // 若訂單資料未載，先載入再 render
     if(!_allAdminOrders.length){
@@ -6995,9 +7001,15 @@ async function saveProduct(continueAdd=false){
       const _recent = JSON.parse(localStorage.getItem('tf_recent_deadlines')||'[]');
       const _updated = [newDeadline, ..._recent.filter(d=>d!==newDeadline)].slice(0,5);
       localStorage.setItem('tf_recent_deadlines', JSON.stringify(_updated));
-      _renderRecentDeadlines();
     }catch(e){}
   }
+  // 記錄其他欄位最近使用值
+  _saveRecentField('limit',   document.getElementById('fLimit')?.value);
+  _saveRecentField('price',   document.getElementById('fPrice')?.value);
+  _saveRecentField('deposit', document.getElementById('fDeposit')?.value || '0');
+  _saveRecentField('arrival', document.getElementById('fArrival')?.value);
+  _saveRecentField('stock',   document.getElementById('fStock')?.value || '0');
+  _renderAllRecentFields();
   localStorage.removeItem('tf_p_ts'); // 清快取時間戳，強制下次 sync
   acRememberProduct();
 
@@ -7066,7 +7078,49 @@ function _syncDeadlineText(val){
   _updateFilledState();
 }
 // 渲染最近使用的結單時間標籤
-function _renderRecentDeadlines(){
+// ─── 通用「最近使用」記錄與渲染 ──────────────────────────────
+function _saveRecentField(key, value){
+  if(!value && value !== 0) return;
+  const val = String(value).trim();
+  if(!val) return;
+  try{
+    const list = JSON.parse(localStorage.getItem('tf_recent_'+key)||'[]');
+    const updated = [val, ...list.filter(v=>v!==val)].slice(0,5);
+    localStorage.setItem('tf_recent_'+key, JSON.stringify(updated));
+  }catch(e){}
+}
+
+function _renderRecentField(key, containerId, applyFn, labelFn){
+  const wrap = document.getElementById(containerId);
+  if(!wrap) return;
+  try{
+    const list = JSON.parse(localStorage.getItem('tf_recent_'+key)||'[]');
+    if(!list.length){ wrap.style.display='none'; return; }
+    wrap.style.display='flex';
+    wrap.innerHTML = '<span style="font-size:11px;color:var(--ink3);flex-shrink:0">最近：</span>'
+      + list.map(v=>{
+          const label = labelFn ? labelFn(v) : v;
+          return `<button type="button" onclick="${applyFn}('${v.replace(/'/g,"\\'")}')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border2);border-radius:10px;background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap">${label}</button>`;
+        }).join('');
+  }catch(e){ wrap.style.display='none'; }
+}
+
+// 各欄位套用函式
+function _applyRecentLimit(v){ const el=document.getElementById('fLimit'); if(el){el.value=v;_updateFilledState();} }
+function _applyRecentPrice(v){ const el=document.getElementById('fPrice'); if(el){el.value=v;_updateFilledState();} }
+function _applyRecentDeposit(v){ const el=document.getElementById('fDeposit'); if(el){el.value=v;_updateFilledState();} }
+function _applyRecentArrival(v){ const el=document.getElementById('fArrival'); if(el){el.value=v;_updateFilledState();} }
+function _applyRecentStock(v){ const el=document.getElementById('fStock'); if(el){el.value=v;_updateFilledState();} }
+
+// 一次渲染所有欄位的最近記錄
+function _renderAllRecentFields(){
+  _renderRecentDeadlines();
+  _renderRecentField('limit',   'fRecentLimit',   '_applyRecentLimit');
+  _renderRecentField('price',   'fRecentPrice',   '_applyRecentPrice',   v=>'NT$'+Number(v).toLocaleString());
+  _renderRecentField('deposit', 'fRecentDeposit', '_applyRecentDeposit', v=>v==='0'||v===''?'無訂金':'NT$'+Number(v).toLocaleString());
+  _renderRecentField('arrival', 'fRecentArrival', '_applyRecentArrival');
+  _renderRecentField('stock',   'fRecentStock',   '_applyRecentStock',   v=>v==='0'?'無限制':v+'件');
+}
   const wrap = document.getElementById('fRecentDeadlines');
   if(!wrap) return;
   try{
