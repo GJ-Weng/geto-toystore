@@ -7121,6 +7121,7 @@ function _renderAllRecentFields(){
   _renderRecentField('arrival', 'fRecentArrival', '_applyRecentArrival');
   _renderRecentField('stock',   'fRecentStock',   '_applyRecentStock',   v=>v==='0'?'無限制':v+'件');
 }
+function _renderRecentDeadlines(){
   const wrap = document.getElementById('fRecentDeadlines');
   if(!wrap) return;
   try{
