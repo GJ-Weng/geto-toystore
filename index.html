@@ -9692,16 +9692,12 @@ updBadge(); updateNavFavsBadge();
 // EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
-// ── Stale-while-revalidate：快取有效 → 立刻顯示，背景安靜更新 ────────
+// ── Stale-while-revalidate：快取有效 → 立刻顯示，背景靜默更新 ────────
 const _cacheValid = products.length && localStorage.getItem('tf_p_ver')===_CACHE_VERSION && _isCacheFresh();
 if(_cacheValid){
-  // 快取新鮮（30分鐘內）：直接用快取，節省 egress
+  // 快取新鮮：先用快取立刻顯示，背景一定同步一次確保資料最新
   setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
-  // 如果有商品圖片是空的（base64 不存快取），背景補拉 image_url
-  const _missingImg = products.filter(p=>p.status==='published' && !p.imageUrl);
-  if(_missingImg.length > 0){
-    setTimeout(syncProductsFromSupabase, 200);
-  }
+  setTimeout(syncProductsFromSupabase, 300); // 背景靜默更新，用戶不感覺等待
 } else {
   syncProductsFromSupabase();
 }
