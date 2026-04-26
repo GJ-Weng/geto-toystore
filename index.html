@@ -6032,6 +6032,10 @@ async function acLoadFromSupabase(){
     acMemory.ip    = [...sets.ip];
     acMemory.brand = [...sets.brand];
     acMemory.form  = [...sets.form];
+    // 載入完成後主動刷新所有欄位的快速標籤
+    _renderAcTags('fIP',    'ip');
+    _renderAcTags('fBrand', 'brand');
+    _renderAcTags('fForm',  'form');
   }catch(e){ console.warn('acLoadFromSupabase error:', e); }
 }
 
