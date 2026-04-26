@@ -6015,92 +6015,24 @@ function clearImgField(){
 }
 
 // ─── AUTOCOMPLETE ────────────────────────────────────────
-// 記憶用過的 IP / Form / Brand
-const _AC_DEFAULTS = {
-  ip:   ['寶可夢','鬼滅之刃','排球少年','賽馬娘','咒術迴戰','葬送的芙莉蓮','SPY×FAMILY','進擊的巨人'],
-  form: ['絨毛','吊偶','Figure','模型','積木','卡牌','扭蛋','景品','盲盒'],
-  brand:['BANPRESTO','Furyu','Good Smile','MegaHouse','LEGO','Tamiya','Kotobukiya']
-};
-let acMemory = JSON.parse(localStorage.getItem('tf_acm') || JSON.stringify(_AC_DEFAULTS));
+// 直接從 Supabase products 表撈，不依賴快取
+let acMemory = { ip: [], brand: [], form: [] };
 
-// 儲存到 localStorage + 非同步寫入 Supabase
-function acSave(){
-  localStorage.setItem('tf_acm', JSON.stringify(acMemory));
-  // 非同步寫入 Supabase（不阻塞 UI）
-  _sbReady.then(()=>{
-    if(!_sb) return;
-    _sb.from('admin_settings').upsert({
-      key: 'ac_memory',
-      value: acMemory,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'key' }).then(({error})=>{
-      if(error) console.warn('acMemory Supabase 寫入失敗:', error.message);
-    });
-  });
-}
-
-// 從 Supabase 載入 acMemory，並同時從 products 表掃描所有曾用過的 ip/brand/form
 async function acLoadFromSupabase(){
   try{
     await _sbReady;
     if(!_sb) return;
-
-    // 同時查 admin_settings 和 products
-    const [settingsRes, productsRes] = await Promise.all([
-      _sb.from('admin_settings').select('value').eq('key','ac_memory').maybeSingle(),
-      _sb.from('products').select('ip,brand,form').not('ip','is',null),
-    ]);
-
-    // 從 admin_settings 取記憶
-    const _remote = settingsRes.data?.value || {};
-
-    // 從 products 表收集所有曾用過的值
-    const _fromProducts = { ip: [], brand: [], form: [] };
-    for(const p of (productsRes.data || [])){
-      if(p.ip   && p.ip.trim())   _fromProducts.ip.push(p.ip.trim());
-      if(p.brand && p.brand.trim()){
-        // brand 可能是 "BANDAI / 扭蛋" 格式，只取第一段
-        const _b = p.brand.split('/')[0].trim();
-        if(_b) _fromProducts.brand.push(_b);
-      }
-      if(p.form  && p.form.trim()) _fromProducts.form.push(p.form.trim());
+    const { data } = await _sb.from('products').select('ip,brand,form');
+    const sets = { ip: new Set(), brand: new Set(), form: new Set() };
+    for(const p of (data||[])){
+      if(p.ip    && p.ip.trim())    sets.ip.add(p.ip.trim());
+      if(p.brand && p.brand.trim()) sets.brand.add(p.brand.trim());
+      if(p.form  && p.form.trim())  sets.form.add(p.form.trim());
     }
-    // 去重
-    _fromProducts.ip    = [...new Set(_fromProducts.ip)];
-    _fromProducts.brand = [...new Set(_fromProducts.brand)];
-    _fromProducts.form  = [...new Set(_fromProducts.form)];
-
-    // 三來源合併：products（最完整）→ admin_settings（最近用過）→ 本地
-    acMemory = {
-      ip:    _mergeAcList(_remote.ip    || [], _mergeAcList(_fromProducts.ip,    acMemory.ip    || [])),
-      form:  _mergeAcList(_remote.form  || [], _mergeAcList(_fromProducts.form,  acMemory.form  || [])),
-      brand: _mergeAcList(_remote.brand || [], _mergeAcList(_fromProducts.brand, acMemory.brand || [])),
-    };
-    localStorage.setItem('tf_acm', JSON.stringify(acMemory));
-
-    // 把合併後的完整記憶同步回 admin_settings
-    _sb.from('admin_settings').upsert({
-      key: 'ac_memory', value: acMemory, updated_at: new Date().toISOString()
-    }, { onConflict: 'key' }).then(()=>{});
-
-  } catch(e){ console.warn('acLoadFromSupabase error:', e); }
-}
-
-// 合併兩個清單（保持順序、去重、限30筆）
-function _mergeAcList(remote, local){
-  const merged = [...remote];
-  for(const v of local){
-    if(!merged.includes(v)) merged.push(v);
-  }
-  return merged.slice(0, 30);
-}
-
-function acAddMemory(type, value){
-  if(!value) return;
-  if(!acMemory[type]) acMemory[type]=[];
-  // 移到最前面(最近用過的)
-  acMemory[type] = [value, ...acMemory[type].filter(v=>v!==value)].slice(0,30);
-  acSave();
+    acMemory.ip    = [...sets.ip];
+    acMemory.brand = [...sets.brand];
+    acMemory.form  = [...sets.form];
+  }catch(e){ console.warn('acLoadFromSupabase error:', e); }
 }
 
 function acInput(fieldId, type){
@@ -6117,7 +6049,6 @@ function acInput(fieldId, type){
 }
 
 function acBlur(fieldId){
-  // small delay so onmousedown fires first
   setTimeout(()=>{
     const list = document.getElementById(fieldId+'-list');
     if(list) list.classList.remove('open');
@@ -6126,19 +6057,14 @@ function acBlur(fieldId){
 
 function acPick(fieldId, type, value){
   const input = document.getElementById(fieldId);
-  if(input){ input.value=value; }
+  if(input){ input.value=value; _updateFilledState && _updateFilledState(); }
   const list = document.getElementById(fieldId+'-list');
   if(list){ list.classList.remove('open'); }
 }
 
-// 在 saveProduct 完成後記憶輸入值
+// 儲存商品後重新從 Supabase 載入，確保清單保持最新
 function acRememberProduct(){
-  const brand = document.getElementById('fBrand')?.value.trim();
-  const ip    = document.getElementById('fIP')?.value.trim();
-  const form  = document.getElementById('fForm')?.value.trim();
-  if(brand) acAddMemory('brand', brand.split('/')[0].trim());
-  if(ip)    acAddMemory('ip',    ip);
-  if(form)  acAddMemory('form',  form);
+  setTimeout(acLoadFromSupabase, 500);
 }
 
 // ─── VARIANT PRICES ──────────────────────────────────────
@@ -6257,7 +6183,7 @@ function _renderAcTags(fieldId, type){
   const opts = (acMemory[type]||[]).slice(0,6);
   if(!opts.length){ tagsEl.innerHTML=''; return; }
   tagsEl.innerHTML = opts.map(v=>
-    `<span class="ac-tag" onmousedown="event.preventDefault();document.getElementById('${fieldId}').value='${v.replace(/'/g,"&#39;")}';acAddMemory('${type}','${v.replace(/'/g,"&#39;")}');document.getElementById('${fieldId}-tags').innerHTML=''">${v}</span>`
+    `<span class="ac-tag" onmousedown="event.preventDefault();document.getElementById('${fieldId}').value='${v.replace(/'/g,"&#39;")}';document.getElementById('${fieldId}-tags').innerHTML=''">${v}</span>`
   ).join('');
 }
 
@@ -7244,7 +7170,6 @@ let _nameParsed = {}; // 暫存解析結果
 // 品牌縮寫對照表
 const _BRAND_ALIAS = {
   'MH':   'MegaHouse',
-  'GSC':  'Good Smile Company',
   'BAN':  'BANDAI',
   'FUR':  'Furyu',
   'KOT':  'Kotobukiya',
@@ -7299,7 +7224,6 @@ function _applyNameParse(){
   const ipEl    = document.getElementById('fIP');
   if(brand && brandEl && !brandEl.value.trim()){
     brandEl.value = brand;
-    acAddMemory('brand', brand);
   }
   if(ip && ipEl && !ipEl.value.trim()){
     ipEl.value = ip;
