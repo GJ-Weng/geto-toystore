@@ -1413,6 +1413,10 @@ textarea.fi{min-height:64px;resize:vertical}
     <div class="mx" onclick="closeAuth()">✕</div>
     <h2>登入 / 註冊</h2>
     <p>使用 Google 帳號快速登入，<br>享受收藏、訂單追蹤等完整購物體驗。</p>
+    <div id="inAppBrowserWarning" style="display:none;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#9a3412;line-height:1.6">
+      ⚠️ 您目前使用的是 <b>App 內建瀏覽器</b>，Google 登入可能會失敗。<br>
+      請點右上角 <b>「⋯」→「用瀏覽器開啟」</b>，再進行登入。
+    </div>
     <button class="gb" onclick="loginWithGoogle()">
       <svg class="gi" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
       使用 Google 帳號繼續
@@ -3478,7 +3482,7 @@ function renderOrdersList(){
           return `<div class="order-card-item">
             <div class="oci-img">${(it.imageUrl||prod?.imageUrl)?`<img loading="lazy" src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div class="oci-info">
-              <div class="oci-name">${(it.product_name||'').slice(0,32)}${(it.product_name||'').length>32?'…':''}</div>
+              <div class="oci-name">${it.product_name||''}</div>
               ${it.variant?`<div class="oci-var">${it.variant}</div>`:''}
               <span class="oci-status">${it.product_name?.includes('訂金')||o.status==='new'?'預購':''}</span>
             </div>
@@ -5492,8 +5496,19 @@ function cartChg(id,d){
 function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); try{localStorage.setItem('tf_c',JSON.stringify(cart));}catch(e){} updBadge();renderCartPage(); }
 
 // ─── AUTH (Supabase) ──────────────────────────────────────
-function openAuth(){document.getElementById('authModal').classList.add('open');}
+function openAuth(){ document.getElementById('authModal').classList.add('open'); _checkInAppBrowser(); }
 function closeAuth(){document.getElementById('authModal').classList.remove('open');}
+
+// ─── In-App Browser 偵測 ──────────────────────────────────
+function _isInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|FB_IAB|Instagram|Line\/|KAKAOTALK|MicroMessenger|WebView/.test(ua)
+    || (!!window.navigator.standalone === false && /Safari/.test(ua) && !/Chrome/.test(ua) && /iPhone|iPad/.test(ua) && document.referrer.includes('app'));
+}
+function _checkInAppBrowser(){
+  const el = document.getElementById('inAppBrowserWarning');
+  if(el) el.style.display = _isInAppBrowser() ? '' : 'none';
+}
 
 async function loginWithGoogle(){ await _sbReady;
   try {
@@ -6018,6 +6033,14 @@ function clearImgField(){
 // 直接從 Supabase products 表撈，不依賴快取
 let acMemory = { ip: [], brand: [], form: [] };
 
+// 品牌中英別名對照（輸入中文也能找到英文品牌）
+const _BRAND_ALIAS_ZH = {
+  '萬代':'BANDAI', '海洋堂':'Kaiyodo', '壽屋':'Kotobukiya',
+  '古德斯邁':'Good Smile', '麥克斯工廠':'Max Factory',
+  '阿爾特':'Alter', '美高':'MegaHouse', '福瑞':'Furyu',
+  '景品':'BANPRESTO', '班普雷斯托':'BANPRESTO', '凱納大象':'Kenelephant',
+};
+
 async function acLoadFromSupabase(){
   try{
     await _sbReady;
@@ -6044,7 +6067,13 @@ function acInput(fieldId, type){
   const list  = document.getElementById(fieldId+'-list');
   if(!input||!list) return;
   const q = input.value.trim().toLowerCase();
-  const opts = (acMemory[type]||[]).filter(v=>!q||v.toLowerCase().includes(q));
+  // 中文輸入時查別名對照，取得對應英文關鍵字一起搜尋
+  const _aliasQ = q && type==='brand' ? (Object.entries(_BRAND_ALIAS_ZH).find(([zh])=>zh.includes(q)||q.includes(zh))||[])[1]?.toLowerCase() : '';
+  const opts = (acMemory[type]||[]).filter(v=>{
+    if(!q) return true;
+    const vl = v.toLowerCase();
+    return vl.includes(q) || (_aliasQ && vl.includes(_aliasQ));
+  });
   if(!opts.length){ list.classList.remove('open'); return; }
   list.innerHTML = opts.map(v=>
     `<div class="ac-item" onmousedown="acPick('${fieldId}','${type}','${v.replace(/'/g,"&#39;")}')">${v}</div>`
@@ -7299,6 +7328,8 @@ function resetForm(){
   restoreVariantPrices({}, {}); // 清除規格價格和庫存 UI
   onTypeChange(); // 最後才呼叫，依 fType 更新顯示
   _updateFilledState(); // 清除所有綠色填寫狀態
+  _renderAllRecentFields(); // 重新顯示最近記錄標籤
+  _renderAcTags('fIP','ip'); _renderAcTags('fBrand','brand'); _renderAcTags('fForm','form');
 }
 
 // ─── ORDER LIST (ADMIN) ──────────────────────────────────
@@ -7691,7 +7722,7 @@ function _aoRenderCards(){
           return `<div class="aoc-item">
             <div class="aoc-img">${(it.imageUrl||prod?.imageUrl)?`<img loading="lazy" src="${it.imageUrl||prod.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<img loading="lazy" src="${PLACEHOLDER_IMG}" style="width:100%;height:100%;object-fit:cover">`}</div>
             <div style="flex:1">
-              <div class="aoc-iname">${(it.product_name||'').slice(0,36)}</div>
+              <div class="aoc-iname">${it.product_name||''}</div>
               ${it.variant?`<div class="aoc-ivar">${it.variant}</div>`:''}
             </div>
             <div class="aoc-iprice">NT$${((it.price||0)).toLocaleString()} <span style="color:var(--ink3);font-weight:400">×${it.qty||1}</span></div>
