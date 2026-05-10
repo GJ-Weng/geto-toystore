@@ -2128,7 +2128,7 @@ const _CACHE_VERSION = 'v3';
 })();
 
 let products = JSON.parse(localStorage.getItem('tf_p')||'null') || DEF_PRODUCTS;
-const _CACHE_TTL = 1800; // 快取有效秒數（30分鐘內的快取視為新鮮，可直接使用）
+const _CACHE_TTL = 300; // 快取有效秒數（5分鐘，過期才重拉）
 function _isCacheFresh(){
   const ts = parseInt(localStorage.getItem('tf_p_ts')||'0');
   return (Date.now() - ts) < _CACHE_TTL * 1000;
@@ -5626,7 +5626,7 @@ function startNewOrderPoller(){
   // 先記錄目前已有的 new 訂單
   _initKnownOrders();
   // 每 30 秒查一次
-  _newOrderPoller = setInterval(_checkNewOrders, 30000);
+  _newOrderPoller = setInterval(_checkNewOrders, 60000); // 每60秒查一次
 }
 
 // 停止輪詢（關閉管理員後台時呼叫）
@@ -6032,6 +6032,7 @@ function clearImgField(){
 // ─── AUTOCOMPLETE ────────────────────────────────────────
 // 直接從 Supabase products 表撈，不依賴快取
 let acMemory = { ip: [], brand: [], form: [] };
+let _acLastLoaded = 0; // 上次撈取時間戳
 
 // 品牌中英別名對照（輸入中文也能找到英文品牌）
 const _BRAND_ALIAS_ZH = {
@@ -6042,6 +6043,8 @@ const _BRAND_ALIAS_ZH = {
 };
 
 async function acLoadFromSupabase(){
+  const _now = Date.now();
+  if(_acLastLoaded && (_now - _acLastLoaded) < 5 * 60 * 1000) return; // 5分鐘內不重複撈
   try{
     await _sbReady;
     if(!_sb) return;
@@ -6055,6 +6058,7 @@ async function acLoadFromSupabase(){
     acMemory.ip    = [...sets.ip];
     acMemory.brand = [...sets.brand];
     acMemory.form  = [...sets.form];
+    _acLastLoaded  = _now; // 記錄成功載入時間
     // 載入完成後主動刷新所有欄位的快速標籤
     _renderAcTags('fIP',    'ip');
     _renderAcTags('fBrand', 'brand');
@@ -9651,12 +9655,11 @@ updBadge(); updateNavFavsBadge();
 // EmailJS 已設定為 defer 載入，在首次需要寄信時才 init
 try{ renderShop(); }catch(e){ console.warn('renderShop init error:',e); }
 
-// ── Stale-while-revalidate：快取有效 → 立刻顯示，背景靜默更新 ────────
+// ── Stale-while-revalidate：快取 5 分鐘內直接用，過期才重拉 ────────
 const _cacheValid = products.length && localStorage.getItem('tf_p_ver')===_CACHE_VERSION && _isCacheFresh();
 if(_cacheValid){
-  // 快取新鮮：先用快取立刻顯示，背景一定同步一次確保資料最新
+  // 快取新鮮（5分鐘內）：直接用，不打 Supabase
   setTimeout(()=>{ try{ _restoreHashPage(); }catch(e){} }, 0);
-  setTimeout(syncProductsFromSupabase, 300); // 背景靜默更新，用戶不感覺等待
 } else {
   syncProductsFromSupabase();
 }
