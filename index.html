@@ -3197,9 +3197,6 @@ function addFavToCart(id){
   if(exists){ exists.qty++; } else { cart.push({id:p.id, qty:1, variant:'單一規格', name:p.name, emoji:p.emoji||'🧸', imageUrl:p.imageUrl||'', price:p.price||0, type:p.type, deposit:getProductDeposit(p)}); }
   persist(); updBadge();
   showToast(`✅ 已加入購物車：${p.name.slice(0,16)}…`);
-  // 按鈕短暫變綠打勾
-  const _btn = document.querySelector(`.pbuy[onclick*="${id}"]`);
-  if(_btn){ const _orig=_btn.innerHTML; _btn.innerHTML='✓ 已加入'; _btn.style.background='#2e7d32'; setTimeout(()=>{ _btn.innerHTML=_orig; _btn.style.background=''; },1200); }
 }
 
 function removeFav(id){
@@ -4555,6 +4552,9 @@ function addDetailToCart(){
   else { cart.push({id:String(currentProductId), qty:detailQty, variant:v}); }
   persist(); updBadge();
   showToast('✅ 已加入購物車：'+p.name.slice(0,16)+'…');
+  // 按鈕短暫變綠打勾
+  const _btn = document.getElementById('btnPreorder');
+  if(_btn){ const _orig=_btn.textContent; _btn.textContent='✓ 已加入'; _btn.style.background='#2e7d32'; _btn.disabled=true; setTimeout(()=>{ _btn.textContent=_orig; _btn.style.background=''; _btn.disabled=false; },1200); }
   updateDetailBuyBtn(p); // 更新按鈕狀態
   // 延遲輕量更新(只更新庫存顯示，不重繪整個商品列表)
   setTimeout(()=>{ try{ updCounts(); }catch(e){} }, 100);
