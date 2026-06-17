@@ -3197,6 +3197,9 @@ function addFavToCart(id){
   if(exists){ exists.qty++; } else { cart.push({id:p.id, qty:1, variant:'單一規格', name:p.name, emoji:p.emoji||'🧸', imageUrl:p.imageUrl||'', price:p.price||0, type:p.type, deposit:getProductDeposit(p)}); }
   persist(); updBadge();
   showToast(`✅ 已加入購物車：${p.name.slice(0,16)}…`);
+  // 按鈕短暫變綠打勾
+  const _btn = document.querySelector(`.pbuy[onclick*="${id}"]`);
+  if(_btn){ const _orig=_btn.innerHTML; _btn.innerHTML='✓ 已加入'; _btn.style.background='#2e7d32'; setTimeout(()=>{ _btn.innerHTML=_orig; _btn.style.background=''; },1200); }
 }
 
 function removeFav(id){
@@ -3478,7 +3481,7 @@ function renderOrdersList(){
     const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="order-card" onclick="openOrderDetail(${o.id})">
       <div class="order-card-head">
-        <span style="font-size:12px;color:var(--ink3)">訂單編號：<b style="color:var(--ink);font-family:monospace;letter-spacing:1px">${o.order_code||o.id}</b></span>
+        <span style="font-size:12px;color:var(--ink3)">訂單編號：<b style="color:var(--ink);font-family:monospace;letter-spacing:1px;cursor:pointer" onclick="navigator.clipboard.writeText('${o.order_code||o.id}').then(()=>showToast('✅ 已複製訂單編號'))" title="點擊複製">${o.order_code||o.id} 📋</b></span>
         <span class="order-card-status ${si.cls}">${si.label}</span>
       </div>
       <div class="order-card-items">
@@ -3602,7 +3605,7 @@ function openOrderDetail(orderId){
 
     <div class="od-section">費用明細</div>
     <div class="od-rows" style="margin-bottom:16px">
-      <div class="od-row"><span class="od-row-lbl">訂單編號</span><span class="od-row-val" style="font-family:monospace;letter-spacing:1px">${o.order_code||o.id}</span></div>
+      <div class="od-row"><span class="od-row-lbl">訂單編號</span><span class="od-row-val" style="font-family:monospace;letter-spacing:1px;cursor:pointer" onclick="navigator.clipboard.writeText('${o.order_code||o.id}').then(()=>showToast('✅ 已複製訂單編號'))" title="點擊複製">${o.order_code||o.id} 📋</span></div>
       <div class="od-row"><span class="od-row-lbl">日期</span><span class="od-row-val">${dateStr}</span></div>
       <div class="od-row"><span class="od-row-lbl">配送方式</span><span class="od-row-val">${o.store||'—'}</span></div>
       <div class="od-row"><span class="od-row-lbl">商品合計</span><span class="od-row-val">NT$ ${total.toLocaleString()}</span></div>
@@ -4006,6 +4009,9 @@ function clearSearch(){
 
 function renderShop(){
   updCounts();
+  // 更新篩選Badge
+  const _badge = document.getElementById('filterActiveBadge');
+  if(_badge){ const _active = filter!=='全部' || subFilter; _badge.style.display = _active ? 'flex' : 'none'; }
   const list=getVis();
   document.getElementById('rcount').textContent=`共 ${list.length} 件商品`;
   const grid=document.getElementById('productGrid');
@@ -4787,7 +4793,9 @@ function renderCheckoutPage(){
     return '<div class="cod-item">'
       +'<div class="cod-iname">'+p.name.slice(0,28)+(p.name.length>28?'…':'')
       +(ci.variant&&ci.variant!=='單一規格'?'<span class="cod-ivar">'+ci.variant+'</span>':'')
-      +'<span class="cod-ivar"> ×'+ci.qty+'</span></div>'
+      +'<span class="cod-ivar"> ×'+ci.qty+'</span>'
+      +(p.arrival?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">📅 預計到貨：'+p.arrival+'</div>':'')
+      +'</div>'
       +'<div style="text-align:right;flex-shrink:0">'
       +'<div class="cod-iprice">NT$ '+(_vPrice*ci.qty).toLocaleString()+'</div>'
       +(pdep>0?'<div style="font-size:11px;color:var(--ink3)">訂金 NT$ '+pdep.toLocaleString()+'</div>':'')
@@ -9772,6 +9780,7 @@ setInterval(()=>{
     box-shadow:0 4px 16px rgba(0,0,0,.35),0 0 0 3px rgba(201,168,76,.15);
     align-items:center;gap:6px;letter-spacing:.3px">
   <span style="font-size:15px">☰</span> 篩選
+  <span id="filterActiveBadge" style="display:none;background:#dc2626;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:900;align-items:center;justify-content:center;margin-left:2px">●</span>
 </button>
 
 <!-- Crisp 即時客服 -->
