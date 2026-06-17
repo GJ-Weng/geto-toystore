@@ -3546,33 +3546,13 @@ function openOrderDetail(orderId){
 
   document.getElementById('odHeaderStatus').innerHTML = `<span class="order-card-status ${si.cls}">${si.label}</span>`;
 
-  // Timeline 步驟
-  const _steps = [
-    {key:'new',     icon:'📋', label:'下單'},
-    {key:'paid',    icon:'✅', label:'確認'},
-    {key:'partial', icon:'📦', label:'部分出貨'},
-    {key:'shipped', icon:'🚚', label:'完成'},
-  ];
-  const _statusOrder = ['new','paid','partial','shipped'];
-  const _curIdx = _statusOrder.indexOf(o.status);
-  const _tlHtml = `<div style="display:flex;align-items:center;margin-bottom:16px;padding:14px 16px;background:var(--bg);border-radius:10px">
-    ${_steps.map((s,i)=>{
-      const _done = _curIdx > i;
-      const _active = _curIdx === i;
-      const _isLast = i === _steps.length-1;
-      return `<div style="display:flex;align-items:center;flex:${_isLast?'0':'1'}">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-          <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;
-            background:${_done?'#2e7d32':(_active?'var(--gold)':'var(--border2)')};
-            color:${(_done||_active)?'#fff':'var(--ink3)'};font-weight:700">
-            ${_done?'✓':s.icon}
-          </div>
-          <div style="font-size:10px;white-space:nowrap;color:${_active?'var(--gold)':(_done?'#2e7d32':'var(--ink3)')};font-weight:${_active?'700':'400'}">${s.label}</div>
-        </div>
-        ${!_isLast?`<div style="flex:1;height:2px;background:${_done?'#2e7d32':'var(--border2)'};margin:0 4px 14px"></div>`:''}
-      </div>`;
-    }).join('')}
-  </div>`;
+  // Timeline（已取消不顯示步驟）
+  const _tlHtml = (o.status==='cancelled') ? `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;margin-bottom:16px"><span style="font-size:18px">❌</span><span style="font-size:13px;font-weight:600;color:#dc2626">此訂單已取消</span></div>` : (() => {
+    const _st=[{icon:'📋',label:'下單'},{icon:'✅',label:'確認'},{icon:'📦',label:'部分出貨'},{icon:'🚚',label:'完成'}];
+    const _ci=['new','paid','partial','shipped'].indexOf(o.status);
+    return '<div style="display:flex;align-items:center;margin-bottom:16px;padding:14px 16px;background:var(--bg);border-radius:10px">'
+      +_st.map((s,i)=>{const _d=_ci>i,_a=_ci===i,_l=i===_st.length-1;return '<div style="display:flex;align-items:center;flex:'+(_l?'0':'1')+'"><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:'+(_d?'#2e7d32':(_a?'var(--gold)':'var(--border2)'))+';color:'+((_d||_a)?'#fff':'var(--ink3)')+';font-weight:700">'+(_d?'✓':s.icon)+'</div><div style="font-size:10px;white-space:nowrap;color:'+(_a?'var(--gold)':(_d?'#2e7d32':'var(--ink3)'))+';font-weight:'+(_a?'700':'400')+'">'+s.label+'</div></div>'+(!_l?'<div style="flex:1;height:2px;background:'+(_d?'#2e7d32':'var(--border2)')+';margin:0 4px 14px"></div>':'')+'</div>';}).join('')+'</div>';
+  })();
 
   document.getElementById('odBody').innerHTML = _tlHtml + `
     ${o.status==='new'?`
