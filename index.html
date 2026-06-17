@@ -1197,6 +1197,11 @@ textarea.fi{min-height:64px;resize:vertical}
       </div>
     </div>
   </div>
+  <!-- 相關商品 -->
+  <div id="relatedSection" style="display:none;padding:24px 16px 0">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;color:var(--ink)">你可能也喜歡</div>
+    <div id="relatedGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px"></div>
+  </div>
 </div>
 
 
@@ -3541,7 +3546,35 @@ function openOrderDetail(orderId){
 
   document.getElementById('odHeaderStatus').innerHTML = `<span class="order-card-status ${si.cls}">${si.label}</span>`;
 
-  document.getElementById('odBody').innerHTML = `
+  // Timeline 步驟
+  const _steps = [
+    {key:'new',     icon:'📋', label:'下單'},
+    {key:'paid',    icon:'✅', label:'確認'},
+    {key:'partial', icon:'📦', label:'部分出貨'},
+    {key:'shipped', icon:'🚚', label:'完成'},
+  ];
+  const _statusOrder = ['new','paid','partial','shipped'];
+  const _curIdx = _statusOrder.indexOf(o.status);
+  const _tlHtml = `<div style="display:flex;align-items:center;margin-bottom:16px;padding:14px 16px;background:var(--bg);border-radius:10px">
+    ${_steps.map((s,i)=>{
+      const _done = _curIdx > i;
+      const _active = _curIdx === i;
+      const _isLast = i === _steps.length-1;
+      return `<div style="display:flex;align-items:center;flex:${_isLast?'0':'1'}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;
+            background:${_done?'#2e7d32':(_active?'var(--gold)':'var(--border2)')};
+            color:${(_done||_active)?'#fff':'var(--ink3)'};font-weight:700">
+            ${_done?'✓':s.icon}
+          </div>
+          <div style="font-size:10px;white-space:nowrap;color:${_active?'var(--gold)':(_done?'#2e7d32':'var(--ink3)')};font-weight:${_active?'700':'400'}">${s.label}</div>
+        </div>
+        ${!_isLast?`<div style="flex:1;height:2px;background:${_done?'#2e7d32':'var(--border2)'};margin:0 4px 14px"></div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  document.getElementById('odBody').innerHTML = _tlHtml + `
     ${o.status==='new'?`
     ${hasDep ? `
     <div class="od-banner pending">
@@ -3868,7 +3901,17 @@ function getVis(){
   }
   else list=[...pub];
   if(subFilter) list=list.filter(p=>p.ip===subFilter||(p.form||'').split(',').map(f=>f.trim()).includes(subFilter)||(p.brand||'').split('/')[0].trim()===subFilter);
-  if(searchQ) list=list.filter(p=>p.name.includes(searchQ)||p.brand.includes(searchQ));
+  if(searchQ){
+    const _q = searchQ.toLowerCase().replace(/\s/g,'');
+    list=list.filter(p=>{
+      const _name = (p.name||'').toLowerCase().replace(/\s/g,'');
+      const _brand = (p.brand||'').toLowerCase().replace(/\s/g,'');
+      const _ip = (p.ip||'').toLowerCase().replace(/\s/g,'');
+      // 完整包含 or 每個字都出現（拆字模糊）
+      if(_name.includes(_q)||_brand.includes(_q)||_ip.includes(_q)) return true;
+      return [..._q].every(c=>_name.includes(c)||_brand.includes(c)||_ip.includes(c));
+    });
+  }
   const s=document.getElementById('sortSel').value;
   if(s==='price_asc') list.sort((a,b)=>a.price-b.price);
   else if(s==='price_desc') list.sort((a,b)=>b.price-a.price);
@@ -4311,6 +4354,32 @@ function openDetail(id){
   }
 
   showDetail();
+
+  // 渲染相關商品（同 IP 或同品牌，排除自己，最多 6 件）
+  const _relSec = document.getElementById('relatedSection');
+  const _relGrid = document.getElementById('relatedGrid');
+  if(_relSec && _relGrid){
+    const _pub = products.filter(x=>x.status==='published' && String(x.id)!==String(id));
+    const _sameIp = p.ip ? _pub.filter(x=>x.ip===p.ip) : [];
+    const _sameBrand = _pub.filter(x=>x.brand===p.brand && !_sameIp.includes(x));
+    const _related = [..._sameIp, ..._sameBrand].slice(0,6);
+    if(_related.length){
+      _relSec.style.display='';
+      _relGrid.innerHTML = _related.map(r=>`
+        <div onclick="openDetail('${r.id}')" style="cursor:pointer;border-radius:8px;overflow:hidden;background:var(--white);box-shadow:var(--card-shadow)">
+          <div style="aspect-ratio:3/4;background:#f0f0ec;overflow:hidden">
+            <img src="${r.imageUrl||PLACEHOLDER_IMG}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">
+          </div>
+          <div style="padding:8px">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:2px">${r.brand||''}</div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${r.name}</div>
+            <div style="font-size:12px;color:var(--red);font-weight:700;margin-top:4px">NT$ ${(r.price||0).toLocaleString()}</div>
+          </div>
+        </div>`).join('');
+    } else {
+      _relSec.style.display='none';
+    }
+  }
 }
 
 function selThumb(el){
@@ -4552,9 +4621,9 @@ function addDetailToCart(){
   else { cart.push({id:String(currentProductId), qty:detailQty, variant:v}); }
   persist(); updBadge();
   showToast('✅ 已加入購物車：'+p.name.slice(0,16)+'…');
-  // 按鈕短暫變綠打勾
+  // 按鈕短暫變綠打勾，結束後重新判斷狀態
   const _btn = document.getElementById('btnPreorder');
-  if(_btn){ const _orig=_btn.textContent; _btn.textContent='✓ 已加入'; _btn.style.background='#2e7d32'; _btn.disabled=true; setTimeout(()=>{ _btn.textContent=_orig; _btn.style.background=''; _btn.disabled=false; },1200); }
+  if(_btn){ const _orig=_btn.textContent; _btn.textContent='✓ 已加入'; _btn.style.background='#2e7d32'; _btn.disabled=true; setTimeout(()=>{ updateDetailBuyBtn(p); },1200); }
   updateDetailBuyBtn(p); // 更新按鈕狀態
   // 延遲輕量更新(只更新庫存顯示，不重繪整個商品列表)
   setTimeout(()=>{ try{ updCounts(); }catch(e){} }, 100);
