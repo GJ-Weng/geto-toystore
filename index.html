@@ -3547,11 +3547,34 @@ function openOrderDetail(orderId){
   document.getElementById('odHeaderStatus').innerHTML = `<span class="order-card-status ${si.cls}">${si.label}</span>`;
 
   // Timeline（已取消不顯示步驟）
-  const _tlHtml = (o.status==='cancelled') ? `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;margin-bottom:16px"><span style="font-size:18px">❌</span><span style="font-size:13px;font-weight:600;color:#dc2626">此訂單已取消</span></div>` : (() => {
-    const _st=[{icon:'📋',label:'下單'},{icon:'✅',label:'確認'},{icon:'📦',label:'部分出貨'},{icon:'🚚',label:'完成'}];
+  const _tlHtml = (o.status==='cancelled') ? `
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:12px;margin-bottom:16px">
+      <span style="font-size:22px">❌</span>
+      <span style="font-size:14px;font-weight:700;color:#dc2626">此訂單已取消</span>
+    </div>` : (() => {
+    const _st=[{label:'下單',sub:'訂單成立'},{label:'確認中',sub:'款項確認'},{label:'出貨中',sub:'商品寄出'},{label:'已完成',sub:'訂單完成'}];
     const _ci=['new','paid','partial','shipped'].indexOf(o.status);
-    return '<div style="display:flex;align-items:center;margin-bottom:16px;padding:14px 16px;background:var(--bg);border-radius:10px">'
-      +_st.map((s,i)=>{const _d=_ci>i,_a=_ci===i,_l=i===_st.length-1;return '<div style="display:flex;align-items:center;flex:'+(_l?'0':'1')+'"><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:'+(_d?'#2e7d32':(_a?'var(--gold)':'var(--border2)'))+';color:'+((_d||_a)?'#fff':'var(--ink3)')+';font-weight:700">'+(_d?'✓':s.icon)+'</div><div style="font-size:10px;white-space:nowrap;color:'+(_a?'var(--gold)':(_d?'#2e7d32':'var(--ink3)'))+';font-weight:'+(_a?'700':'400')+'">'+s.label+'</div></div>'+(!_l?'<div style="flex:1;height:2px;background:'+(_d?'#2e7d32':'var(--border2)')+';margin:0 4px 14px"></div>':'')+'</div>';}).join('')+'</div>';
+    let html='<div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:20px 16px 16px;margin-bottom:16px">';
+    html+='<div style="display:flex;align-items:flex-start">';
+    _st.forEach((s,i)=>{
+      const _d=_ci>i,_a=_ci===i,_l=i===_st.length-1;
+      const _circleColor=_d?'#2e7d32':(_a?'#C9A84C':'#e0e0e0');
+      const _textColor=_d?'#2e7d32':(_a?'#C9A84C':'#aaa');
+      const _lineColor=_d?'#2e7d32':'#e0e0e0';
+      html+=`<div style="display:flex;flex-direction:column;align-items:center;flex:${_l?'0':'1'}">`;
+      html+=`<div style="display:flex;align-items:center;width:100%">`;
+      html+=`<div style="width:36px;height:36px;border-radius:50%;background:${_circleColor};display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:${_a?'0 0 0 4px rgba(201,168,76,0.2)':(_d?'0 0 0 3px rgba(46,125,50,0.15)':'none')}">`;
+      html+=_d?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':`<span style="color:${_a?'#fff':'#bbb'};font-size:13px;font-weight:800">${i+1}</span>`;
+      html+=`</div>`;
+      if(!_l) html+=`<div style="flex:1;height:3px;background:${_lineColor};margin:0 4px;border-radius:2px"></div>`;
+      html+=`</div>`;
+      html+=`<div style="margin-top:8px;text-align:center;width:${_l?'36':'100'}px">`;
+      html+=`<div style="font-size:11px;font-weight:${_a?'800':'600'};color:${_textColor};white-space:nowrap">${s.label}</div>`;
+      if(_a) html+=`<div style="font-size:10px;color:#aaa;margin-top:1px;white-space:nowrap">${s.sub}</div>`;
+      html+=`</div></div>`;
+    });
+    html+='</div></div>';
+    return html;
   })();
 
   document.getElementById('odBody').innerHTML = _tlHtml + `
