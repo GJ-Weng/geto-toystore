@@ -3957,21 +3957,39 @@ function getVis(){
   else list=[...pub];
   if(subFilter) list=list.filter(p=>p.ip===subFilter||(p.form||'').split(',').map(f=>f.trim()).includes(subFilter)||(p.brand||'').split('/')[0].trim()===subFilter);
   if(searchQ){
-    const _q = searchQ.toLowerCase().replace(/\s/g,'');
+    const _q = searchQ.trim().toLowerCase().replace(/\s/g,'');
     list=list.filter(p=>{
-      const _name = (p.name||'').toLowerCase().replace(/\s/g,'');
+      const _name  = (p.name||'').toLowerCase().replace(/\s/g,'');
       const _brand = (p.brand||'').toLowerCase().replace(/\s/g,'');
-      const _ip = (p.ip||'').toLowerCase().replace(/\s/g,'');
-      // 完整包含 or 每個字都出現（拆字模糊）
-      if(_name.includes(_q)||_brand.includes(_q)||_ip.includes(_q)) return true;
-      return [..._q].every(c=>_name.includes(c)||_brand.includes(c)||_ip.includes(c));
+      const _ip    = (p.ip||'').toLowerCase().replace(/\s/g,'');
+      const _form  = (p.form||'').toLowerCase().replace(/\s/g,'');
+      // 四個核心欄位（名稱／IP主題／廠牌品牌／商品形式）任一包含關鍵字才算符合
+      // 注意：已移除舊版「逐字模糊比對」（只要關鍵字裡每個字分散出現在任何地方就算符合），
+      // 那種比對方式太寬鬆，搜尋「COSPA」時很容易連帶撈出一堆只是字母剛好都出現過、但毫不相關的商品
+      return _name.includes(_q) || _brand.includes(_q) || _ip.includes(_q) || _form.includes(_q);
     });
+    // 相關性權重排序：IP主題／廠牌「完全相符」最優先，其次是 IP主題／廠牌「包含關鍵字」，
+    // 再來是「商品名稱包含關鍵字」，最後才是只有「商品形式包含關鍵字」，徹底避免不相關商品洗版
+    list.sort((a,b)=>_searchRelevanceScore(b,_q)-_searchRelevanceScore(a,_q));
+  } else {
+    const s=document.getElementById('sortSel').value;
+    if(s==='price_asc') list.sort((a,b)=>a.price-b.price);
+    else if(s==='price_desc') list.sort((a,b)=>b.price-a.price);
+    else if(s==='deadline') list.sort((a,b)=>(a.deadline||'zzz').localeCompare(b.deadline||'zzz'));
   }
-  const s=document.getElementById('sortSel').value;
-  if(s==='price_asc') list.sort((a,b)=>a.price-b.price);
-  else if(s==='price_desc') list.sort((a,b)=>b.price-a.price);
-  else if(s==='deadline') list.sort((a,b)=>(a.deadline||'zzz').localeCompare(b.deadline||'zzz'));
   return list;
+}
+// 搜尋結果的相關性權重評分：分數越高代表越優先顯示在結果最前面
+function _searchRelevanceScore(p, q){
+  const _name  = (p.name||'').toLowerCase().replace(/\s/g,'');
+  const _brand = (p.brand||'').toLowerCase().replace(/\s/g,'');
+  const _ip    = (p.ip||'').toLowerCase().replace(/\s/g,'');
+  const _form  = (p.form||'').toLowerCase().replace(/\s/g,'');
+  if(_ip===q || _brand===q) return 100;                 // IP主題或廠牌「完全相符」→ 最高優先
+  if(_ip.includes(q) || _brand.includes(q)) return 80;   // IP主題或廠牌「包含關鍵字」
+  if(_name.includes(q)) return 60;                       // 商品名稱包含關鍵字
+  if(_form.includes(q)) return 40;                       // 商品形式包含關鍵字
+  return 0;
 }
 function updCounts(){
   const pub=products.filter(p=>
@@ -7879,7 +7897,7 @@ function exportOrdersCSV(){
   if(!_allAdminOrders || !_allAdminOrders.length){ showToast('⚠️ 目前沒有可匯出的訂單'); return; }
 
   const headers = ['訂單編號','下單日期','訂單狀態','顧客姓名','聯絡電話','物流方式','收件地址',
-    '商品名稱','選取規格','購買數量','商品原總價','實收已付(訂金)','賸餘尾款','管理員備註'];
+    '商品名稱','選取規格','購買數量','商品原總價','實收已付(訂金)','剩餘尾款','管理員備註'];
 
   const rows = _allAdminOrders.map(o=>{
     // 解析此訂單的商品明細（多商品訂單存在 note 欄位的 JSON 陣列裡）
@@ -7894,7 +7912,7 @@ function exportOrdersCSV(){
     // 實收已付（訂金）：以訂單上的 price 欄位為準（後台調整金額後會直接寫回這裡），
     // 若該欄位為 null（極舊資料）才退回去加總每個商品自己的 deposit 欄位
     const actualPaid = (o.price != null) ? (o.price||0) : items.reduce((sum,it)=>sum+(it.deposit||0), 0);
-    // 賸餘尾款：商品原總價 - 實收已付，並做防呆，小於等於 0 一律顯示 0（避免訂金溢收時出現負數打亂加總）
+    // 剩餘尾款：商品原總價 - 實收已付，並做防呆，小於等於 0 一律顯示 0（避免訂金溢收時出現負數打亂加總）
     const remainingTail = Math.max(0, origTotal - actualPaid);
 
     const dateStr = o.created_at
