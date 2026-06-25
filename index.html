@@ -528,7 +528,7 @@ textarea.fi{min-height:64px;resize:vertical}
   .nsearch{display:none!important}
   #navSearchBtn{display:none!important}
   #mobileSearchOverlay{display:none!important}
-  /* Crisp 泡泡：靠 JS session:loaded 事件隱藏，CSS 無法穿透 iframe */
+  /* 手機版隱藏右下角浮動按鈕（FAQ），避免跟底部 Tab Bar 重疊 */
   #csFloatBtn{display:none!important}
   .filter-btn{display:none!important}
   #mobilFilterFab{display:none!important}
@@ -1986,16 +1986,15 @@ textarea.fi{min-height:64px;resize:vertical}
         <button onclick="closeBugReport()" style="width:28px;height:28px;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)">✕</button>
       </div>
     </div>
-    <!-- 聯絡按鈕 -->
+    <!-- 聯絡方式說明 -->
     <div style="padding:16px 24px 20px">
-      <button onclick="closeBugReport();if(window.$crisp){$crisp.push(['do','chat:open'])}"
-        style="width:100%;height:48px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s"
-        onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
-        💬 開啟線上客服對話
-      </button>
-      <div style="font-size:12px;color:var(--ink3);text-align:center;margin-top:8px">
-        直接在右下角對話框傳訊息，可附截圖或商品連結
+      <div style="background:var(--bg);border-radius:10px;padding:16px;font-size:13px;color:var(--ink2);line-height:1.8">
+        請私訊 Facebook 社團管理員，我們會盡快回覆您的問題。
       </div>
+      <button onclick="closeBugReport()"
+        style="width:100%;height:44px;margin-top:12px;background:var(--white);color:var(--ink2);border:1px solid var(--border2);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">
+        好的，了解
+      </button>
     </div>
   </div>
 </div>
@@ -2064,9 +2063,9 @@ textarea.fi{min-height:64px;resize:vertical}
     <!-- 底部按鈕 -->
     <div style="padding:12px 24px 16px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px">
       <button onclick="closeFaq()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:8px;font-size:14px;color:var(--ink2);background:var(--white);cursor:pointer">好的，了解！</button>
-      <button onclick="closeFaq();if(window.$crisp){$crisp.push(['do','chat:open'])}"
+      <button onclick="closeFaq();openBugReport()"
         style="flex:1;height:42px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-        💬 線上客服
+        💬 聯絡客服
       </button>
     </div>
   </div>
@@ -2716,58 +2715,12 @@ function _updateMobileNavAuth(){
     }
     btn.title = name;
     if(chatBtn) chatBtn.style.display = (window.innerWidth <= 880) ? 'flex' : 'none'; // 登入：手機才顯示聊聊
-    _syncCrispUser(); // 綁定帳號到 Crisp
   }
 }
 
-// 把登入帳號資訊傳給 Crisp，讓管理員看到是哪位客人
-function _syncCrispUser(){
-  if(!window.$crisp || !user) return;
-  try{
-    const name  = userProfile?.name  || user.name  || '';
-    const email = user.email || '';
-    const phone = userProfile?.phone || user.phone || '';
-    if(email) $crisp.push(['set','user:email',   [email]]);
-    if(name)  $crisp.push(['set','user:nickname',[name]]);
-    if(phone) $crisp.push(['set','user:phone',   [phone]]);
-    if(user.photo) $crisp.push(['set','user:avatar',[user.photo]]);
-  } catch(e){}
-}
-
-// ── 手機版 Crisp 氣泡隱藏（備用，主要靠初始化時的 session:loaded） ──
-function _hideCrispOnMobile(){
-  if(window.innerWidth > 880) return;
-  if(window.$crisp){
-    try{ $crisp.push(['do','chat:hide']); }catch(e){}
-  }
-}
-document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(_hideCrispOnMobile, 2000); // 備用延遲
-});
-
-// ── 手機版聊聊開啟 ─────────────────────────────────
+// ── 手機版聊聊開啟：開啟既有的「聯絡客服」Modal ─────────────
 function _openMobileChat(){
-  if(!window.$crisp){
-    // Crisp 未載入，嘗試注入
-    window.$crisp = window.$crisp || [];
-    window.CRISP_WEBSITE_ID = window.CRISP_WEBSITE_ID || '542612b8-cccd-418e-b9e5-053cc6659c4a';
-    var s = document.createElement('script');
-    s.src = 'https://client.crisp.chat/l.js';
-    s.async = 1;
-    s.onload = function(){
-      setTimeout(function(){
-        if(window.$crisp){
-          $crisp.push(['do','chat:show']);
-          $crisp.push(['do','chat:open']);
-        }
-      }, 800);
-    };
-    document.head.appendChild(s);
-    return;
-  }
-  // Crisp 已載入
-  $crisp.push(['do','chat:show']);
-  setTimeout(function(){ $crisp.push(['do','chat:open']); }, 100);
+  openBugReport();
 }
 
 // ── 圖片燈箱 ─────────────────────────────────────────
@@ -6247,13 +6200,13 @@ const _BRAND_ALIAS_ZH = {
   '景品':'BANPRESTO', '班普雷斯托':'BANPRESTO', '凱納大象':'Kenelephant',
 };
 
-async function acLoadFromSupabase(){
+async function acLoadFromSupabase(force){
   const _now = Date.now();
-  if(_acLastLoaded && (_now - _acLastLoaded) < 5 * 60 * 1000) return; // 5分鐘內不重複撈
+  if(!force && _acLastLoaded && (_now - _acLastLoaded) < 5 * 60 * 1000) return; // 5分鐘內不重複撈（除非強制刷新）
   try{
     await _sbReady;
     if(!_sb) return;
-    const { data } = await _sb.from('products').select('ip,brand,form');
+    const { data } = await _sb.from('products').select('ip,brand,form').order('created_at',{ascending:false});
     const sets = { ip: new Set(), brand: new Set(), form: new Set() };
     for(const p of (data||[])){
       if(p.ip    && p.ip.trim())    sets.ip.add(p.ip.trim());
@@ -6306,7 +6259,18 @@ function acPick(fieldId, type, value){
 
 // 儲存商品後重新從 Supabase 載入，確保清單保持最新
 function acRememberProduct(){
-  setTimeout(acLoadFromSupabase, 500);
+  // 雙保險①：不等 Supabase 回應，先把這次剛用的值直接插到最前面，標籤立刻更新
+  const _justIp    = document.getElementById('fIP')?.value.trim();
+  const _justBrand = document.getElementById('fBrand')?.value.trim();
+  const _justForm  = document.getElementById('fForm')?.value.trim();
+  if(_justIp)    acMemory.ip    = [_justIp,    ...acMemory.ip.filter(v=>v!==_justIp)];
+  if(_justBrand) acMemory.brand = [_justBrand, ...acMemory.brand.filter(v=>v!==_justBrand)];
+  if(_justForm)  acMemory.form  = [_justForm,  ...acMemory.form.filter(v=>v!==_justForm)];
+  _renderAcTags('fIP',    'ip');
+  _renderAcTags('fBrand', 'brand');
+  _renderAcTags('fForm',  'form');
+  // 雙保險②：強制跳過節流鎖，重新跟 Supabase 同步一次，確保長期資料一致
+  setTimeout(()=>acLoadFromSupabase(true), 500);
 }
 
 // ─── 多規格（多維度）產生器：Tag Input 標籤式輸入 ────────────
@@ -10097,13 +10061,6 @@ setInterval(()=>{
       photo: u.user_metadata?.avatar_url || null,
     };
     loadProfileForUser(u.email); // 載入此帳號的 profile
-    // 同步登入資訊給 Crisp（顯示顧客姓名而非 Visitor）
-    if(window.$crisp){
-      $crisp.push(["set","user:email",[u.email]]);
-      const _dispName = u.user_metadata?.full_name || u.email;
-      $crisp.push(["set","user:nickname",[_dispName]]);
-      if(u.user_metadata?.avatar_url) $crisp.push(["set","user:avatar",[u.user_metadata.avatar_url]]);
-    }
   } else {
     user = null;
     userProfile = { name:'', phone:'' };
@@ -10157,23 +10114,5 @@ setInterval(()=>{
   <span id="filterActiveBadge" style="display:none;background:#dc2626;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:900;align-items:center;justify-content:center;margin-left:2px">●</span>
 </button>
 
-<!-- Crisp 即時客服 -->
-<script type="text/javascript">
-  window.$crisp = [];
-  window.CRISP_WEBSITE_ID = "542612b8-cccd-418e-b9e5-053cc6659c4a";
-  // 手機版：Crisp 一載入完就隱藏泡泡（nav 已有 💬 按鈕）
-  if(window.innerWidth <= 880){
-    window.$crisp.push(['safe', true]);
-    window.$crisp.push(['on', 'session:loaded', function(){
-      window.$crisp.push(['do', 'chat:hide']);
-    }]);
-  }
-  (function(){
-    var d=document, s=d.createElement('script');
-    s.src='https://client.crisp.chat/l.js';
-    s.async=1;
-    d.getElementsByTagName('head')[0].appendChild(s);
-  })();
-</script>
 </body>
 </html>
