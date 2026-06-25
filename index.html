@@ -193,6 +193,7 @@ input,select,textarea{font-family:var(--font)}
 .vchip{height:36px;padding:0 18px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;color:var(--ink2);transition:all .15s;background:var(--white)}
 .vchip:hover{border-color:var(--ink);color:var(--ink)}
 .vchip.sel{border-color:var(--red);color:var(--red);background:var(--red-light);font-weight:500}
+.vchip.sel-spec{border:2px solid var(--gold);color:#8a6d1f;background:var(--gold-light);font-weight:700}
 .qrow{display:flex;align-items:center;gap:16px;margin:10px 0 0}
 .qctrl{display:flex;align-items:center;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden}
 .qctrl button{width:38px;height:38px;font-size:20px;color:var(--ink2);transition:all .15s;background:var(--white);border:none;cursor:pointer}
@@ -1168,6 +1169,7 @@ textarea.fi{min-height:64px;resize:vertical}
       <div class="dcat" id="dCat"></div>
       <div class="dname" id="dName"></div>
       <div class="dprice" id="dPrice"></div>
+      <div class="dprice-hint" id="dPriceHint" style="display:none;font-size:11px;color:var(--ink3);margin-top:2px"></div>
       <div class="det-deposit" id="dDeposit" style="display:none">需付訂金：<b id="dDepositAmt"></b></div>
       <div class="dsep"></div>
       <div id="variantSection" style="display:none">
@@ -1546,17 +1548,42 @@ textarea.fi{min-height:64px;resize:vertical}
         </div>
 
         <!-- 新增規格連結 -->
-        <div style="margin-bottom:12px">
+        <div style="margin-bottom:12px;display:flex;gap:14px">
           <span style="font-size:13px;color:#7c3aed;cursor:pointer" onclick="document.getElementById('fVariantsRow').style.display=document.getElementById('fVariantsRow').style.display==='none'?'':'none'">＋ 新增商品規格（如顏色、尺寸）</span>
+          <span style="font-size:13px;color:#8a6d1f;cursor:pointer" onclick="document.getElementById('fVariantsRow').style.display='';document.getElementById('fSpecsRow').style.display=document.getElementById('fSpecsRow').style.display==='none'?'':'none'">🧩 多規格（多維度）產生器</span>
         </div>
         <div id="fVariantsRow" style="display:none;margin-bottom:12px">
           <div class="fg">
             <label class="fl">規格（逗號分隔）</label>
             <input class="fi" id="fVariants" placeholder="例：A款,B款,C款" oninput="renderVariantPrices()">
             <div class="vp-grid" id="variantPriceGrid" style="display:none">
-              <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價（留空表示使用售價）</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:4px">各規格單獨定價／庫存（留空表示使用售價；不開放販售的組合可直接刪除該行文字）</div>
             </div>
           </div>
+        </div>
+        <div id="fSpecsRow" style="display:none;margin-bottom:12px;padding:12px;background:#faf8f2;border:1px solid #ecdfb8;border-radius:8px">
+          <div style="font-size:12px;font-weight:700;color:#8a6d1f;margin-bottom:8px">🧩 多規格（多維度）產生器 — 例如「品項」×「尺寸」</div>
+          <div class="fr" style="margin-bottom:8px">
+            <div class="fg">
+              <label class="fl">維度一名稱</label>
+              <input class="fi" id="fSpecDim1Name" placeholder="例：品項" oninput="_buildSpecVariants()">
+            </div>
+            <div class="fg">
+              <label class="fl">維度一選項（逗號分隔）</label>
+              <input class="fi" id="fSpecDim1Opts" placeholder="例：一般版,豪華版" oninput="_buildSpecVariants()">
+            </div>
+          </div>
+          <div class="fr" style="margin-bottom:8px">
+            <div class="fg">
+              <label class="fl">維度二名稱</label>
+              <input class="fi" id="fSpecDim2Name" placeholder="例：尺寸" oninput="_buildSpecVariants()">
+            </div>
+            <div class="fg">
+              <label class="fl">維度二選項（逗號分隔）</label>
+              <input class="fi" id="fSpecDim2Opts" placeholder="例：1/7 比例,1/4 比例" oninput="_buildSpecVariants()">
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--ink3)">⚠️ 會自動產生所有組合並覆寫上方「規格（逗號分隔）」欄位；若某組合不開放販售，請直接刪除下方該組合的文字。</div>
         </div>
 
         <!-- 售價 + 品牌分類 -->
@@ -2154,6 +2181,8 @@ let orders   = JSON.parse(localStorage.getItem('tf_o')||'[]');
 
 let filter='全部', subFilter='', editingId=null, selEmoji=EMOJIS[0], searchQ='';
 let currentProductId=null, selectedVariant=null, detailQty=1;
+let selectedSpecOpts={}; // 多規格（多維度）目前選擇 {維度名稱: 選項值}
+let _currentSpecsConfig=null; // 後台表單目前編輯中的規格維度設定 {維度名稱:[選項...]}
 let currentPage = 1;          // 目前分頁
 const PAGE_SIZE = 12;          // 每頁顯示商品數
 // 已成立訂單的商品(防止重複下單)
@@ -4225,6 +4254,7 @@ function openDetail(id){
   // 若商品說明尚未載入（列表查詢略過 description），先渲染再更新說明區
   currentProductId=id;
   selectedVariant=null;
+  selectedSpecOpts={};
   detailQty=1;
 
   // Breadcrumb
@@ -4271,26 +4301,8 @@ function openDetail(id){
   document.getElementById('dQtyVal').textContent='1';
   document.getElementById('dLimit').textContent=p.limit?`每人限購 ${p.limit}`:'';
 
-  // Variants
-  const vs=document.getElementById('variantSection');
-  const vg=document.getElementById('variantGrid');
-  if(p.variants && p.variants.length>0){
-    vs.style.display='';
-    vg.innerHTML=p.variants.map(v=>{
-      const vs = (p.variantStocks&&p.variantStocks[v]!=null) ? p.variantStocks[v] : null;
-      // 用 getVariantStockRemaining 統一判斷，確保邏輯一致
-      const _rem = getVariantStockRemaining(p, v);
-      const sold = _rem !== null && _rem === 0;
-      const low  = _rem !== null && _rem > 0 && _rem <= 3;
-      const stockLabel = sold ? ' <span style="font-size:10px;color:#e74c3c">售完</span>'
-                       : low  ? ` <span style="font-size:10px;color:#e67300">剩${vs}</span>`
-                       : '';
-      return `<button class="vchip${sold?' disabled':''}" onclick="${sold?'':'selVariant(this,\''+v+'\')' }" style="${sold?'opacity:.4;cursor:not-allowed;text-decoration:line-through;':''}">${v}${stockLabel}</button>`;
-    }).join('');
-  } else {
-    vs.style.display='none';
-    selectedVariant='單一規格';
-  }
+  // Variants（含多規格／多維度）
+  _renderVariantGrid(p);
 
   // Meta
   const _deadlinePassed = p.type==='預購' && isDeadlinePassed(p.deadline);
@@ -4411,17 +4423,105 @@ function _lbGetDetailIdx(src){
   const idx = imgs.indexOf(decodeURIComponent(src));
   return idx >= 0 ? idx : 0;
 }
+// ─── 多規格（多維度）輔助函式 ──────────────────────────────
+function _specDimNames(p){
+  return (p && p.specs && typeof p.specs==='object') ? Object.keys(p.specs) : [];
+}
+function _comboKey(dimNames, opts){
+  return dimNames.map(d=>opts[d]).join(' / ');
+}
+function _isValidCombo(p, key){
+  return !!(key && p.variants && p.variants.includes(key));
+}
+// 聯動篩選：在目前已選的其他維度條件下，某維度的某選項是否仍存在合法組合
+function _optionHasValidCombo(p, dimNames, curOpts, dim, val){
+  const others = dimNames.filter(d=>d!==dim);
+  function check(idx, picked){
+    if(idx===others.length) return _isValidCombo(p, _comboKey(dimNames, picked));
+    const d = others[idx];
+    if(picked[d]) return check(idx+1, picked);
+    return (p.specs[d]||[]).some(v=>check(idx+1, Object.assign({}, picked, {[d]:v})));
+  }
+  return check(0, Object.assign({}, curOpts, {[dim]: val}));
+}
+// 渲染規格選擇區塊（單一維度＝舊有模式／多維度＝新規格聯動模式，兩者並存、互不影響）
+function _renderVariantGrid(p){
+  const vs=document.getElementById('variantSection');
+  const vg=document.getElementById('variantGrid');
+  const dimNames=_specDimNames(p);
+  if(dimNames.length>0){
+    vs.style.display='';
+    vg.innerHTML=dimNames.map(dim=>{
+      const opts=p.specs[dim]||[];
+      const chips=opts.map(val=>{
+        const isSel=selectedSpecOpts[dim]===val;
+        const ok=_optionHasValidCombo(p,dimNames,selectedSpecOpts,dim,val);
+        const valEsc=String(val).replace(/'/g,"\\'");
+        return `<button class="vchip${isSel?' sel-spec':''}" ${ok?'':'disabled'} onclick="${ok?"selSpecOption('"+dim+"','"+valEsc+"')":''}" style="${ok?'':'opacity:.35;cursor:not-allowed;'}">${val}</button>`;
+      }).join('');
+      return `<div class="dlabel" style="font-size:12px;font-weight:700;color:var(--ink2);margin:14px 0 8px">${dim}</div><div class="vgrid">${chips}</div>`;
+    }).join('');
+  } else if(p.variants && p.variants.length>0){
+    vs.style.display='';
+    vg.innerHTML=p.variants.map(v=>{
+      const _vstk=(p.variantStocks&&p.variantStocks[v]!=null)?p.variantStocks[v]:null;
+      const _rem=getVariantStockRemaining(p, v);
+      const sold=_rem!==null && _rem===0;
+      const low =_rem!==null && _rem>0 && _rem<=3;
+      const stockLabel=sold?' <span style="font-size:10px;color:#e74c3c">售完</span>'
+                       :low ?` <span style="font-size:10px;color:#e67300">剩${_vstk}</span>`
+                       :'';
+      return `<button class="vchip${sold?' disabled':''}" onclick="${sold?'':'selVariant(this,\''+v+'\')' }" style="${sold?'opacity:.4;cursor:not-allowed;text-decoration:line-through;':''}">${v}${stockLabel}</button>`;
+    }).join('');
+  } else {
+    vs.style.display='none';
+    selectedVariant='單一規格';
+  }
+}
+// 多維度規格：點擊任一維度的選項
+function selSpecOption(dim, val){
+  const p=products.find(x=>String(x.id)===String(currentProductId));
+  if(!p) return;
+  selectedSpecOpts[dim]=val;
+  const dimNames=_specDimNames(p);
+  let v=null;
+  if(dimNames.every(d=>selectedSpecOpts[d])){
+    const key=_comboKey(dimNames, selectedSpecOpts);
+    if(_isValidCombo(p,key)) v=key;
+    else showToast('⚠️ 此規格組合目前無法購買，請重新選擇');
+  }
+  selectedVariant=v; // 兩個維度都選齊且合法才會有值，否則維持 null（不可點預購）
+  _renderVariantGrid(p);     // 重繪：更新選中狀態 + 聯動可選/禁用狀態
+  _applyVariantSelection(p, v);
+}
+// 單一維度（原有商品）規格選擇——維持向下相容
 function selVariant(el,v){
-  document.querySelectorAll('.vchip').forEach(x=>x.classList.remove('sel'));
+  document.querySelectorAll('#variantGrid .vchip').forEach(x=>x.classList.remove('sel'));
   el.classList.add('sel');
   selectedVariant=v;
   const p=products.find(x=>String(x.id)===String(currentProductId));
-  // 依規格更新顯示價格
-  const vPrice=(p.variantPrices&&p.variantPrices[v])?p.variantPrices[v]:p.price;
+  _applyVariantSelection(p, v);
+}
+// 共用：依目前 selectedVariant（可能為 null＝尚未選齊）更新價格／庫存／數量／按鈕狀態
+function _applyVariantSelection(p, v){
   const priceEl=document.getElementById('dPrice');
-  if(priceEl) priceEl.innerHTML=`<b style="color:var(--red)">NT$ ${vPrice.toLocaleString()}</b>`;
+  const hintEl=document.getElementById('dPriceHint');
+  const isMultiSpec=_specDimNames(p).length>0;
+  if(v){
+    const vPrice=(p.variantPrices&&p.variantPrices[v])?p.variantPrices[v]:p.price;
+    if(priceEl) priceEl.innerHTML=`<b style="color:var(--red)">NT$ ${vPrice.toLocaleString()}</b>`;
+    if(hintEl){ hintEl.style.display = isMultiSpec ? '' : 'none'; hintEl.textContent='已依您選擇的規格更新價格'; }
+  } else {
+    if(priceEl){
+      const _pr=getPriceRange(p);
+      priceEl.innerHTML = _pr.min!==_pr.max
+        ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} – ${_pr.max.toLocaleString()}</b>`
+        : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b>`;
+    }
+    if(hintEl) hintEl.style.display='none';
+  }
   // 更新此規格的剩餘庫存顯示
-  const _vStk = getVariantStockRemaining(p, v);
+  const _vStk = v ? getVariantStockRemaining(p, v) : null;
   const stockRow = document.getElementById('dVariantStock');
   if(stockRow){
     if(_vStk !== null){
@@ -5266,7 +5366,7 @@ async function syncProductsFromSupabase(){
     await _sbReady;
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
-    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
+    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
       .from('products')
       .select(LISTING_COLS)
@@ -5299,6 +5399,7 @@ async function syncProductsFromSupabase(){
       ip:           p.ip           || '',
       form:         p.form         || '',
       variants:     p.variants     || [],
+      specs:        p.specs        || null,
       emoji:        p.emoji        || '🧸',
       imageUrl:     p.image_url    || '',
       imageUrls:    p.image_url ? [p.image_url] : [],
@@ -5378,6 +5479,7 @@ async function saveProductToSupabase(productData, existingId){
     ip:          productData.ip||'',
     form:        productData.form||'',
     variants:    productData.variants||[],
+    specs:       productData.specs||null,
     emoji:       productData.emoji||'🧸',
     image_url:     productData.imageUrl||'',
     description:   productData.description||'',
@@ -6192,6 +6294,20 @@ function acRememberProduct(){
   setTimeout(acLoadFromSupabase, 500);
 }
 
+// ─── 多規格（多維度）產生器 ────────────────────────────────
+function _buildSpecVariants(){
+  const d1n=(document.getElementById('fSpecDim1Name')?.value||'').trim();
+  const d1o=(document.getElementById('fSpecDim1Opts')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const d2n=(document.getElementById('fSpecDim2Name')?.value||'').trim();
+  const d2o=(document.getElementById('fSpecDim2Opts')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  if(!d1n||!d1o.length||!d2n||!d2o.length) return; // 兩個維度都填滿才產生
+  const combos=[];
+  d1o.forEach(a=>d2o.forEach(b=>combos.push(a+' / '+b)));
+  document.getElementById('fVariants').value=combos.join(',');
+  renderVariantPrices();
+  _currentSpecsConfig={ [d1n]: d1o, [d2n]: d2o };
+}
+
 // ─── VARIANT PRICES ──────────────────────────────────────
 function renderVariantPrices(){
   const raw = document.getElementById('fVariants')?.value.trim()||'';
@@ -6342,61 +6458,64 @@ function toggleOrderPanel(pid){
 
 async function cleanupUnsoldPreorders(){
   await _sbReady;
-  // 找出本機「預購、已結單」的候選商品
   const candidates = products.filter(p=>
-    p.type==='預購' &&
-    isDeadlinePassed(p.deadline) &&
-    p.status !== 'hidden'
+    p.type==='預購' && isDeadlinePassed(p.deadline) && p.status !== 'hidden'
   );
-  if(!candidates.length){
-    showToast('✅ 沒有已結單的預購商品');
-    return;
-  }
+  if(!candidates.length){ showToast('✅ 沒有已結單的預購商品'); return; }
 
   showToast('⏳ 查詢訂單中…');
 
-  // 從 Supabase 即時查詢這些商品是否有人下單（不依賴本機 order_count）
-  const candidateIds = candidates.map(p=>String(p.id));
-  const {data: orderData} = await _sb.from('orders')
-    .select('note,status')
-    .neq('status','cancelled');
-
-  // 統計每個商品的實際有效訂單數
+  const {data: orderData} = await _sb.from('orders').select('note,status').neq('status','cancelled');
   const orderedIds = new Set();
   (orderData||[]).forEach(o=>{
-    try{
-      const items = JSON.parse(o.note||'[]');
-      items.forEach(it=>{
-        const pid = String(it.product_id||it.id||'');
-        if(pid) orderedIds.add(pid);
-      });
-    }catch(e){}
+    try{ JSON.parse(o.note||'[]').forEach(it=>{ const pid=String(it.product_id||it.id||''); if(pid) orderedIds.add(pid); }); }catch(e){}
   });
 
-  // 篩出真的無人下單的商品
   const targets = candidates.filter(p=>!orderedIds.has(String(p.id)));
-
-  if(!targets.length){
-    showToast('✅ 所有已結單商品都有人下單，無需清理');
-    return;
-  }
+  if(!targets.length){ showToast('✅ 所有已結單商品都有人下單，無需清理'); return; }
 
   const names = targets.slice(0,5).map(p=>p.name.slice(0,20)).join('\n') + (targets.length>5?`\n…等共 ${targets.length} 件`:'');
   if(!confirm(`以下 ${targets.length} 件預購商品已結單且無人下單，確定刪除？\n\n${names}\n\n此操作無法復原。`)) return;
 
-  let success=0, fail=0;
-  for(const p of targets){
-    try{
-      // 刪 DB 記錄（deleteProductFromSupabase 也會刪 Storage 圖片）
-      await deleteProductFromSupabase(p.id);
-      const idx = products.findIndex(x=>x.id===p.id);
-      if(idx>-1) products.splice(idx,1);
-      success++;
-    } catch(e){ fail++; }
+  showToast(`⏳ 批量刪除 ${targets.length} 件商品中…`);
+
+  const targetIds = targets.map(p=>p.id).filter(id=>id && !String(id).startsWith('p'));
+  const STORAGE_BASE = 'https://zmglfuzeplmfyfcwnqpd.supabase.co/storage/v1/object/public/product-images/';
+
+  try{
+    // ① 一次查所有目標商品的圖片
+    const {data: imgData} = await _sb.from('products').select('id,image_url,image_urls').in('id', targetIds);
+    const allFiles = [];
+    (imgData||[]).forEach(row=>{
+      if(row.image_url?.startsWith(STORAGE_BASE)) allFiles.push(row.image_url.replace(STORAGE_BASE,''));
+      (row.image_urls||[]).forEach(u=>{ if(u?.startsWith(STORAGE_BASE)) allFiles.push(u.replace(STORAGE_BASE,'')); });
+    });
+    targets.forEach(p=>{
+      if(p.imageUrl?.startsWith(STORAGE_BASE)) allFiles.push(p.imageUrl.replace(STORAGE_BASE,''));
+    });
+
+    // ② 一次刪所有 DB 記錄
+    const {error: delErr} = await _sb.from('products').delete().in('id', targetIds);
+    if(delErr){ showToast('❌ 刪除失敗：'+delErr.message); return; }
+
+    // ③ 一次批量刪 Storage 圖片
+    const uniqueFiles = [...new Set(allFiles)];
+    for(let i=0; i<uniqueFiles.length; i+=1000){
+      await _sb.storage.from('product-images').remove(uniqueFiles.slice(i, i+1000));
+    }
+
+    // 更新本機快取
+    const tidSet = new Set(targets.map(p=>String(p.id)));
+    for(let i=products.length-1; i>=0; i--){
+      if(tidSet.has(String(products[i].id))) products.splice(i,1);
+    }
+    persist();
+    showToast(`✅ 已刪除 ${targets.length} 件商品`);
+    renderAdminList(); renderShop();
+  }catch(e){
+    showToast('❌ 發生錯誤：'+e.message);
+    console.error('cleanupUnsoldPreorders error:', e);
   }
-  showToast(`✅ 已刪除 ${success} 件${fail?'，失敗 '+fail+' 件':''}`);
-  renderAdminList();
-  renderShop();
 }
 
 function clearAdminSearch(){
@@ -6833,6 +6952,19 @@ function editP(id){
   document.getElementById('fIP').value=p.ip||'';
   document.getElementById('fForm').value=p.form||'';
   document.getElementById('fVariants').value=(p.variants||[]).join(',');
+  // 回填多維度規格產生器（若此商品是用多維度規格建立的）
+  _currentSpecsConfig = p.specs || null;
+  const _dimKeys = p.specs ? Object.keys(p.specs) : [];
+  const _fSpecsRowEl = document.getElementById('fSpecsRow');
+  if(_dimKeys.length===2){
+    document.getElementById('fSpecDim1Name').value=_dimKeys[0];
+    document.getElementById('fSpecDim1Opts').value=(p.specs[_dimKeys[0]]||[]).join(',');
+    document.getElementById('fSpecDim2Name').value=_dimKeys[1];
+    document.getElementById('fSpecDim2Opts').value=(p.specs[_dimKeys[1]]||[]).join(',');
+    if(_fSpecsRowEl) _fSpecsRowEl.style.display='';
+  } else if(_fSpecsRowEl){
+    _fSpecsRowEl.style.display='none';
+  }
   // 載入圖片陣列（image_urls 不在 LISTING_COLS，需額外查詢）
   _adminImgs = Array.isArray(p.imageUrls)&&p.imageUrls.length ? [...p.imageUrls] : (p.imageUrl ? [p.imageUrl] : []);
   renderAdminImgPreviews();
@@ -6901,6 +7033,7 @@ async function saveProduct(continueAdd=false){
     ip:document.getElementById('fIP').value,
     form:document.getElementById('fForm').value,
     variants,
+    specs: _currentSpecsConfig,
     status:document.getElementById('fStatus').value,
     emoji:selEmoji,isNew:true,cnt:0,
     description: document.getElementById('fDesc')?.value.trim()||'',
@@ -7070,7 +7203,7 @@ async function saveProduct(continueAdd=false){
       id: err.newId, name, brand, price, deposit,
       limit: data.limit||'', type: data.type, deadline: data.deadline||'',
       arrival: data.arrival||'', ip: data.ip||'', form: data.form||'',
-      variants: data.variants||[], emoji: data.emoji||selEmoji||'🧸',
+      variants: data.variants||[], specs: data.specs||null, emoji: data.emoji||selEmoji||'🧸',
       imageUrl: data.imageUrl||'', imageUrls: data.imageUrls||[],
       variantPrices: data.variantPrices||{}, variantStocks: data.variantStocks||{},
       description: data.description||'', status: data.status||'published',
@@ -7085,7 +7218,7 @@ async function saveProduct(continueAdd=false){
       products[_idx] = {...products[_idx], name, brand, price, deposit,
         limit: data.limit||'', type: data.type, deadline: data.deadline||'',
         arrival: data.arrival||'', ip: data.ip||'', form: data.form||'',
-        variants: data.variants||[], emoji: data.emoji||selEmoji||'🧸',
+        variants: data.variants||[], specs: data.specs||null, emoji: data.emoji||selEmoji||'🧸',
         imageUrl: data.imageUrl||'', imageUrls: data.imageUrls||[],
         variantPrices: data.variantPrices||{}, variantStocks: data.variantStocks||{},
         description: data.description||'', status: data.status||'published',
@@ -7403,7 +7536,9 @@ function resetForm(){
   if(hint) hint.style.display='none';
   renderAdminImgPreviews();
   // 清除所有文字欄位
-  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
+  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc','fSpecDim1Name','fSpecDim1Opts','fSpecDim2Name','fSpecDim2Opts'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
+  _currentSpecsConfig=null;
+  const _fSpecsRowEl2=document.getElementById('fSpecsRow'); if(_fSpecsRowEl2) _fSpecsRowEl2.style.display='none';
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
   setFType('預購');
