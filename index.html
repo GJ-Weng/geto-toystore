@@ -1791,7 +1791,7 @@ textarea.fi{min-height:64px;resize:vertical}
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="bsGenScript()" style="height:36px;padding:0 18px;border:1px solid #f0b429;background:#fffbea;color:#946800;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">📦 賣貨便腳本</button>
             <button onclick="bsOpenShipModal()" style="height:36px;padding:0 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer">📧 寄送賣貨便連結</button>
-            <button onclick="bsMarkPartial()" style="height:36px;padding:0 18px;border:1px solid #7c3aed;background:#f5f3ff;color:#7c3aed;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">部分出貨（不寄信）</button>
+            <button id="bsMarkPartialBtn" onclick="bsMarkPartial()" style="height:36px;padding:0 18px;border:1px solid #7c3aed;background:#f5f3ff;color:#7c3aed;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">部分出貨（不寄信）</button>
           </div>
         </div>
       </div>
@@ -6126,12 +6126,12 @@ function renderAdminImgPreviews(){
   if(_countEl) _countEl.textContent = `(${_adminImgs.length}/10)`;
   if(!_adminImgs.length){ list.innerHTML=''; return; }
   list.innerHTML = _adminImgs.map((src,i)=>
-    '<div draggable="true" data-imgidx="'+i+'" ondragstart="imgDragStart(event,'+i+')" ondragover="imgDragOver(event)" ondrop="imgDrop(event,'+i+')" ondragend="imgDragEnd(event)"'
-    +' style="position:relative;flex-shrink:0;cursor:grab;transition:opacity .2s">'
-    +'<img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:'+(i===0?'2px solid var(--ink)':'1px solid var(--border)')+';">'
-    +(i===0?'<span style="position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">主圖</span>':'')
-    +'<span style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;cursor:grab">⠿</span>'
-    +'<button type="button" onclick="removeAdminImg('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>'
+    '<div draggable="true" data-imgidx="'+i+'" ondragstart="imgDragStart(event,'+i+')" ondragover="imgDragOver(event,this)" ondragleave="imgDragLeave(event,this)" ondrop="imgDrop(event,'+i+',this)" ondragend="imgDragEnd(event)"'
+    +' style="position:relative;flex-shrink:0;cursor:grab;transition:opacity .2s,outline .15s;border-radius:8px">'
+    +'<img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:'+(i===0?'2px solid var(--ink)':'1px solid var(--border)')+';pointer-events:none">'
+    +(i===0?'<span style="position:absolute;top:2px;left:2px;background:var(--ink);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;pointer-events:none">主圖</span>':'')
+    +'<span style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;cursor:grab;pointer-events:none">⠿</span>'
+    +'<button type="button" onclick="removeAdminImg('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2">✕</button>'
     +'</div>'
   ).join('');
 }
@@ -6142,17 +6142,23 @@ function imgDragStart(e, idx){
   e.target.style.opacity = '0.5';
   e.dataTransfer.effectAllowed = 'move';
 }
-function imgDragOver(e){
+function imgDragOver(e, el){
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
+  if(el) el.style.outline = '2px dashed var(--gold)';
 }
-function imgDrop(e, toIdx){
+function imgDragLeave(e, el){
+  if(el) el.style.outline = '';
+}
+function imgDrop(e, toIdx, el){
   e.preventDefault();
-  if(_imgDragFrom === null || _imgDragFrom === toIdx) return;
+  if(el) el.style.outline = '';
+  if(_imgDragFrom === null || _imgDragFrom === toIdx){ _imgDragFrom = null; return; }
   const moved = _adminImgs.splice(_imgDragFrom, 1)[0];
   _adminImgs.splice(toIdx, 0, moved);
   _imgDragFrom = null;
   renderAdminImgPreviews();
+  showToast('✅ 已調整圖片順序，第一張將自動成為主圖');
 }
 function imgDragEnd(e){
   e.target.style.opacity = '';
@@ -7712,6 +7718,7 @@ function copyP(id){
 function resetForm(){
   editingId=null;
   _adminImgs=[];
+  _imgDragFrom=null;
   _nameParsed={};
   const hint = document.getElementById('fNameHint');
   if(hint) hint.style.display='none';
@@ -7739,7 +7746,9 @@ function resetForm(){
   const fv = document.getElementById('fVariants'); if(fv) fv.value='';
   restoreVariantPrices({}, {}); // 清除規格價格和庫存 UI
   onTypeChange(); // 最後才呼叫，依 fType 更新顯示
-  _updateFilledState(); // 清除所有綠色填寫狀態
+  // 保險清掃：直接移除 #tab1 內所有殘留的 .filled 綠色高亮（不依賴各欄位的值判斷，徹底乾淨）
+  document.querySelectorAll('#tab1 .filled').forEach(el=>el.classList.remove('filled'));
+  _updateFilledState(); // 依目前（已清空的）欄位值，重新確認填寫狀態
   _renderAllRecentFields(); // 重新顯示最近記錄標籤
   _renderAcTags('fIP','ip'); _renderAcTags('fBrand','brand'); _renderAcTags('fForm','form');
 }
@@ -9139,26 +9148,36 @@ function bsGenScript(){
 
 async function bsMarkPartial(){
   if(!_bsSelected.size){ showToast('請先勾選商品'); return; }
-  await _sbReady;
-  const selected = bsGetSelectedItems();
-  const orderGroups = {};
-  selected.forEach(({order,itemIdx,items})=>{
-    if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
-    orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
-  });
-  let errCount = 0;
-  for(const [ordId, {items}] of Object.entries(orderGroups)){
-    const allShipped = items.every(it=>it.shipped===true);
-    const newStatus = allShipped ? 'shipped' : 'partial';
-    const {error} = await _sb.from('orders').update({ note:JSON.stringify(items), status:newStatus }).eq('id', parseInt(ordId));
-    if(error){ errCount++; continue; }
-    const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
-    if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
+  const btn = document.getElementById('bsMarkPartialBtn');
+  if(btn?.disabled) return; // 防止網路延遲期間重複點擊
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 處理中...'; }
+  try{
+    await _sbReady;
+    const selected = bsGetSelectedItems();
+    const orderGroups = {};
+    selected.forEach(({order,itemIdx,items})=>{
+      if(!orderGroups[order.id]) orderGroups[order.id] = { order, items:[...items] };
+      orderGroups[order.id].items[itemIdx] = { ...orderGroups[order.id].items[itemIdx], shipped:true };
+    });
+    let errCount = 0;
+    for(const [ordId, {items}] of Object.entries(orderGroups)){
+      const allShipped = items.every(it=>it.shipped===true);
+      const newStatus = allShipped ? 'shipped' : 'partial';
+      const {error} = await _sb.from('orders').update({ note:JSON.stringify(items), status:newStatus }).eq('id', parseInt(ordId));
+      if(error){ errCount++; continue; }
+      const cached = _allAdminOrders.find(x=>x.id===parseInt(ordId));
+      if(cached){ cached.note=JSON.stringify(items); cached.status=newStatus; }
+    }
+    if(errCount) showToast(`⚠️ ${errCount} 筆訂單更新失敗`);
+    else showToast(`✅ 已標記 ${selected.length} 件商品為部分出貨`);
+    _bsSelected = new Set();
+    _bsRender();
+  } finally {
+    // _bsRender() 會重繪整個批次操作區塊（按鈕會跟著重新產生並恢復原狀），
+    // 但若選取數為 0 導致按鈕未被重繪，這裡仍做保險解鎖
+    const btn2 = document.getElementById('bsMarkPartialBtn');
+    if(btn2){ btn2.disabled=false; btn2.textContent='部分出貨（不寄信）'; }
   }
-  if(errCount) showToast(`⚠️ ${errCount} 筆訂單更新失敗`);
-  else showToast(`✅ 已標記 ${selected.length} 件商品為部分出貨`);
-  _bsSelected = new Set();
-  _bsRender();
 }
 
 function bsOpenShipModal(){
@@ -9205,14 +9224,15 @@ function bsOpenShipModal(){
 }
 
 async function bsDoSendShipEmail(){
+  const btn = document.querySelector('#bsShipModal button:last-child');
+  if(btn?.disabled) return; // 防止網路延遲期間重複點擊
   const url = document.getElementById('bsShipUrl')?.value.trim();
   if(!url||!url.startsWith('http')){ showToast('⚠️ 請貼入正確的賣貨便連結'); return; }
   if(!emailjsConfig.publicKey){ showToast('⚠️ EmailJS 未設定'); return; }
   const {selected, cust, totalAmt, totalDep, tail} = window._bsPendingSend||{};
   if(!selected?.length){ showToast('資料錯誤，請重試'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 發送中...'; }
   await _sbReady;
-  const btn = document.querySelector('#bsShipModal button:last-child');
-  if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
   const itemsEmailHtml = selected.map(({order,item})=>`<tr><td style="padding:8px;border-bottom:1px solid #eee">${item.product_name||''}${item.variant?' ('+item.variant+')':''} ×${item.qty||1}<br><span style="font-size:11px;color:#888">訂單 #${order.order_code||order.id}</span></td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">NT$${(item.price||0).toLocaleString()}</td></tr>`).join('');
   try{
     emailjs.init({ publicKey: emailjsConfig.publicKey });
@@ -9878,6 +9898,8 @@ function openAdjustAmount(orderId){
   document.getElementById('adjustAmtNotify').checked = true;
 
   _renderAdjustItemRows();
+  const _confirmBtn = document.getElementById('adjustAmtConfirmBtn');
+  if(_confirmBtn){ _confirmBtn.disabled=false; _confirmBtn.textContent='確認更新'; }
   document.getElementById('adjustAmtModal').style.display='flex';
 }
 
@@ -9940,77 +9962,86 @@ async function confirmAdjustAmount(){
   const oldDep  = o.price || 0;
 
   const btn = document.getElementById('adjustAmtConfirmBtn');
-  if(btn){ btn.disabled=true; btn.textContent='更新中...'; }
+  if(btn?.disabled) return; // 防止網路延遲期間重複點擊
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 更新中...'; }
 
   const {error} = await _sb.from('orders').update({
     price: newDep,
     note:  JSON.stringify(_adjustItems),
   }).eq('id', _adjustOrderId);
 
-  if(btn){ btn.disabled=false; btn.textContent='確認更新'; }
-  if(error){ showToast('❌ 更新失敗：'+error.message); return; }
-
-  // 同步本地快取
-  o.price = newDep;
-  o.note  = JSON.stringify(_adjustItems);
-
-  // 通知
-  if(notify && o.user_email){
-    // 找出單價有變動的商品
-    const _changedLines = _adjustItems.map((item, idx) => {
-      const oldPrice = _adjustOldPrices[idx] ?? 0;
-      const newPrice = item.price || 0;
-      if(oldPrice === newPrice) return null;
-      const shortName = (item.product_name||'').slice(0,20) + ((item.product_name||'').length>20?'…':'');
-      const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
-      return `・${shortName}${varStr}：NT$ ${oldPrice.toLocaleString()} → NT$ ${newPrice.toLocaleString()}`;
-    }).filter(Boolean);
-
-    const _depChanged = newDep !== oldDep;
-    let _depLine = '';
-    if(_depChanged){
-      _depLine = newDep <= 0
-        ? `・應付訂金：NT$ ${oldDep.toLocaleString()} → 免訂金`
-        : `・應付訂金：NT$ ${oldDep.toLocaleString()} → NT$ ${newDep.toLocaleString()}`;
-    }
-
-    const _allLines = [..._changedLines, _depLine].filter(Boolean);
-    let _notifBody;
-    if(_allLines.length === 0){
-      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額資訊已更新，請確認訂單。`;
-    } else {
-      _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額已調整：\n\n${_allLines.join('\n')}`;
-      if(newDep > 0) _notifBody += '\n\n請確認訂單及尾款，並盡速匯款。';
-      else _notifBody += '\n\n請確認訂單及尾款。';
-    }
-
-    await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
-
-    // 組 Email 的表格明細
-    const _emailRows = [];
-    _adjustItems.forEach((item, idx) => {
-      const oldPrice = _adjustOldPrices[idx] ?? 0;
-      const newPrice = item.price || 0;
-      if(oldPrice === newPrice) return;
-      const shortName = (item.product_name||'').slice(0,22) + ((item.product_name||'').length>22?'…':'');
-      const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
-      _emailRows.push({ label: shortName+varStr, oldVal: `NT$ ${oldPrice.toLocaleString()}`, newVal: `NT$ ${newPrice.toLocaleString()}` });
-    });
-    if(_depChanged) _emailRows.push({
-      label: '應付訂金',
-      oldVal: `NT$ ${oldDep.toLocaleString()}`,
-      newVal: newDep <= 0 ? '免訂金' : `NT$ ${newDep.toLocaleString()}`
-    });
-    sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知', _emailRows);
+  if(error){
+    if(btn){ btn.disabled=false; btn.textContent='確認更新'; }
+    showToast('❌ 更新失敗：'+error.message); return;
   }
 
-  closeAdjustAmount();
-  _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
-  showToast('✅ 訂單金額已更新');
+  try{
+    // 同步本地快取
+    o.price = newDep;
+    o.note  = JSON.stringify(_adjustItems);
+
+    // 通知（按鈕在此整段期間持續保持鎖定，直到通知與Email都處理完才會關閉Modal，避免重複送出）
+    if(notify && o.user_email){
+      // 找出單價有變動的商品
+      const _changedLines = _adjustItems.map((item, idx) => {
+        const oldPrice = _adjustOldPrices[idx] ?? 0;
+        const newPrice = item.price || 0;
+        if(oldPrice === newPrice) return null;
+        const shortName = (item.product_name||'').slice(0,20) + ((item.product_name||'').length>20?'…':'');
+        const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
+        return `・${shortName}${varStr}：NT$ ${oldPrice.toLocaleString()} → NT$ ${newPrice.toLocaleString()}`;
+      }).filter(Boolean);
+
+      const _depChanged = newDep !== oldDep;
+      let _depLine = '';
+      if(_depChanged){
+        _depLine = newDep <= 0
+          ? `・應付訂金：NT$ ${oldDep.toLocaleString()} → 免訂金`
+          : `・應付訂金：NT$ ${oldDep.toLocaleString()} → NT$ ${newDep.toLocaleString()}`;
+      }
+
+      const _allLines = [..._changedLines, _depLine].filter(Boolean);
+      let _notifBody;
+      if(_allLines.length === 0){
+        _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額資訊已更新，請確認訂單。`;
+      } else {
+        _notifBody = `您的訂單 ${o.order_code||('#'+o.id)} 金額已調整：\n\n${_allLines.join('\n')}`;
+        if(newDep > 0) _notifBody += '\n\n請確認訂單及尾款，並盡速匯款。';
+        else _notifBody += '\n\n請確認訂單及尾款。';
+      }
+
+      await insertNotification(o.user_email, 'order_price_change', '📋 訂單金額已調整', _notifBody, o.id, null);
+
+      // 組 Email 的表格明細
+      const _emailRows = [];
+      _adjustItems.forEach((item, idx) => {
+        const oldPrice = _adjustOldPrices[idx] ?? 0;
+        const newPrice = item.price || 0;
+        if(oldPrice === newPrice) return;
+        const shortName = (item.product_name||'').slice(0,22) + ((item.product_name||'').length>22?'…':'');
+        const varStr = item.variant&&item.variant!=='單一規格' ? ` (${item.variant})` : '';
+        _emailRows.push({ label: shortName+varStr, oldVal: `NT$ ${oldPrice.toLocaleString()}`, newVal: `NT$ ${newPrice.toLocaleString()}` });
+      });
+      if(_depChanged) _emailRows.push({
+        label: '應付訂金',
+        oldVal: `NT$ ${oldDep.toLocaleString()}`,
+        newVal: newDep <= 0 ? '免訂金' : `NT$ ${newDep.toLocaleString()}`
+      });
+      await sendStatusEmailCustom(o, _notifBody, '訂單金額調整通知', _emailRows);
+    }
+
+    closeAdjustAmount();
+    _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+    showToast('✅ 訂單金額已更新');
+  } finally {
+    // 保險：若中途發生未預期的例外導致 Modal 沒被關閉，仍確保按鈕恢復可點擊，不會卡死鎖定
+    const btn2 = document.getElementById('adjustAmtConfirmBtn');
+    if(btn2 && btn2.disabled){ btn2.disabled=false; btn2.textContent='確認更新'; }
+  }
 }
 
 // 異動通知 Email（調整金額、改價格、改結單日期用）
-function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
+async function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
   if(!o?.user_email) return;
   if(emailjsConfig.testMode){
     console.log('%c📧 [測試模式] sendStatusEmailCustom — 不耗流量，信件未實際寄出', 'color:#7c3aed;font-weight:700');
@@ -10052,7 +10083,7 @@ function sendStatusEmailCustom(o, bodyMsg, subjectLabel, detailRows){
 
   try{
     emailjs.init({ publicKey: emailjsConfig.publicKey });
-    emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+    await emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
       to_name:        o.customer_name||'顧客',
       to_email:       o.user_email,
       order_num:      o.order_code||String(o.id),
