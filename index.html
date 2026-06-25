@@ -1817,6 +1817,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <button onclick="openUserList()" style="height:34px;padding:0 12px;border:1px solid #2e7d32;border-radius:var(--r);font-size:12px;font-weight:600;color:#2e7d32;background:#eef7f1;cursor:pointer;white-space:nowrap">👥 用戶清單</button>
         <button id="batchCancelBtn" onclick="toggleBatchMode()" style="height:34px;padding:0 12px;border:1px solid #e67300;border-radius:var(--r);font-size:12px;font-weight:600;color:#e67300;background:#fff8f0;cursor:pointer;white-space:nowrap">☑ 批量取消</button>
         <button onclick="openClearCancelledModal()" style="height:34px;padding:0 12px;border:1px solid #dc2626;border-radius:var(--r);font-size:12px;font-weight:600;color:#dc2626;background:#fff5f5;cursor:pointer;white-space:nowrap">🗑 清除已取消</button>
+        <button onclick="exportOrdersCSV()" style="height:34px;padding:0 14px;border:1px solid var(--gold);border-radius:var(--r);font-size:12px;font-weight:700;color:#8a6d1f;background:var(--gold-light);cursor:pointer;white-space:nowrap">📥 匯出訂單對帳單 (CSV)</button>
       </div>
       <!-- 批量操作列 -->
       <div id="batchBar" style="display:none;background:#fff4e5;border:1px solid #f9b84b;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:12px;flex-wrap:wrap">
@@ -7841,6 +7842,91 @@ async function renderOrderList(){
   _aoRenderTabs();
   _aoRenderCards();
   updatePaymentBell();
+}
+
+// ─── 匯出訂單對帳單 CSV ──────────────────────────────────
+// CSV 單一欄位內容轉義：含逗號、雙引號、換行時，依 CSV 標準補上雙引號並把內部雙引號跳脫成兩個雙引號
+function _csvEscapeField(val){
+  const s = String(val==null ? '' : val);
+  if(/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+
+// 將表頭與每一列資料組成符合 CSV 標準的字串，並用 Blob 強制補上 UTF-8 BOM 後觸發下載
+// 補 BOM 是為了讓 Windows 版 Excel 直接雙擊開啟 CSV 時，中文不會變成亂碼
+function _downloadCSV(headers, rows, filenamePrefix){
+  const lines = [headers, ...rows].map(r=>r.map(_csvEscapeField).join(','));
+  const csvBody = lines.join('\r\n');
+  const blob = new Blob(['\ufeff'+csvBody], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth()+1).padStart(2,'0');
+  const d = String(today.getDate()).padStart(2,'0');
+  const filename = `${filenamePrefix}_${y}${m}${d}.csv`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  return filename;
+}
+
+// 訂單管理分頁「📥 匯出訂單對帳單 (CSV)」按鈕：一鍵輸出含訂金/尾款防呆計算的完整物流＋財務對帳單
+function exportOrdersCSV(){
+  if(!_allAdminOrders || !_allAdminOrders.length){ showToast('⚠️ 目前沒有可匯出的訂單'); return; }
+
+  const headers = ['訂單編號','下單日期','訂單狀態','顧客姓名','聯絡電話','物流方式','收件地址',
+    '商品名稱','選取規格','購買數量','商品原總價','實收已付(訂金)','賸餘尾款','管理員備註'];
+
+  const rows = _allAdminOrders.map(o=>{
+    // 解析此訂單的商品明細（多商品訂單存在 note 欄位的 JSON 陣列裡）
+    let items=[];
+    try{ items = JSON.parse(o.note||'[]'); }catch(e){ items=[]; }
+    if(!Array.isArray(items) || !items.length){
+      items = [{ product_name:o.product_name||'', variant:o.variant||'', qty:o.qty||1, price:o.price||0 }];
+    }
+
+    // 商品原總價：逐項「單價 × 數量」加總
+    const origTotal = items.reduce((sum,it)=>sum+(it.price||0)*(it.qty||1), 0);
+    // 實收已付（訂金）：以訂單上的 price 欄位為準（後台調整金額後會直接寫回這裡），
+    // 若該欄位為 null（極舊資料）才退回去加總每個商品自己的 deposit 欄位
+    const actualPaid = (o.price != null) ? (o.price||0) : items.reduce((sum,it)=>sum+(it.deposit||0), 0);
+    // 賸餘尾款：商品原總價 - 實收已付，並做防呆，小於等於 0 一律顯示 0（避免訂金溢收時出現負數打亂加總）
+    const remainingTail = Math.max(0, origTotal - actualPaid);
+
+    const dateStr = o.created_at
+      ? new Date(o.created_at).toLocaleString('zh-TW', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
+      : '';
+    const statusLabel = aoStatusInfo(o).label;
+
+    // 多商品訂單：商品名稱／選取規格／購買數量三欄都用「 | 」依序對齊串接，方便人工核對
+    const namesStr    = items.map(it=>it.product_name||'').join(' | ');
+    const variantsStr = items.map(it=>it.variant||'-').join(' | ');
+    const qtysStr      = items.map(it=>String(it.qty||1)).join(' | ');
+
+    return [
+      o.order_code || ('#'+o.id),
+      dateStr,
+      statusLabel,
+      o.customer_name || '',
+      o.phone || '',
+      o.store || '',
+      o.shipping_addr || '',
+      namesStr,
+      variantsStr,
+      qtysStr,
+      origTotal,
+      actualPaid,
+      remainingTail,
+      o.admin_note || '',
+    ];
+  });
+
+  const filename = _downloadCSV(headers, rows, 'Geto_Orders_Detail');
+  showToast(`✅ 已匯出 ${rows.length} 筆訂單對帳單：${filename}`);
 }
 
 async function autoExpireAdminOrders(orders){
