@@ -1617,7 +1617,7 @@ textarea.fi{min-height:64px;resize:vertical}
               <label class="fl">維度一選項 <span style="font-size:10px;color:var(--ink3)">(輸入後按 Enter 或逗號新增標籤)</span></label>
               <div class="spec-tag-box" id="fSpecDim1OptsBox" onclick="document.getElementById('fSpecDim1OptsInput').focus()">
                 <div id="fSpecDim1OptsTags" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-                <input class="spec-tag-typing" id="fSpecDim1OptsInput" placeholder="例：一般版" onkeydown="_onSpecTagKeydown(1,event)" onblur="_onSpecTagBlur(1)">
+                <input class="spec-tag-typing" id="fSpecDim1OptsInput" placeholder="例：一般版" onkeydown="_onSpecTagKeydown(1,event)" onpaste="_onSpecTagPaste(1,event)" onblur="_onSpecTagBlur(1)">
               </div>
               <input type="hidden" id="fSpecDim1Opts">
             </div>
@@ -1631,7 +1631,7 @@ textarea.fi{min-height:64px;resize:vertical}
               <label class="fl">維度二選項 <span style="font-size:10px;color:var(--ink3)">(輸入後按 Enter 或逗號新增標籤)</span></label>
               <div class="spec-tag-box" id="fSpecDim2OptsBox" onclick="document.getElementById('fSpecDim2OptsInput').focus()">
                 <div id="fSpecDim2OptsTags" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-                <input class="spec-tag-typing" id="fSpecDim2OptsInput" placeholder="例：1/7 比例" onkeydown="_onSpecTagKeydown(2,event)" onblur="_onSpecTagBlur(2)">
+                <input class="spec-tag-typing" id="fSpecDim2OptsInput" placeholder="例：1/7 比例" onkeydown="_onSpecTagKeydown(2,event)" onpaste="_onSpecTagPaste(2,event)" onblur="_onSpecTagBlur(2)">
               </div>
               <input type="hidden" id="fSpecDim2Opts">
             </div>
@@ -4452,8 +4452,15 @@ function _specDimNames(p){
 function _comboKey(dimNames, opts){
   return dimNames.map(d=>opts[d]).join(' / ');
 }
+// 正規化比對字串：全形空格轉半形、多個空白縮成一個、去頭尾空白
+// 目的是容忍「S號／墨色」「S號 / 墨色」「S號  /墨色」這類格式上的些微差異，不會因為這種小落差就整個比對失敗
+function _normalizeComboStr(s){
+  return String(s||'').replace(/\u3000/g,' ').replace(/\s+/g,' ').trim();
+}
 function _isValidCombo(p, key){
-  return !!(key && p.variants && p.variants.includes(key));
+  if(!key || !p.variants || !p.variants.length) return false;
+  const target = _normalizeComboStr(key);
+  return p.variants.some(v=>_normalizeComboStr(v)===target);
 }
 // 聯動篩選：在目前已選的其他維度條件下，某維度的某選項是否仍存在合法組合
 function _optionHasValidCombo(p, dimNames, curOpts, dim, val){
@@ -4466,6 +4473,21 @@ function _optionHasValidCombo(p, dimNames, curOpts, dim, val){
   }
   return check(0, Object.assign({}, curOpts, {[dim]: val}));
 }
+// 診斷：依目前的 specs 維度定義，窮舉所有理論組合，檢查是否至少有一組能在 variants 裡配對成功
+// 如果一組都配不到，代表後台資料本身已經損毀（例如舊版輸入框 Bug 寫入的髒資料），不是單純的「沒上架」
+function _hasAnyValidCombo(p){
+  const dimNames=_specDimNames(p);
+  if(!dimNames.length) return true; // 非多維度商品，不適用這個檢查
+  if(!p.variants || !p.variants.length) return false;
+  function buildAllCombos(idx, picked){
+    if(idx===dimNames.length) return [_comboKey(dimNames, picked)];
+    const d=dimNames[idx];
+    let out=[];
+    (p.specs[d]||[]).forEach(v=>{ out=out.concat(buildAllCombos(idx+1, Object.assign({}, picked, {[d]:v}))); });
+    return out;
+  }
+  return buildAllCombos(0, {}).some(c=>_isValidCombo(p,c));
+}
 // 渲染規格選擇區塊（單一維度＝舊有模式／多維度＝新規格聯動模式，兩者並存、互不影響）
 function _renderVariantGrid(p){
   const vs=document.getElementById('variantSection');
@@ -4473,6 +4495,13 @@ function _renderVariantGrid(p){
   const dimNames=_specDimNames(p);
   if(dimNames.length>0){
     vs.style.display='';
+    if(!_hasAnyValidCombo(p)){
+      // 規格資料異常：理論組合一個都配不到，明確告知原因，不要讓畫面悄悄全部反灰、讓人誤以為是程式卡住
+      vg.innerHTML = '<div style="background:#fdecea;border:1px solid #f5c2c0;border-radius:8px;padding:12px 14px;font-size:13px;color:#a02622;line-height:1.7;margin-bottom:4px">'
+        + '⚠️ 此商品的規格資料目前異常，找不到任何可購買的組合。<br>請聯絡客服協助確認，或請賣家至後台重新確認此商品的「規格（逗號分隔）」與矩陣定價設定後重新儲存。'
+        + '</div>';
+      return;
+    }
     vg.innerHTML=dimNames.map(dim=>{
       const opts=p.specs[dim]||[];
       const chips=opts.map(val=>{
@@ -6362,9 +6391,20 @@ function _setSpecTags(n, arr){
   _buildSpecVariants();
 }
 
-// 新增一個（或用逗號貼上多個）標籤
-function _addSpecTag(n, raw){
-  const parts = String(raw||'').split(',').map(s=>s.trim()).filter(Boolean);
+// 共用：依逗號（半形/全形）與換行拆分；不拆空白，避免拆壞像「1/7 比例」這種選項名稱本身就含空格的情況
+function _splitSpecTagsByComma(raw){
+  return String(raw||'').split(/[,，\n\r]+/).map(s=>s.trim()).filter(Boolean);
+}
+// 貼上專用：若整段文字完全沒有逗號／換行可拆，才退而求其次改用空白（半形／全形）拆分
+function _splitSpecTagsForPaste(raw){
+  const text = String(raw||'');
+  if(/[,，\n\r]/.test(text)) return _splitSpecTagsByComma(text);
+  return text.split(/[\u3000\s]+/).map(s=>s.trim()).filter(Boolean);
+}
+
+// 新增一個（或拆分多個）標籤。forPaste=true 時，會多支援空白（半形／全形）當分隔符
+function _addSpecTag(n, raw, forPaste){
+  const parts = forPaste ? _splitSpecTagsForPaste(raw) : _splitSpecTagsByComma(raw);
   if(!parts.length) return;
   const tags = _specTagState(n);
   parts.forEach(p=>{ if(!tags.includes(p)) tags.push(p); });
@@ -6379,9 +6419,11 @@ function _removeSpecTag(n, idx){
   _buildSpecVariants();
 }
 
-// 按 Enter 或逗號＝新增標籤；輸入框為空時按 Backspace＝刪除最後一個標籤
+// 按 Enter 或逗號（半形/全形）＝新增標籤；輸入框為空時按 Backspace＝刪除最後一個標籤
+// 中文輸入法（注音/拼音）選字尚未確認時，isComposing 為 true，必須直接忽略，避免選字過程被誤判成送出標籤
 function _onSpecTagKeydown(n, e){
-  if(e.key==='Enter' || e.key===','){
+  if(e.isComposing || e.keyCode===229) return; // 輸入法選字中，這次按鍵不處理
+  if(e.key==='Enter' || e.key===',' || e.key==='，'){
     e.preventDefault();
     const inp = document.getElementById(_specTagInputElId(n));
     if(inp){ _addSpecTag(n, inp.value); inp.value=''; }
@@ -6392,6 +6434,16 @@ function _onSpecTagKeydown(n, e){
       if(tags.length){ _removeSpecTag(n, tags.length-1); }
     }
   }
+}
+
+// 貼上整段文字時，自動偵測逗號（半形/全形）、換行、或空白（半形/全形）並拆成多個獨立標籤
+function _onSpecTagPaste(n, e){
+  const text = (e.clipboardData || window.clipboardData)?.getData('text');
+  if(!text) return; // 沒有純文字內容（例如貼上圖片），交給瀏覽器預設行為
+  e.preventDefault();
+  _addSpecTag(n, text, true);
+  const inp = document.getElementById(_specTagInputElId(n));
+  if(inp) inp.value='';
 }
 
 // 失焦時若輸入框還有未送出的文字，也自動新增成標籤（避免漏打 Enter 導致漏掉選項）
