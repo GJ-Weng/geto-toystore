@@ -337,6 +337,12 @@ textarea.fi{min-height:64px;resize:vertical}
 .ac-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
 .ac-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);border:1px solid var(--border2);color:var(--ink2);cursor:pointer;transition:all .12s}
 .ac-tag:hover{border-color:var(--ink2);color:var(--ink)}
+.spec-tag-box{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:38px;padding:6px 8px;border:1px solid var(--border2);border-radius:var(--r);background:var(--white);cursor:text;transition:border-color .15s}
+.spec-tag-box:focus-within{border-color:var(--gold)}
+.spec-tag-pill{display:inline-flex;align-items:center;gap:5px;background:var(--gold-light);color:#8a6d1f;font-size:12px;font-weight:600;padding:3px 6px 3px 10px;border-radius:14px;white-space:nowrap}
+.spec-tag-pill .x{cursor:pointer;font-size:11px;color:#8a6d1f;opacity:.6;width:15px;height:15px;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0}
+.spec-tag-pill .x:hover{opacity:1;background:rgba(0,0,0,.08)}
+.spec-tag-typing{flex:1;min-width:90px;border:none;outline:none;font-size:13px;background:transparent;font-family:var(--font);color:var(--ink)}
 .fa{display:flex;gap:8px;padding-top:14px;border-top:1px solid var(--border);margin-top:6px;align-items:center}
 .fsave{height:36px;padding:0 20px;background:var(--ink);color:#fff;border-radius:var(--r);font-size:13px;font-weight:500;transition:opacity .15s;border:none;cursor:pointer}
 .fsave:hover{opacity:.85}
@@ -1569,8 +1575,12 @@ textarea.fi{min-height:64px;resize:vertical}
               <input class="fi" id="fSpecDim1Name" placeholder="例：品項" oninput="_buildSpecVariants()">
             </div>
             <div class="fg">
-              <label class="fl">維度一選項（逗號分隔）</label>
-              <input class="fi" id="fSpecDim1Opts" placeholder="例：一般版,豪華版" oninput="_buildSpecVariants()">
+              <label class="fl">維度一選項 <span style="font-size:10px;color:var(--ink3)">(輸入後按 Enter 或逗號新增標籤)</span></label>
+              <div class="spec-tag-box" id="fSpecDim1OptsBox" onclick="document.getElementById('fSpecDim1OptsInput').focus()">
+                <div id="fSpecDim1OptsTags" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+                <input class="spec-tag-typing" id="fSpecDim1OptsInput" placeholder="例：一般版" onkeydown="_onSpecTagKeydown(1,event)" onblur="_onSpecTagBlur(1)">
+              </div>
+              <input type="hidden" id="fSpecDim1Opts">
             </div>
           </div>
           <div class="fr" style="margin-bottom:8px">
@@ -1579,10 +1589,15 @@ textarea.fi{min-height:64px;resize:vertical}
               <input class="fi" id="fSpecDim2Name" placeholder="例：尺寸" oninput="_buildSpecVariants()">
             </div>
             <div class="fg">
-              <label class="fl">維度二選項（逗號分隔）</label>
-              <input class="fi" id="fSpecDim2Opts" placeholder="例：1/7 比例,1/4 比例" oninput="_buildSpecVariants()">
+              <label class="fl">維度二選項 <span style="font-size:10px;color:var(--ink3)">(輸入後按 Enter 或逗號新增標籤)</span></label>
+              <div class="spec-tag-box" id="fSpecDim2OptsBox" onclick="document.getElementById('fSpecDim2OptsInput').focus()">
+                <div id="fSpecDim2OptsTags" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+                <input class="spec-tag-typing" id="fSpecDim2OptsInput" placeholder="例：1/7 比例" onkeydown="_onSpecTagKeydown(2,event)" onblur="_onSpecTagBlur(2)">
+              </div>
+              <input type="hidden" id="fSpecDim2Opts">
             </div>
           </div>
+          <div id="fSpecPreviewHint" style="font-size:12px;font-weight:600;color:var(--ink3);margin-bottom:6px">請分別輸入兩個維度的選項（至少各 1 個）</div>
           <div style="font-size:11px;color:var(--ink3)">⚠️ 會自動產生所有組合並覆寫上方「規格（逗號分隔）」欄位；若某組合不開放販售，請直接刪除下方該組合的文字。</div>
         </div>
 
@@ -3203,7 +3218,7 @@ function renderFavsPage(){
     const isDeadline = (p.type==='預購' && isDeadlinePassed(p.deadline));
     const expired = isSoldOut || isDeadline;
     const priceRange = getPriceRange(p);
-    const priceHtml = priceRange.min !== priceRange.max ? `NT$ ${priceRange.min.toLocaleString()} – ${priceRange.max.toLocaleString()}` : `NT$ ${priceRange.min.toLocaleString()}`;
+    const priceHtml = priceRange.min !== priceRange.max ? `NT$ ${priceRange.min.toLocaleString()} 起` : `NT$ ${priceRange.min.toLocaleString()}`;
     return `<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border);align-items:flex-start">
       <div onclick="openDetail('${p.id}')" style="width:88px;height:88px;flex-shrink:0;border-radius:var(--r);overflow:hidden;background:var(--bg);cursor:pointer;border:1px solid var(--border);position:relative">
         <div class="img-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#bbb;pointer-events:none">圖片載入中…</div>
@@ -4158,7 +4173,7 @@ function renderShop(){
       +'<div class="pbody">'
       +'<div class="pcat">'+p.brand+'</div>'
       +'<div class="pname">'+p.name+'</div>'
-      +'<div class="pprice">'+(()=>{const r=getPriceRange(p);if(r.min!==r.max)return'<b class="pprice-range">NT$ '+r.min.toLocaleString()+' – '+r.max.toLocaleString()+'</b>';return'<b style="color:var(--acc);font-weight:700">NT$ '+r.min.toLocaleString()+'</b>';})()+'</div>'
+      +'<div class="pprice">'+(()=>{const r=getPriceRange(p);if(r.min!==r.max)return'<b class="pprice-range">NT$ '+r.min.toLocaleString()+' 起</b>';return'<b style="color:var(--acc);font-weight:700">NT$ '+r.min.toLocaleString()+'</b>';})()+'</div>'
       +(p.limit||p.deadline||p.cnt>0?'<div class="pinfo">'
         +(p.limit?'<span class="ptag">限購'+p.limit+'</span>':'')
         +(p.deadline?'<span class="ptag dead">'+p.deadline+' 截單</span>':'')
@@ -4290,7 +4305,7 @@ function openDetail(id){
   document.getElementById('dName').textContent=p.name;
   const _pr=getPriceRange(p);
   document.getElementById('dPrice').innerHTML=_pr.min!==_pr.max
-    ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} – ${_pr.max.toLocaleString()}</b>`
+    ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} 起</b>`
     : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b>`;
   // show deposit per product
   const _dep = getProductDeposit(p);
@@ -4515,7 +4530,7 @@ function _applyVariantSelection(p, v){
     if(priceEl){
       const _pr=getPriceRange(p);
       priceEl.innerHTML = _pr.min!==_pr.max
-        ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} – ${_pr.max.toLocaleString()}</b>`
+        ? `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()} 起</b>`
         : `<b style="color:var(--red)">NT$ ${_pr.min.toLocaleString()}</b>`;
     }
     if(hintEl) hintEl.style.display='none';
@@ -4585,7 +4600,7 @@ function updateDetailBuyBtn(p){
   const v = selectedVariant && selectedVariant!=='單一規格' ? selectedVariant : '';
   const maxQty = parseLimit(p?.limit);
 
-  const _dis = (text) => { btn.textContent=text; btn.disabled=true; btn.style.background='#ccc'; btn.style.color='#888'; };
+  const _dis = (text) => { btn.textContent=text; btn.disabled=true; btn.style.background='#e3ece6'; btn.style.color='#8a9b8e'; };
   const _en  = (text) => { btn.textContent=text; btn.disabled=false; btn.style.background=''; btn.style.color=''; };
 
   // 1. 預購已結單
@@ -6294,13 +6309,93 @@ function acRememberProduct(){
   setTimeout(acLoadFromSupabase, 500);
 }
 
-// ─── 多規格（多維度）產生器 ────────────────────────────────
+// ─── 多規格（多維度）產生器：Tag Input 標籤式輸入 ────────────
+let _specDim1Tags=[]; let _specDim2Tags=[];
+
+function _specTagState(n){ return n===1 ? _specDim1Tags : _specDim2Tags; }
+function _specTagTagsElId(n){ return n===1 ? 'fSpecDim1OptsTags' : 'fSpecDim2OptsTags'; }
+function _specTagHiddenElId(n){ return n===1 ? 'fSpecDim1Opts' : 'fSpecDim2Opts'; }
+function _specTagInputElId(n){ return n===1 ? 'fSpecDim1OptsInput' : 'fSpecDim2OptsInput'; }
+
+// 重繪標籤 pill UI，並同步寫回隱藏欄位（向下相容：_buildSpecVariants 仍讀同一份逗號字串）
+function _renderSpecTags(n){
+  const tags = _specTagState(n);
+  const tagsEl = document.getElementById(_specTagTagsElId(n));
+  if(tagsEl){
+    tagsEl.innerHTML = tags.map((t,i)=>
+      '<span class="spec-tag-pill">'+t+'<span class="x" onclick="event.stopPropagation();_removeSpecTag('+n+','+i+')">✕</span></span>'
+    ).join('');
+  }
+  const hiddenEl = document.getElementById(_specTagHiddenElId(n));
+  if(hiddenEl) hiddenEl.value = tags.join(',');
+}
+
+// 整批設定某維度的標籤（用於編輯商品時回填既有規格）
+function _setSpecTags(n, arr){
+  if(n===1) _specDim1Tags = [...(arr||[])];
+  else _specDim2Tags = [...(arr||[])];
+  _renderSpecTags(n);
+  _buildSpecVariants();
+}
+
+// 新增一個（或用逗號貼上多個）標籤
+function _addSpecTag(n, raw){
+  const parts = String(raw||'').split(',').map(s=>s.trim()).filter(Boolean);
+  if(!parts.length) return;
+  const tags = _specTagState(n);
+  parts.forEach(p=>{ if(!tags.includes(p)) tags.push(p); });
+  _renderSpecTags(n);
+  _buildSpecVariants();
+}
+
+function _removeSpecTag(n, idx){
+  const tags = _specTagState(n);
+  tags.splice(idx,1);
+  _renderSpecTags(n);
+  _buildSpecVariants();
+}
+
+// 按 Enter 或逗號＝新增標籤；輸入框為空時按 Backspace＝刪除最後一個標籤
+function _onSpecTagKeydown(n, e){
+  if(e.key==='Enter' || e.key===','){
+    e.preventDefault();
+    const inp = document.getElementById(_specTagInputElId(n));
+    if(inp){ _addSpecTag(n, inp.value); inp.value=''; }
+  } else if(e.key==='Backspace'){
+    const inp = document.getElementById(_specTagInputElId(n));
+    if(inp && inp.value===''){
+      const tags = _specTagState(n);
+      if(tags.length){ _removeSpecTag(n, tags.length-1); }
+    }
+  }
+}
+
+// 失焦時若輸入框還有未送出的文字，也自動新增成標籤（避免漏打 Enter 導致漏掉選項）
+function _onSpecTagBlur(n){
+  const inp = document.getElementById(_specTagInputElId(n));
+  if(inp && inp.value.trim()!==''){ _addSpecTag(n, inp.value); inp.value=''; }
+}
+
+// ─── 多規格（多維度）產生器：組合計算與即時防呆提示 ──────────
 function _buildSpecVariants(){
   const d1n=(document.getElementById('fSpecDim1Name')?.value||'').trim();
-  const d1o=(document.getElementById('fSpecDim1Opts')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const d1o=[..._specDim1Tags];
   const d2n=(document.getElementById('fSpecDim2Name')?.value||'').trim();
-  const d2o=(document.getElementById('fSpecDim2Opts')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-  if(!d1n||!d1o.length||!d2n||!d2o.length) return; // 兩個維度都填滿才產生
+  const d2o=[..._specDim2Tags];
+
+  // 即時防呆提示：無論兩個維度有沒有填滿，都先顯示目前狀態，打錯字/漏填馬上看得出來
+  const hintEl = document.getElementById('fSpecPreviewHint');
+  if(hintEl){
+    if(d1o.length && d2o.length){
+      hintEl.textContent = '目前為 '+d1o.length+' 個「'+(d1n||'維度一')+'」× '+d2o.length+' 個「'+(d2n||'維度二')+'」，將產生 '+(d1o.length*d2o.length)+' 組規格組合';
+      hintEl.style.color = '#8a6d1f';
+    } else {
+      hintEl.textContent = '請分別輸入「'+(d1n||'維度一')+'」與「'+(d2n||'維度二')+'」的選項（至少各 1 個）';
+      hintEl.style.color = 'var(--ink3)';
+    }
+  }
+
+  if(!d1n||!d1o.length||!d2n||!d2o.length) return; // 兩個維度都填滿才產生組合
   const combos=[];
   d1o.forEach(a=>d2o.forEach(b=>combos.push(a+' / '+b)));
   document.getElementById('fVariants').value=combos.join(',');
@@ -6317,8 +6412,7 @@ function renderVariantPrices(){
   const isStock = _ptype === '現貨';
   const variants = raw ? raw.split(',').map(v=>v.trim()).filter(Boolean) : [];
   if(!variants.length){ grid.style.display='none'; grid.innerHTML=''; return; }
-  grid.style.display='flex';
-  // 保留已輸入的價格與庫存
+  // 保留已輸入的價格與庫存（矩陣／扁平清單共用同一套 data-v 比對邏輯）
   const existing = {};
   grid.querySelectorAll('.vp-row').forEach(row=>{
     const n=row.dataset.v;
@@ -6331,6 +6425,46 @@ function renderVariantPrices(){
       };
     }
   });
+
+  const dimKeys = (_currentSpecsConfig && typeof _currentSpecsConfig==='object') ? Object.keys(_currentSpecsConfig) : [];
+
+  if(dimKeys.length===2){
+    // ── 矩陣表格模式：橫軸＝維度二、縱軸＝維度一 ──────────────────
+    grid.style.display='block';
+    const dim1Name=dimKeys[0], dim2Name=dimKeys[1];
+    const dim1Opts=_currentSpecsConfig[dim1Name]||[];
+    const dim2Opts=_currentSpecsConfig[dim2Name]||[];
+    const colTemplate = '120px repeat('+dim2Opts.length+', minmax(86px,1fr))';
+
+    let html = '<div style="font-size:11px;color:var(--ink3);margin:4px 0 6px">'+dim1Name+' × '+dim2Name+' 矩陣定價'+(isStock?'（含庫存）':'')+'，每欄可一鍵套用相同價格</div>';
+    html += '<div style="display:grid;grid-template-columns:'+colTemplate+';gap:6px;align-items:stretch">';
+    html += '<div></div>'; // 左上角空格
+    dim2Opts.forEach((d2,ci)=>{
+      html += '<div style="text-align:center">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">'+d2+'</div>'
+        +'<div style="display:flex;gap:2px;justify-content:center">'
+        +'<input type="number" id="bulkFillPrice_'+ci+'" placeholder="統一價" style="width:62px;border:1px solid var(--border2);border-radius:4px;padding:3px 4px;font-size:11px;box-sizing:border-box">'
+        +'<button type="button" onclick="_bulkFillColumn('+ci+')" title="把這欄全部填成同一個價格" style="border:1px solid var(--gold);background:var(--gold-light);color:#8a6d1f;border-radius:4px;font-size:11px;padding:3px 6px;cursor:pointer;white-space:nowrap">套用全欄</button>'
+        +'</div></div>';
+    });
+    dim1Opts.forEach(d1=>{
+      html += '<div style="font-size:12px;font-weight:600;color:var(--ink);display:flex;align-items:center;padding:4px 2px">'+d1+'</div>';
+      dim2Opts.forEach(d2=>{
+        const comboKey = d1+' / '+d2;
+        const ev = existing[comboKey]||{};
+        html += '<div class="vp-row" data-v="'+comboKey+'" style="border:1px solid var(--border2);border-radius:6px;padding:5px 6px;display:flex;flex-direction:column;gap:3px;background:var(--white)">'
+          +'<div style="display:flex;align-items:center;gap:2px"><span style="font-size:10px;color:var(--ink3)">$</span><input class="vp-price-inp" type="number" placeholder="同售價" value="'+(ev.price||'')+'" style="width:100%;border:none;outline:none;font-size:12px;background:transparent;box-sizing:border-box"></div>'
+          +(isStock ? '<input class="vp-stock-inp" type="number" placeholder="庫存0" min="0" value="'+(ev.stock||'')+'" style="width:100%;border:none;border-top:1px solid var(--border);outline:none;font-size:11px;color:var(--ink2);padding-top:3px;background:transparent;box-sizing:border-box">' : '')
+          +'</div>';
+      });
+    });
+    html += '</div>';
+    grid.innerHTML = html;
+    return;
+  }
+
+  // ── 扁平清單模式（單一維度／舊商品，向下相容、原樣不變）────────
+  grid.style.display='flex';
   const stockCol = isStock
     ? '<span style="font-size:11px;color:var(--ink3);text-align:center">庫存</span>' : '';
   grid.innerHTML =
@@ -6345,6 +6479,31 @@ function renderVariantPrices(){
         +'</div>';
     }).join('');
 }
+
+// 矩陣表格「整欄套用相同價格」：把指定欄（維度二某選項）下的所有格子價格一次填滿
+function _bulkFillColumn(colIdx){
+  const dimKeys = (_currentSpecsConfig && typeof _currentSpecsConfig==='object') ? Object.keys(_currentSpecsConfig) : [];
+  if(dimKeys.length!==2) return;
+  const dim2Opts = _currentSpecsConfig[dimKeys[1]]||[];
+  const dim2Val = dim2Opts[colIdx];
+  if(dim2Val==null) return;
+  const grid = document.getElementById('variantPriceGrid');
+  if(!grid) return;
+  const inp = document.getElementById('bulkFillPrice_'+colIdx);
+  const val = inp?.value.trim();
+  if(val===''||val==null){ showToast('⚠️ 請先在上方輸入要套用的價格'); return; }
+  const num = parseInt(val)||0;
+  let filled=0;
+  grid.querySelectorAll('.vp-row').forEach(row=>{
+    const key = row.dataset.v||'';
+    if(key.endsWith(' / '+dim2Val)){
+      const priceInp = row.querySelector('.vp-price-inp');
+      if(priceInp){ priceInp.value = num; filled++; }
+    }
+  });
+  if(filled) showToast('✓ 已將「'+dim2Val+'」整欄 '+filled+' 格填入 NT$'+num.toLocaleString());
+}
+
 
 // 取得規格庫存對應
 function getVariantStocks(){
@@ -6953,17 +7112,21 @@ function editP(id){
   document.getElementById('fForm').value=p.form||'';
   document.getElementById('fVariants').value=(p.variants||[]).join(',');
   // 回填多維度規格產生器（若此商品是用多維度規格建立的）
-  _currentSpecsConfig = p.specs || null;
   const _dimKeys = p.specs ? Object.keys(p.specs) : [];
   const _fSpecsRowEl = document.getElementById('fSpecsRow');
   if(_dimKeys.length===2){
     document.getElementById('fSpecDim1Name').value=_dimKeys[0];
-    document.getElementById('fSpecDim1Opts').value=(p.specs[_dimKeys[0]]||[]).join(',');
     document.getElementById('fSpecDim2Name').value=_dimKeys[1];
-    document.getElementById('fSpecDim2Opts').value=(p.specs[_dimKeys[1]]||[]).join(',');
+    _setSpecTags(1, p.specs[_dimKeys[0]]||[]);
+    _setSpecTags(2, p.specs[_dimKeys[1]]||[]);
     if(_fSpecsRowEl) _fSpecsRowEl.style.display='';
-  } else if(_fSpecsRowEl){
-    _fSpecsRowEl.style.display='none';
+  } else {
+    document.getElementById('fSpecDim1Name').value='';
+    document.getElementById('fSpecDim2Name').value='';
+    _setSpecTags(1, []);
+    _setSpecTags(2, []);
+    _currentSpecsConfig = null;
+    if(_fSpecsRowEl) _fSpecsRowEl.style.display='none';
   }
   // 載入圖片陣列（image_urls 不在 LISTING_COLS，需額外查詢）
   _adminImgs = Array.isArray(p.imageUrls)&&p.imageUrls.length ? [...p.imageUrls] : (p.imageUrl ? [p.imageUrl] : []);
@@ -7536,8 +7699,12 @@ function resetForm(){
   if(hint) hint.style.display='none';
   renderAdminImgPreviews();
   // 清除所有文字欄位
-  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc','fSpecDim1Name','fSpecDim1Opts','fSpecDim2Name','fSpecDim2Opts'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
+  ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc','fSpecDim1Name','fSpecDim1Opts','fSpecDim2Name','fSpecDim2Opts','fSpecDim1OptsInput','fSpecDim2OptsInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
   _currentSpecsConfig=null;
+  _specDim1Tags=[]; _specDim2Tags=[];
+  _renderSpecTags(1); _renderSpecTags(2);
+  const _fSpecPreviewEl=document.getElementById('fSpecPreviewHint');
+  if(_fSpecPreviewEl){ _fSpecPreviewEl.textContent='請分別輸入兩個維度的選項（至少各 1 個）'; _fSpecPreviewEl.style.color='var(--ink3)'; }
   const _fSpecsRowEl2=document.getElementById('fSpecsRow'); if(_fSpecsRowEl2) _fSpecsRowEl2.style.display='none';
   const fi=document.getElementById('fImgFile');if(fi)fi.value='';
   document.getElementById('fPrice').value='';
