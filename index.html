@@ -358,7 +358,7 @@ textarea.fi{min-height:64px;resize:vertical}
 .eo.sel{border-color:var(--ink);background:var(--bg)}
 .al{display:flex;flex-direction:column;gap:9px}
 .ai{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px}
-.aim{width:48px;height:48px;border-radius:var(--r);background:var(--bg);font-size:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden}
+.aim{width:48px;height:48px;border-radius:var(--r);background:var(--bg);font-size:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden;content-visibility:auto;contain-intrinsic-size:48px 48px}
 .ain{flex:1;min-width:0}
 .ainame{font-size:13px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aimeta{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -6845,8 +6845,8 @@ function renderArrivalTracker(){
         const _statusLabel = _deadlinePassed ? '已結單' : '預購中';
         return `
         <div class="ai" style="align-items:flex-start;gap:12px">
-          <div class="aim" style="flex-shrink:0;width:56px;height:56px">
-            <img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG">
+          <div class="aim" style="flex-shrink:0;width:56px;height:56px;contain-intrinsic-size:56px 56px">
+            <img src="${_thumb}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r);content-visibility:auto" onerror="this.src=PLACEHOLDER_IMG">
           </div>
           <div style="flex:1;min-width:0;overflow:hidden">
             <div style="font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
@@ -6995,7 +6995,7 @@ function renderAdminList(){
     <div class="ai" style="${_borderStyle};flex-direction:column;align-items:stretch;padding:12px 16px">
       <div style="display:flex;align-items:center;gap:12px">
         ${_pBatchMode?`<input type="checkbox" id="pbcb-${pid}" onchange="togglePBatchSelect('${pid}')" style="width:16px;height:16px;flex-shrink:0;cursor:pointer" ${_pBatchSelected.has(String(pid))?'checked':''}>`:''}
-        <div class="aim" style="flex-shrink:0"><img src="${_thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r)" onerror="this.src=PLACEHOLDER_IMG"></div>
+        <div class="aim" style="flex-shrink:0"><img src="${_thumb}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:var(--r);content-visibility:auto" onerror="this.src=PLACEHOLDER_IMG"></div>
         <div class="ain">
           <div class="ainame">${p.name}${_statusBadge}</div>
           <div class="aimeta">${p.brand} · NT$${p.price.toLocaleString()} · ${p.type}${p.variants?.length?' · 規格：'+p.variants.join('/'):''}</div>
