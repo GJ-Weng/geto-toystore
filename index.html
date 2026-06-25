@@ -48,12 +48,13 @@ input,select,textarea{font-family:var(--font)}
 .nsearch input{flex:1;border:none;background:transparent;padding:8px 14px;font-size:13px;outline:none}
 .nsearch button{padding:7px 12px;color:var(--ink3);font-size:15px}
 .nacts{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.nacts>*{flex-shrink:0}
 .nbtn{height:34px;padding:0 14px;border-radius:var(--r);font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:5px;transition:background .15s}
 .nbtn:hover{background:var(--bg)}
 /* 統一 icon 按鈕樣式 */
-.nav-icon-btn{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:none;background:none;cursor:pointer;border-radius:8px;color:var(--ink2);transition:background .15s;flex-shrink:0;position:relative}
+.nav-icon-btn{display:flex;align-items:center;justify-content:center;width:38px;height:38px;min-width:38px;min-height:38px;border:none;background:none;cursor:pointer;border-radius:8px;color:var(--ink2);transition:background .15s;flex-shrink:0;position:relative;box-sizing:border-box}
 .nav-icon-btn:hover{background:var(--bg)}
-.nav-icon-btn svg{stroke:var(--ink2)}
+.nav-icon-btn svg{stroke:var(--ink2);width:20px;height:20px;flex-shrink:0;display:block}
 /* 購物車 badge */
 .nav-cart-badge{position:absolute;top:2px;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:700;border-radius:50%;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:0 3px}
 .nav-cart-badge:empty{display:none}
@@ -560,10 +561,16 @@ textarea.fi{min-height:64px;resize:vertical}
   #sbMobileNav{display:block!important}
   .shopview,.fullview,.ap,.lay{padding-bottom:0!important}
   .nav{flex-wrap:wrap;height:auto!important}
-  .navi{flex-wrap:nowrap}
+  .navi{flex-wrap:nowrap;padding:0 10px;gap:2px}
+  .nacts{gap:0}
   #mobileSearchWrap{display:flex!important;width:100%;padding:6px 12px 8px;background:var(--white)}
 }
 @media(max-width:540px){.nlinks{display:none}.lay{padding:12px}.nsearch{margin:0 6px}.nbtn .ntxt{display:none}}
+@media(max-width:390px){
+  .navi{padding:0 6px}
+  .nav-icon-btn{width:34px;height:34px;min-width:34px;min-height:34px}
+  .nav-icon-btn svg{width:18px;height:18px}
+}
 /* 桌機版(>880px)：隱藏手機專屬元素 */
 @media(min-width:881px){
   #navHamburger{display:none!important}
