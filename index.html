@@ -1004,8 +1004,8 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <div class="nsearch">
       <input id="searchInput" type="text" placeholder="搜尋商品名稱..." oninput="onSearch()">
-      <button onclick="clearSearch()" id="searchClearBtn" style="display:none;position:absolute;right:36px;background:none;border:none;cursor:pointer;color:var(--ink3);font-size:14px;padding:0 4px">✕</button>
-      <button>🔍</button>
+      <button type="button" onclick="clearSearch()" id="searchClearBtn" style="display:none;position:absolute;right:36px;background:none;border:none;cursor:pointer;color:var(--ink3);font-size:14px;padding:0 4px">✕</button>
+      <button type="button" onclick="document.getElementById('searchInput').focus();onSearch()">🔍</button>
     </div>
     <div class="nacts">
       <!-- 桌機版：通知鈴鐺（登入後顯示） -->
@@ -2959,6 +2959,7 @@ function _lbInitSwipe(){
 
 
 function _onMobileSearch2(val){
+  currentPage = 1; // 關鍵字一改變，強制重設回第一頁，避免停留在搜尋前的舊分頁導致結果空白
   const mainInp = document.getElementById('searchInput');
   if(mainInp){ mainInp.value = val; onSearch(); }
   const clr = document.getElementById('mobileSearchClear2');
@@ -4106,7 +4107,7 @@ function toggleGrp(g){
 }
 function onSearch(){
   searchQ=document.getElementById('searchInput').value.trim();
-  currentPage=1;
+  currentPage=1; // 關鍵字一改變就強制回到第一頁，避免停留在搜尋前的舊分頁（例如原本在第5頁）導致結果列表空白
   const btn=document.getElementById('searchClearBtn');
   if(btn) btn.style.display=searchQ?'block':'none';
   renderShop();
@@ -4213,7 +4214,7 @@ function renderShop(){
   }).join('');
 
   // 比對是否真的有變化（加入 page、filter 狀態確保切換時一定更新）
-  const _sig = filter+'|'+subFilter+'|'+currentPage+'|'+_newHtml.length+'|'+_newHtml.slice(0,32);
+  const _sig = filter+'|'+subFilter+'|'+searchQ+'|'+currentPage+'|'+_newHtml.length+'|'+_newHtml.slice(0,32);
   if(grid.dataset.sig !== _sig){
     grid.innerHTML = _newHtml;
     grid.dataset.sig = _sig;
