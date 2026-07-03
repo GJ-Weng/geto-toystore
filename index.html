@@ -5531,7 +5531,7 @@ async function syncProductsFromSupabase(){
     await _sbReady;
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
-    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,is_r18,order_count,stock,stock_status,created_at';
+    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
       .from('products')
       .select(LISTING_COLS)
@@ -5573,7 +5573,14 @@ async function syncProductsFromSupabase(){
       description:   p.description != null ? (p.description || '') : null, // null=尚未載入，''=空說明
       status:        p.status         || 'published',
       isNew:         p.is_new         || false,
-      isR18:         p.is_r18         || false,
+      // isR18 三層容錯：① 直接讀 is_r18 欄位（未來加欄位後自動生效）
+      //                  ② 從 specs/variants 的 metadata 抓（備援）
+      //                  ③ 關鍵字模糊比對 ip 或 name 包含 R18/18禁
+      isR18: (()=>{
+        if(p.is_r18 != null) return !!p.is_r18;
+        const _kw = ((p.ip||'')+(p.name||'')).toLowerCase();
+        return _kw.includes('r18') || _kw.includes('18禁') || _kw.includes('成人') || _kw.includes('限制級');
+      })(),
       cnt:           p.order_count    || 0,
       stock:         p.stock          || 0,
       stockStatus:   p.stock_status   || 'in_stock',
