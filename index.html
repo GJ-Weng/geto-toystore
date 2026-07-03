@@ -251,6 +251,23 @@ input,select,textarea{font-family:var(--font)}
 .md h2{font-size:20px;font-weight:700;margin-bottom:5px}
 .md p{font-size:13px;color:var(--ink2);margin-bottom:24px;line-height:1.6}
 .gb{width:100%;height:44px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;font-weight:500;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:10px;background:var(--white);transition:border-color .15s,background .15s;cursor:pointer}
+/* ── R18 Modal ──────────────────────────────────────────── */
+#r18Modal{position:fixed;inset:0;z-index:9999;background:rgba(10,8,6,.72);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#r18Modal.open{display:flex}
+.r18-box{background:var(--white);border-radius:18px;width:100%;max-width:400px;padding:32px 28px 24px;box-shadow:0 24px 64px rgba(0,0,0,.28);text-align:center;display:flex;flex-direction:column;gap:0;animation:r18In .22s cubic-bezier(.4,0,.2,1)}
+@keyframes r18In{from{opacity:0;transform:scale(.94) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.r18-title{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:14px;letter-spacing:-.3px}
+.r18-body{font-size:14px;color:var(--ink2);line-height:1.75;margin-bottom:24px}
+.r18-btn-enter{width:100%;height:52px;border:none;border-radius:12px;background:var(--gold);color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;margin-bottom:10px}
+.r18-btn-enter:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(201,168,76,.45);filter:brightness(1.07)}
+.r18-btn-enter:active{transform:scale(.97)}
+.r18-btn-leave{width:100%;height:52px;border:1.5px solid var(--gold);border-radius:12px;background:transparent;color:#8a6d1f;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s}
+.r18-btn-leave:hover{background:var(--gold-light)}
+/* ── R18 後台 Checkbox Switch ───────────────────────────── */
+.r18-toggle-wrap{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:8px;cursor:pointer;user-select:none;transition:border-color .15s}
+.r18-toggle-wrap:hover{border-color:#f87171}
+.r18-toggle-wrap input[type=checkbox]{width:18px;height:18px;accent-color:#dc2626;cursor:pointer;flex-shrink:0}
+.r18-toggle-label{font-size:13px;font-weight:600;color:#dc2626}
 .gb:hover{border-color:#888;background:var(--bg)}
 .gi{width:18px;height:18px;flex-shrink:0}
 .mn{margin-top:16px;font-size:11px;color:var(--ink3);text-align:center;line-height:1.7}
@@ -1473,14 +1490,52 @@ textarea.fi{min-height:64px;resize:vertical}
     <div class="mx" onclick="closeAuth()">✕</div>
     <h2>登入 / 註冊</h2>
     <p>使用 Google 帳號快速登入，<br>享受收藏、訂單追蹤等完整購物體驗。</p>
-    <div id="inAppBrowserWarning" style="display:none;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#9a3412;line-height:1.6">
-      ⚠️ 您目前使用的是 <b>App 內建瀏覽器</b>，Google 登入可能會失敗。<br>
-      請點右上角 <b>「⋯」→「用瀏覽器開啟」</b>，再進行登入。
+
+    <!-- In-App Browser 警告（JS 控制顯示；In-App 時 Google 按鈕改成灰色不可按） -->
+    <div id="inAppBrowserWarning" style="display:none;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:13px 14px;margin-bottom:12px;font-size:13px;color:#9a3412;line-height:1.7">
+      ⚠️ 您目前在 <b>FB / IG / Line 內建瀏覽器</b>中，<br>
+      Google 已封鎖此環境的登入（錯誤 403 disallowed_useragent）。<br>
+      <b>解法：點右上角 ⋯ → 「用瀏覽器開啟」</b>，再使用 Google 登入。<br>
+      <span style="color:#7c2d12;font-size:12px">或直接使用下方 Email 登入，無需跳出 App ✅</span>
     </div>
-    <button class="gb" onclick="loginWithGoogle()">
+
+    <!-- Google 登入按鈕（In-App 時由 JS 改成灰色 disabled 狀態） -->
+    <button id="googleLoginBtn" class="gb" onclick="loginWithGoogle()">
       <svg class="gi" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
       使用 Google 帳號繼續
     </button>
+
+    <!-- Email 登入分隔線 -->
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:12px;color:var(--ink3);white-space:nowrap">或使用 Email 登入 / 註冊</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <!-- Email / Password 輸入區 -->
+    <div id="emailLoginSection" style="display:flex;flex-direction:column;gap:10px">
+      <input id="authEmail" type="email" placeholder="電子信箱 (Email)"
+        style="width:100%;height:44px;border:1.5px solid var(--border2);border-radius:8px;padding:0 14px;font-size:14px;box-sizing:border-box;outline:none;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"
+        onkeydown="if(event.key==='Enter')document.getElementById('authPw').focus()">
+      <div style="position:relative">
+        <input id="authPw" type="password" placeholder="密碼（至少 6 個字元）"
+          style="width:100%;height:44px;border:1.5px solid var(--border2);border-radius:8px;padding:0 40px 0 14px;font-size:14px;box-sizing:border-box;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"
+          onkeydown="if(event.key==='Enter')loginWithEmail()">
+        <button type="button" onclick="_toggleAuthPw(this)"
+          style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:15px;padding:4px">👁</button>
+      </div>
+      <div id="authEmailError" style="display:none;font-size:12px;color:#dc2626;margin-top:-4px"></div>
+      <button id="authEmailBtn" type="button" onclick="loginWithEmail()"
+        style="width:100%;height:44px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
+        登入 / 註冊
+      </button>
+      <p style="font-size:11px;color:var(--ink3);text-align:center;margin:0">
+        若為新信箱，我們會自動為您建立帳號，並寄送確認信。
+      </p>
+    </div>
+
     <p class="mn">登入即表示同意服務條款與隱私政策</p>
   </div>
 </div>
@@ -1720,6 +1775,14 @@ textarea.fi{min-height:64px;resize:vertical}
             <label class="fl">商品說明 <span style="font-size:10px;color:var(--ink3)">（特典內容、尺寸、注意事項等）</span></label>
             <textarea class="fi" id="fDesc" placeholder="例：全高約 14cm，附初回特典購入憑證 1 張。商品為非賣品。" rows="3"></textarea>
           </div>
+        </div>
+
+        <!-- 18禁 限制級 -->
+        <div style="margin-bottom:14px">
+          <label class="r18-toggle-wrap" for="fIsR18">
+            <input type="checkbox" id="fIsR18">
+            <span class="r18-toggle-label">🔞 限制級商品（未滿 18 歲禁止瀏覽）</span>
+          </label>
         </div>
 
         <!-- 按鈕列 -->
@@ -2180,6 +2243,16 @@ textarea.fi{min-height:64px;resize:vertical}
       <button onclick="closePayReport()" style="flex:1;height:42px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--ink2);background:var(--white);cursor:pointer">取消</button>
       <button onclick="submitPayReport()" style="flex:2;height:42px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer">確認提交</button>
     </div>
+  </div>
+</div>
+
+<!-- R18 年齡確認 Modal -->
+<div id="r18Modal" role="dialog" aria-modal="true" aria-labelledby="r18ModalTitle">
+  <div class="r18-box">
+    <div class="r18-title" id="r18ModalTitle">未滿 18 歲不得瀏覽</div>
+    <div class="r18-body">本商品包含限制級（成人）內容，依法未滿 18 歲不得瀏覽。<br>請確認您已年滿 18 歲再進入。</div>
+    <button class="r18-btn-enter" id="r18EnterBtn">我已滿 18 歲，進入</button>
+    <button class="r18-btn-leave" id="r18LeaveBtn">離開</button>
   </div>
 </div>
 
@@ -3424,9 +3497,11 @@ async function autoExpireOrders(orders){
   for(const o of orders){
     if(o.status !== 'new') continue; // 只處理待付款
     if((o.price||0) <= 0) continue;  // 免訂金（待確認）不自動取消，等管理員處理
-    // 計算付款期限：min(下單後48小時, 訂單內最近結單日 23:59)
+    // 🛡️ 鋼鐵防線：顧客已回報末五碼，絕對不自動取消，必須留給小編人工對帳
+    if(o.payment_code) continue;
+    // 計算付款期限：min(下單後72小時, 訂單內最近結單日 23:59)
     const created = new Date(o.created_at);
-    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
+    const deadline72h = new Date(created.getTime() + 72*60*60*1000);
     // 從 note 找最近結單日
     let productDeadline = null;
     try{
@@ -3440,8 +3515,8 @@ async function autoExpireOrders(orders){
       }
     }catch(e){}
     // 取最早的期限
-    const payLimit = productDeadline && productDeadline < deadline48h
-      ? productDeadline : deadline48h;
+    const payLimit = productDeadline && productDeadline < deadline72h
+      ? productDeadline : deadline72h;
     if(now > payLimit){
       toCancel.push(o);
     }
@@ -4272,6 +4347,12 @@ function openDetail(id){
   const sid = String(id);
   const p=products.find(x=>String(x.id)===sid);
   if(!p) return;
+
+  // 18禁攔截：若商品為限制級且本次 session 尚未確認年齡，強制彈窗
+  if(p.isR18 && !sessionStorage.getItem('r18_ok')){
+    _openR18Modal(()=>openDetail(id)); // 確認後 callback 重新呼叫本函式
+    return;
+  }
   // 懶載入多圖（image_urls 不在 LISTING_COLS，進商品頁才補載入）
   if(_sb && p.id){
     _sb.from('products').select('image_urls').eq('id', p.id).single()
@@ -5011,9 +5092,22 @@ function renderCheckoutPage(){
       const _hoursLeft = Math.floor((_ddlDate - new Date()) / 3600000);
       if(_hoursLeft <= 72){
         _ddlWarnEl.style.display='';
-        _ddlWarnEl.innerHTML = '⏰ <b>注意：</b>訂單內有商品將於 <b>'+_nearestDdl+'</b> 結單'
-          +(_hoursLeft<=48?' <b style="color:#dc2626">（剩約 '+Math.max(0,_hoursLeft)+' 小時）</b>':'')
-          +'，請確認訂單後盡快匯款，逾時系統將<b>自動取消</b>訂單。';
+        // 若顧客已回報匯款末五碼，顯示安撫綠色提示；否則顯示警告
+        const _latestOrder = orders.filter(o=>o.status==='new').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+        const _hasReported = _latestOrder?.payment_code;
+        if(_hasReported){
+          _ddlWarnEl.style.background='#f0fdf4';
+          _ddlWarnEl.style.borderColor='#86efac';
+          _ddlWarnEl.style.color='#166534';
+          _ddlWarnEl.innerHTML = '✅ <b>已收到您的匯款回報，</b>小編正加速核對中，請放心！訂單將在確認入帳後正式成立。';
+        } else {
+          _ddlWarnEl.style.background='#fee2e2';
+          _ddlWarnEl.style.borderColor='#fca5a5';
+          _ddlWarnEl.style.color='#991b1b';
+          _ddlWarnEl.innerHTML = '⏰ <b>注意：</b>訂單內有商品將於 <b>'+_nearestDdl+'</b> 結單'
+            +(_hoursLeft<=48?' <b style="color:#dc2626">（剩約 '+Math.max(0,_hoursLeft)+' 小時）</b>':'')
+            +'，請確認訂單後盡快匯款，逾時系統將<b>自動取消</b>訂單。';
+        }
       } else {
         _ddlWarnEl.style.display='none';
       }
@@ -5437,7 +5531,7 @@ async function syncProductsFromSupabase(){
     await _sbReady;
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
-    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
+    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,is_r18,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
       .from('products')
       .select(LISTING_COLS)
@@ -5479,6 +5573,7 @@ async function syncProductsFromSupabase(){
       description:   p.description != null ? (p.description || '') : null, // null=尚未載入，''=空說明
       status:        p.status         || 'published',
       isNew:         p.is_new         || false,
+      isR18:         p.is_r18         || false,
       cnt:           p.order_count    || 0,
       stock:         p.stock          || 0,
       stockStatus:   p.stock_status   || 'in_stock',
@@ -5559,6 +5654,7 @@ async function saveProductToSupabase(productData, existingId){
     variant_prices: productData.variantPrices||{},
     status:      productData.status||'published',
     is_new:      productData.isNew||false,
+    is_r18:      productData.isR18||false,
     order_count: productData.cnt||0,
     stock:        productData.stock||0,
     stock_status: productData.stockStatus||'in_stock',
@@ -5757,7 +5853,57 @@ function cartChg(id,d){
 function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); try{localStorage.setItem('tf_c',JSON.stringify(cart));}catch(e){} updBadge();renderCartPage(); }
 
 // ─── AUTH (Supabase) ──────────────────────────────────────
-function openAuth(){ document.getElementById('authModal').classList.add('open'); _checkInAppBrowser(); }
+// ─── R18 年齡確認 Modal ──────────────────────────────────
+let _r18Callback = null; // 確認後要執行的 callback
+
+function _openR18Modal(onConfirm){
+  _r18Callback = onConfirm || null;
+  const modal = document.getElementById('r18Modal');
+  if(modal) modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function _closeR18Modal(){
+  const modal = document.getElementById('r18Modal');
+  if(modal) modal.classList.remove('open');
+  document.body.style.overflow = '';
+  _r18Callback = null;
+}
+// 初始化按鈕監聽
+(function _initR18Buttons(){
+  function _bind(){
+    const enterBtn = document.getElementById('r18EnterBtn');
+    const leaveBtn = document.getElementById('r18LeaveBtn');
+    if(enterBtn && !enterBtn.dataset.r18Bound){
+      enterBtn.dataset.r18Bound = '1';
+      enterBtn.addEventListener('click', ()=>{
+        sessionStorage.setItem('r18_ok', '1'); // session 內不再詢問
+        const cb = _r18Callback;
+        _closeR18Modal();
+        if(cb) cb();
+      });
+    }
+    if(leaveBtn && !leaveBtn.dataset.r18Bound){
+      leaveBtn.dataset.r18Bound = '1';
+      leaveBtn.addEventListener('click', ()=>{
+        _closeR18Modal();
+        goHome(); // 返回首頁商品列表
+      });
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _bind);
+  else _bind();
+})();
+
+function openAuth(){
+  document.getElementById('authModal').classList.add('open');
+  _checkInAppBrowser();
+  // 重置 Email 登入表單狀態
+  const _e=document.getElementById('authEmail'); if(_e) _e.value='';
+  const _p=document.getElementById('authPw'); if(_p){ _p.value=''; _p.type='password'; }
+  const _err=document.getElementById('authEmailError'); if(_err){ _err.style.display='none'; _err.style.color='#dc2626'; }
+  const _btn=document.getElementById('authEmailBtn'); if(_btn){ _btn.disabled=false; _btn.textContent='登入 / 註冊'; }
+  const _pwBtn=document.querySelector('#authModal button[onclick*="_toggleAuthPw"]'); if(_pwBtn) _pwBtn.textContent='👁';
+}
 function closeAuth(){document.getElementById('authModal').classList.remove('open');}
 
 // ─── In-App Browser 偵測 ──────────────────────────────────
@@ -5767,8 +5913,23 @@ function _isInAppBrowser(){
     || (!!window.navigator.standalone === false && /Safari/.test(ua) && !/Chrome/.test(ua) && /iPhone|iPad/.test(ua) && document.referrer.includes('app'));
 }
 function _checkInAppBrowser(){
-  const el = document.getElementById('inAppBrowserWarning');
-  if(el) el.style.display = _isInAppBrowser() ? '' : 'none';
+  const isInApp = _isInAppBrowser();
+  // 顯示/隱藏警告區塊
+  const warn = document.getElementById('inAppBrowserWarning');
+  if(warn) warn.style.display = isInApp ? '' : 'none';
+  // In-App 時將 Google 按鈕禁用並標示灰色，防止使用者點擊後撞牆
+  const gBtn = document.getElementById('googleLoginBtn');
+  if(gBtn){
+    gBtn.disabled = isInApp;
+    gBtn.style.opacity    = isInApp ? '0.4' : '';
+    gBtn.style.cursor     = isInApp ? 'not-allowed' : '';
+    gBtn.style.filter     = isInApp ? 'grayscale(1)' : '';
+    gBtn.title            = isInApp ? '此環境無法使用 Google 登入，請改用 Email 登入' : '';
+  }
+  // In-App 時自動聚焦到 Email 輸入框，引導使用者直接用 Email 登入
+  if(isInApp){
+    setTimeout(()=>{ document.getElementById('authEmail')?.focus(); }, 200);
+  }
 }
 
 async function loginWithGoogle(){ await _sbReady;
@@ -5786,6 +5947,91 @@ async function loginWithGoogle(){ await _sbReady;
   } catch(e) {
     showToast('登入失敗，請重新整理後再試');
     console.error('login error:', e);
+  }
+}
+
+// ─── Email / Password 登入 & 自動註冊 ────────────────────────
+function _toggleAuthPw(btn){
+  const inp = document.getElementById('authPw');
+  if(!inp) return;
+  const isHidden = inp.type === 'password';
+  inp.type = isHidden ? 'text' : 'password';
+  btn.textContent = isHidden ? '🙈' : '👁';
+}
+
+async function loginWithEmail(){
+  await _sbReady;
+  const emailEl = document.getElementById('authEmail');
+  const pwEl    = document.getElementById('authPw');
+  const errEl   = document.getElementById('authEmailError');
+  const btn     = document.getElementById('authEmailBtn');
+  const email   = emailEl?.value.trim();
+  const pw      = pwEl?.value;
+
+  // 基本驗證
+  if(errEl) errEl.style.display='none';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    if(errEl){ errEl.textContent='請輸入正確的電子信箱格式'; errEl.style.display=''; }
+    emailEl?.focus();
+    return;
+  }
+  if(!pw || pw.length < 6){
+    if(errEl){ errEl.textContent='密碼至少需要 6 個字元'; errEl.style.display=''; }
+    pwEl?.focus();
+    return;
+  }
+
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 處理中...'; }
+
+  try{
+    // 先嘗試登入
+    const { data: signInData, error: signInErr } = await _sb.auth.signInWithPassword({ email, password: pw });
+
+    if(!signInErr && signInData?.user){
+      // 登入成功，onAuthStateChange 會接手後續流程
+      return;
+    }
+
+    // 登入失敗，判斷是「密碼錯誤」還是「帳號不存在」
+    if(signInErr?.message?.toLowerCase().includes('invalid login') ||
+       signInErr?.message?.toLowerCase().includes('invalid credentials')){
+      // 帳號存在但密碼錯誤
+      if(errEl){ errEl.textContent='密碼錯誤，請重新輸入（或忘記密碼？請聯絡客服）'; errEl.style.display=''; }
+      pwEl?.focus();
+      return;
+    }
+
+    // 帳號不存在 → 自動引導註冊
+    const confirmReg = confirm(`此信箱（${email}）尚未註冊。\n是否立即建立新帳號？`);
+    if(!confirmReg) return;
+
+    const { data: signUpData, error: signUpErr } = await _sb.auth.signUp({
+      email,
+      password: pw,
+      options:{
+        emailRedirectTo: 'https://geto-toystore.vercel.app',
+        data: { full_name: email.split('@')[0] }
+      }
+    });
+
+    if(signUpErr){
+      if(errEl){ errEl.textContent='註冊失敗：'+signUpErr.message; errEl.style.display=''; }
+      return;
+    }
+
+    // Supabase 部分設定需要 Email 確認才能登入
+    if(signUpData?.user && !signUpData.session){
+      showToast('📧 確認信已寄出！請至信箱點擊連結後即可登入', 5000);
+      if(errEl){ errEl.textContent='請至您的信箱（'+email+'）點擊確認連結，完成驗證後即可登入。'; errEl.style.display=''; errEl.style.color='#16a34a'; }
+    } else if(signUpData?.session){
+      // 若 Supabase 設定允許直接登入（autoConfirm），onAuthStateChange 會接手
+      showToast('🎉 帳號建立成功，歡迎加入！');
+    }
+  } catch(e){
+    if(errEl){ errEl.textContent='發生錯誤，請稍後再試'; errEl.style.display=''; }
+    console.error('loginWithEmail error:', e);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='登入 / 註冊'; }
   }
 }
 
@@ -5861,6 +6107,18 @@ _sbReady.then(() => {
         history.replaceState(null, '', window.location.pathname);
       }
     }
+    // ── 管理員全域通知：登入（含頁面重整後的 session 恢復）時立刻啟動 ──
+    // 不論是 SIGNED_IN 還是 session 恢復，只要確認是管理員就執行一次
+    // 用 setTimeout 等 isAdmin() 所需的 user 物件確實設定完畢後再執行
+    setTimeout(()=>{
+      if(isAdmin()){
+        // 初始化已知訂單清單（非同步，不阻塞畫面）並立刻做一次新訂單掃描
+        _initKnownOrdersFromServer().then(()=>{
+          _checkNewOrders();          // 立刻掃一次
+          startNewOrderPoller();      // 啟動背景輪詢（內部有防重複啟動保護）
+        });
+      }
+    }, 300);
   } else {
     user = null;
     userProfile = { name:'', phone:'' }; // 登出時清空 profile
@@ -5871,6 +6129,7 @@ _sbReady.then(() => {
     persist();
     renderAuth();
     updBadge();
+    stopNewOrderPoller(); // 登出時停止輪詢
   }
 });
 }); // end _sbReady.then
@@ -5881,24 +6140,37 @@ let _knownNewOrderIds = null;    // 已知的 new 狀態訂單 id set
 let _originalTitle = document.title;
 let _titleBlink = null;
 
-// 開始輪詢（開啟管理員後台時呼叫）
+// 開始輪詢（內部有防重複保護；從 onAuthStateChange 或 openAdmin 都可安全呼叫）
 function startNewOrderPoller(){
-  if(_newOrderPoller) return; // 已在跑
-  // 先記錄目前已有的 new 訂單
-  _initKnownOrders();
-  // 每 30 秒查一次
+  if(_newOrderPoller) return; // 已在跑，不重複啟動
   _newOrderPoller = setInterval(_checkNewOrders, 60000); // 每60秒查一次
 }
 
-// 停止輪詢（關閉管理員後台時呼叫）
+// 停止輪詢（登出或關閉後台時呼叫）
 function stopNewOrderPoller(){
   if(_newOrderPoller){ clearInterval(_newOrderPoller); _newOrderPoller=null; }
   _stopTitleBlink();
 }
 
-// 初始化：把目前所有 new 訂單的 id 記錄起來
+// 【全域版初始化】直接從 Supabase 抓當前所有 new 訂單建立基準集合
+// 解決後台尚未開啟、_allAdminOrders 為空時，舊版會把基準集誤設成空集合，
+// 導致 _checkNewOrders() 把所有舊的 new 訂單都誤判成「新來的」而重複通知
+async function _initKnownOrdersFromServer(){
+  if(_knownNewOrderIds !== null) return; // 已初始化過，不重複執行
+  try{
+    await _sbReady;
+    const {data} = await _sb.from('orders').select('id').eq('status','new');
+    _knownNewOrderIds = new Set((data||[]).map(o=>String(o.id)));
+  } catch(e){
+    // 查詢失敗時退而求其次用本地快取（後台若已開啟則有資料，否則為空集合）
+    const newOrders = _allAdminOrders.filter(o=>o.status==='new');
+    _knownNewOrderIds = new Set(newOrders.map(o=>String(o.id)));
+  }
+}
+
+// 【後台相容版初始化】後台 openAdmin 時從已載入的本地快取初始化
 function _initKnownOrders(){
-  if(_knownNewOrderIds !== null) return; // 已初始化過
+  if(_knownNewOrderIds !== null) return; // 已初始化過（全域版跑過了），跳過
   const newOrders = _allAdminOrders.filter(o=>o.status==='new');
   _knownNewOrderIds = new Set(newOrders.map(o=>String(o.id)));
 }
@@ -6008,7 +6280,7 @@ function _showNewOrderBanner(count, name, order){
   div.innerHTML = `
     <span>🛎️ 有 <b>${count}</b> 筆新訂單！${name ? `（${name}${count>1?'等':''}）` : ''} ${prod ? `— ${prod}` : ''}</span>
     <div style="display:flex;gap:8px">
-      <button onclick="swTab(3);_stopTitleBlink();document.getElementById('newOrderBanner')?.remove()"
+      <button onclick="_gotoOrdersFromBanner()"
         style="height:28px;padding:0 14px;background:#fff;color:#1a7f4b;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
         查看訂單
       </button>
@@ -6022,7 +6294,20 @@ function _showNewOrderBanner(count, name, order){
   setTimeout(()=>{ div.remove(); _stopTitleBlink(); }, 8000);
 }
 
-// ─── ADMIN ────────────────────────────────────────────────
+function _gotoOrdersFromBanner(){
+  _stopTitleBlink();
+  document.getElementById('newOrderBanner')?.remove();
+  // 若後台面板尚未開啟（或已關閉），先開啟後台再跳到訂單 Tab
+  const ap = document.getElementById('ap');
+  if(!ap || ap.style.display==='none' || ap.classList.contains('closed') || getComputedStyle(ap).display==='none'){
+    openAdmin();
+    // openAdmin 內部已呼叫 renderOrderList，等它跑完後 Tab 會在正確位置
+    setTimeout(()=>swTab(3), 600);
+  } else {
+    swTab(3);
+  }
+}
+
 function openAdmin(){
   if(!isAdmin()){showToast('⚠️ 您沒有管理員權限');return;}
   renderAdminList();
@@ -7243,6 +7528,9 @@ function editP(id){
         }
       }).catch(()=>{});
   }
+  // 18禁狀態回填
+  const _fIsR18 = document.getElementById('fIsR18');
+  if(_fIsR18) _fIsR18.checked = p.isR18||false;
   const fImg=document.getElementById('fImgUrl');
   if(fImg) fImg.value='';
   const fDep=document.getElementById('fDeposit');if(fDep)fDep.value=p.deposit!=null?p.deposit:0;
@@ -7294,7 +7582,7 @@ async function saveProduct(continueAdd=false){
     variants,
     specs: _currentSpecsConfig,
     status:document.getElementById('fStatus').value,
-    emoji:selEmoji,isNew:true,cnt:0,
+    emoji:selEmoji,isNew:true,isR18:document.getElementById('fIsR18')?.checked||false,cnt:0,
     description: document.getElementById('fDesc')?.value.trim()||'',
     stock:     _ptype==='現貨' ? (parseInt(document.getElementById('fStock')?.value)||0) : 0,
     variantStocks: _ptype==='現貨' ? getVariantStocks() : {},
@@ -7795,6 +8083,9 @@ function resetForm(){
   const hint = document.getElementById('fNameHint');
   if(hint) hint.style.display='none';
   renderAdminImgPreviews();
+  // 清除 R18 狀態
+  const _fIsR18 = document.getElementById('fIsR18');
+  if(_fIsR18) _fIsR18.checked = false;
   // 清除所有文字欄位
   ['fName','fBrand','fLimit','fDeadline','fDeadlineText','fDeadlineTime','fArrival','fVariants','fImgUrl','fDeposit','fDesc','fSpecDim1Name','fSpecDim1Opts','fSpecDim2Name','fSpecDim2Opts','fSpecDim1OptsInput','fSpecDim2OptsInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); const _fLimitEl=document.getElementById('fLimit'); if(_fLimitEl) _fLimitEl.value='2件';
   _currentSpecsConfig=null;
@@ -7953,8 +8244,10 @@ async function autoExpireAdminOrders(orders){
   let changed = false;
   for(const o of orders){
     if(o.status !== 'new') continue;
+    // 🛡️ 鋼鐵防線：顧客已回報末五碼，絕對不自動取消，必須留給小編人工對帳
+    if(o.payment_code) continue;
     const created = new Date(o.created_at);
-    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
+    const deadline72h = new Date(created.getTime() + 72*60*60*1000);
     let productDeadline = null;
     try{
       const items = JSON.parse(o.note||'[]');
@@ -7964,11 +8257,10 @@ async function autoExpireAdminOrders(orders){
       }).filter(Boolean).sort();
       if(deadlines.length) productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
     }catch(e){}
-    const payLimit = productDeadline && productDeadline < deadline48h ? productDeadline : deadline48h;
+    const payLimit = productDeadline && productDeadline < deadline72h ? productDeadline : deadline72h;
     if(now > payLimit){
       const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',o.id);
-      if(!error){ o.status='cancelled'; changed=true;
-      }
+      if(!error){ o.status='cancelled'; changed=true; }
     }
   }
   if(changed) showToast('⏰ 已自動取消逾期未付款訂單');
@@ -8337,7 +8629,9 @@ function _aoRenderCards(){
         })()}
       </div>
       <div class="aoc-actions">
-        ${isDone ? '' : `
+        ${isDone ? `
+          ${o.status==='cancelled' ? `<button class="aoc-btn" style="border-color:#1a7f4b;background:#f0fdf4;color:#1a7f4b;font-weight:700" onclick="restoreOrder(${o.id})">🔄 恢復訂單</button>` : ''}
+        ` : `
           ${canPay         ?`<button class="aoc-btn aoc-btn-pay" onclick="aoUpdateStatus(${o.id},'paid')">✓ 確認付款</button>`:''}
           ${_isStockOrder  ?`<button class="aoc-btn aoc-btn-pay" onclick="aoMarkStockPaid(${o.id},${_isPreorder})">✓ 確認訂單成立</button>`:''}
           ${canPickupReady ?`<button class="aoc-btn" style="border-color:#e67300;background:#fff4e5;color:#e67300;font-weight:700" onclick="aoUpdateStatus(${o.id},'pickup_ready')">🏪 通知自取</button>`:''}
@@ -8482,6 +8776,85 @@ async function aoUpdateStatus(id, newStatus){
     };
     const _nm = _notifMap[newStatus];
     if(_nm) insertNotification(o.user_email, 'order_status', _nm.title, _nm.body, o.id, null);
+  }
+}
+
+// ─── 恢復已取消訂單（管理員反悔鎖）────────────────────────────
+async function restoreOrder(id){
+  const o = _allAdminOrders.find(x=>x.id===id);
+  if(!o) return;
+  if(!confirm(`確定恢復訂單 #${id}（${o.customer_name||''}）？\n訂單將改回「已成立（paid）」狀態，並重新扣除對應商品庫存。`)) return;
+
+  // 先扣庫存（現貨才需要）
+  let items = [];
+  try{ items = JSON.parse(o.note||'[]'); }catch(e){}
+  let stockWarnings = [];
+  for(const it of items){
+    const p = products.find(x=>String(x.id)===String(it.product_id));
+    if(!p || p.type!=='現貨') continue;
+    const qty = it.qty||1;
+    const v = it.variant&&it.variant!=='單一規格' ? it.variant : '';
+    const hasVS = p.variantStocks && Object.keys(p.variantStocks).length>0;
+    if(hasVS && v && p.variantStocks[v]!=null){
+      // 從 Supabase 拉最新庫存
+      const {data:_fresh} = await _sb.from('products').select('variant_stocks').eq('id',p.id).single();
+      const _vs = (_fresh?.variant_stocks) || p.variantStocks;
+      if((_vs[v]||0) < qty){
+        stockWarnings.push(`「${p.name} (${v})」庫存僅剩 ${_vs[v]||0} 件，需 ${qty} 件`);
+      }
+    } else {
+      const {data:_fresh2} = await _sb.from('products').select('stock').eq('id',p.id).single();
+      const curStock = (_fresh2?.stock != null) ? _fresh2.stock : (p.stock||0);
+      if(curStock < qty){
+        stockWarnings.push(`「${p.name}」庫存僅剩 ${curStock} 件，需 ${qty} 件`);
+      }
+    }
+  }
+  if(stockWarnings.length){
+    if(!confirm(`⚠️ 庫存不足警告：\n${stockWarnings.join('\n')}\n\n確定仍要恢復此訂單嗎？`)) return;
+  }
+
+  // 更新訂單狀態
+  await _sbReady;
+  const {error} = await _sb.from('orders').update({status:'paid'}).eq('id',id);
+  if(error){ showToast('❌ 恢復失敗：'+error.message); return; }
+  o.status = 'paid';
+
+  // 扣除現貨庫存
+  for(const it of items){
+    const p = products.find(x=>String(x.id)===String(it.product_id));
+    if(!p || p.type!=='現貨') continue;
+    const qty = it.qty||1;
+    const v = it.variant&&it.variant!=='單一規格' ? it.variant : '';
+    const hasVS = p.variantStocks && Object.keys(p.variantStocks).length>0;
+    const upd = {};
+    if(hasVS && v && p.variantStocks[v]!=null){
+      const {data:_fresh} = await _sb.from('products').select('variant_stocks').eq('id',p.id).single();
+      const _vs = (_fresh?.variant_stocks) || {...p.variantStocks};
+      _vs[v] = Math.max(0, (_vs[v]||0) - qty);
+      p.variantStocks = _vs;
+      upd.variant_stocks = _vs;
+    } else {
+      const {data:_fresh2} = await _sb.from('products').select('stock').eq('id',p.id).single();
+      p.stock = Math.max(0, ((_fresh2?.stock ?? p.stock ?? 0)) - qty);
+      upd.stock = p.stock;
+    }
+    p.cnt = (p.cnt||0) + 1;
+    upd.order_count = p.cnt;
+    if(p.id && !String(p.id).startsWith('p'))
+      await _sb.from('products').update(upd).eq('id',p.id);
+  }
+
+  // 清除快取強制重新同步
+  try{ localStorage.removeItem('tf_p'); localStorage.removeItem('tf_p_ts'); }catch(e){}
+  setTimeout(()=>syncProductsFromSupabase().then(()=>renderShop()), 300);
+
+  _aoRenderStats(); _aoRenderTabs(); _aoRenderCards();
+  showToast(`✅ 訂單 #${id} 已恢復為「已成立」`);
+
+  // 站內通知顧客
+  if(o.user_email){
+    insertNotification(o.user_email, 'order_status', '✅ 訂單已恢復', `您的訂單 ${o.order_code||('#'+id)} 已由客服恢復為成立狀態，如有疑問請聯繫我們。`, id, null);
   }
 }
 
