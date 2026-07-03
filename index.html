@@ -5659,11 +5659,28 @@ async function saveProductToSupabase(productData, existingId){
     stock:        productData.stock||0,
     stock_status: productData.stockStatus||'in_stock',
   };
-  if(existingId && !String(existingId).startsWith('p')){ // numeric Supabase id
+
+  // 嘗試寫入（含 is_r18）
+  if(existingId && !String(existingId).startsWith('p')){
     const {error} = await _sb.from('products').update(record).eq('id', existingId);
+    // 若因 is_r18 欄位不存在而失敗，自動 fallback 不含 is_r18 重試
+    if(error && error.message && error.message.includes('is_r18')){
+      console.warn('[is_r18 fallback] 欄位不存在，請至 Supabase 執行: alter table products add column if not exists is_r18 boolean default false;');
+      const {record:r18, ...recordWithout} = record;
+      const _r = {...record}; delete _r.is_r18;
+      const {error:e2} = await _sb.from('products').update(_r).eq('id', existingId);
+      return e2;
+    }
     return error;
   } else {
     const {data,error} = await _sb.from('products').insert([record]).select().single();
+    if(error && error.message && error.message.includes('is_r18')){
+      console.warn('[is_r18 fallback] 欄位不存在，請至 Supabase 執行: alter table products add column if not exists is_r18 boolean default false;');
+      const _r = {...record}; delete _r.is_r18;
+      const {data:d2,error:e2} = await _sb.from('products').insert([_r]).select().single();
+      if(!e2 && d2) return {newId: d2.id};
+      return e2;
+    }
     if(!error && data) return {newId: data.id};
     return error;
   }
@@ -5992,12 +6009,18 @@ async function loginWithEmail(){
       return;
     }
 
-    // 登入失敗，判斷是「密碼錯誤」還是「帳號不存在」
-    if(signInErr?.message?.toLowerCase().includes('invalid login') ||
-       signInErr?.message?.toLowerCase().includes('invalid credentials')){
-      // 帳號存在但密碼錯誤
-      if(errEl){ errEl.textContent='密碼錯誤，請重新輸入（或忘記密碼？請聯絡客服）'; errEl.style.display=''; }
+    // 登入失敗，判斷是「密碼錯誤」還是「帳號不存在」還是「Google 帳號衝突」
+    const errMsg = (signInErr?.message||'').toLowerCase();
+    // 帳號已存在但用 Google 登入（Supabase 回傳 invalid credentials 但其實是 OAuth only 帳號）
+    // 或純粹密碼錯誤的情況，都先嘗試顯示密碼錯誤提示
+    if(errMsg.includes('invalid login') || errMsg.includes('invalid credentials') || errMsg.includes('email not confirmed')){
+      if(errEl){ errEl.textContent='密碼錯誤，或此信箱是用 Google 登入建立的，請改用上方 Google 登入按鈕。'; errEl.style.display=''; }
       pwEl?.focus();
+      return;
+    }
+    // user already registered（signUp 衝突攔截）
+    if(errMsg.includes('already registered') || errMsg.includes('user already exists')){
+      if(errEl){ errEl.textContent='此信箱已有帳號。若您曾用 Google 登入，請改用 Google 登入按鈕；若忘記密碼，請聯絡客服。'; errEl.style.display=''; }
       return;
     }
 
@@ -6015,7 +6038,12 @@ async function loginWithEmail(){
     });
 
     if(signUpErr){
-      if(errEl){ errEl.textContent='註冊失敗：'+signUpErr.message; errEl.style.display=''; }
+      const _sErr = (signUpErr.message||'').toLowerCase();
+      if(_sErr.includes('already registered') || _sErr.includes('user already exists')){
+        if(errEl){ errEl.textContent='此信箱已有帳號。若您曾用 Google 登入，請改用 Google 登入按鈕；若忘記密碼，請聯絡客服。'; errEl.style.display=''; }
+      } else {
+        if(errEl){ errEl.textContent='註冊失敗：'+signUpErr.message; errEl.style.display=''; }
+      }
       return;
     }
 
@@ -8811,7 +8839,8 @@ async function restoreOrder(id){
     }
   }
   if(stockWarnings.length){
-    if(!confirm(`⚠️ 庫存不足警告：\n${stockWarnings.join('\n')}\n\n確定仍要恢復此訂單嗎？`)) return;
+    alert(`⚠️ 恢復失敗：該商品的現貨庫存已不足，無法自動扣除，請先手動調整商品庫存數量！\n\n${stockWarnings.join('\n')}`);
+    return; // 強制中斷，防止庫存變成負數髒資料
   }
 
   // 更新訂單狀態
