@@ -5531,7 +5531,7 @@ async function syncProductsFromSupabase(){
     await _sbReady;
     // 直接解構 {data,error}，避免 Promise.race + Supabase builder 不相容問題
     // 只拉商品列表所需欄位（排除 description 這種大欄位），加速首頁載入
-    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,order_count,stock,stock_status,created_at';
+    const LISTING_COLS = 'id,name,brand,price,deposit,limit_qty,type,deadline,arrival,ip,form,variants,specs,emoji,image_url,variant_prices,variant_stocks,status,is_new,is_r18,order_count,stock,stock_status,created_at';
     const { data, error } = await _sb
       .from('products')
       .select(LISTING_COLS)
@@ -5573,14 +5573,7 @@ async function syncProductsFromSupabase(){
       description:   p.description != null ? (p.description || '') : null, // null=尚未載入，''=空說明
       status:        p.status         || 'published',
       isNew:         p.is_new         || false,
-      // isR18 三層容錯：① 直接讀 is_r18 欄位（未來加欄位後自動生效）
-      //                  ② 從 specs/variants 的 metadata 抓（備援）
-      //                  ③ 關鍵字模糊比對 ip 或 name 包含 R18/18禁
-      isR18: (()=>{
-        if(p.is_r18 != null) return !!p.is_r18;
-        const _kw = ((p.ip||'')+(p.name||'')).toLowerCase();
-        return _kw.includes('r18') || _kw.includes('18禁') || _kw.includes('成人') || _kw.includes('限制級');
-      })(),
+      isR18:         p.is_r18         === true,
       cnt:           p.order_count    || 0,
       stock:         p.stock          || 0,
       stockStatus:   p.stock_status   || 'in_stock',
@@ -5641,53 +5634,36 @@ function _restoreHashPage(){
 async function saveProductToSupabase(productData, existingId){
   await _sbReady;
   const record = {
-    name:        productData.name,
-    brand:       productData.brand,
-    price:       productData.price,
-    deposit:     productData.deposit||0,
-    limit_qty:   productData.limit||'',
-    type:        productData.type,
-    deadline:    productData.deadline||null,
-    arrival:     productData.arrival||'',
-    ip:          productData.ip||'',
-    form:        productData.form||'',
-    variants:    productData.variants||[],
-    specs:       productData.specs||null,
-    emoji:       productData.emoji||'🧸',
-    image_url:     productData.imageUrl||'',
-    description:   productData.description||'',
+    name:           productData.name,
+    brand:          productData.brand,
+    price:          productData.price,
+    deposit:        productData.deposit||0,
+    limit_qty:      productData.limit||'',
+    type:           productData.type,
+    deadline:       productData.deadline||null,
+    arrival:        productData.arrival||'',
+    ip:             productData.ip||'',
+    form:           productData.form||'',
+    variants:       productData.variants||[],
+    specs:          productData.specs||null,
+    emoji:          productData.emoji||'🧸',
+    image_url:      productData.imageUrl||'',
+    description:    productData.description||'',
     variant_stocks: productData.variantStocks||{},
-    image_urls:    productData.imageUrls||[],
+    image_urls:     productData.imageUrls||[],
     variant_prices: productData.variantPrices||{},
-    status:      productData.status||'published',
-    is_new:      productData.isNew||false,
-    is_r18:      productData.isR18||false,
-    order_count: productData.cnt||0,
-    stock:        productData.stock||0,
-    stock_status: productData.stockStatus||'in_stock',
+    status:         productData.status||'published',
+    is_new:         productData.isNew||false,
+    is_r18:         productData.isR18||false,
+    order_count:    productData.cnt||0,
+    stock:          productData.stock||0,
+    stock_status:   productData.stockStatus||'in_stock',
   };
-
-  // 嘗試寫入（含 is_r18）
   if(existingId && !String(existingId).startsWith('p')){
     const {error} = await _sb.from('products').update(record).eq('id', existingId);
-    // 若因 is_r18 欄位不存在而失敗，自動 fallback 不含 is_r18 重試
-    if(error && error.message && error.message.includes('is_r18')){
-      console.warn('[is_r18 fallback] 欄位不存在，請至 Supabase 執行: alter table products add column if not exists is_r18 boolean default false;');
-      const {record:r18, ...recordWithout} = record;
-      const _r = {...record}; delete _r.is_r18;
-      const {error:e2} = await _sb.from('products').update(_r).eq('id', existingId);
-      return e2;
-    }
     return error;
   } else {
     const {data,error} = await _sb.from('products').insert([record]).select().single();
-    if(error && error.message && error.message.includes('is_r18')){
-      console.warn('[is_r18 fallback] 欄位不存在，請至 Supabase 執行: alter table products add column if not exists is_r18 boolean default false;');
-      const _r = {...record}; delete _r.is_r18;
-      const {data:d2,error:e2} = await _sb.from('products').insert([_r]).select().single();
-      if(!e2 && d2) return {newId: d2.id};
-      return e2;
-    }
     if(!error && data) return {newId: data.id};
     return error;
   }
