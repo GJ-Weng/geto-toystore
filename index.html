@@ -263,6 +263,26 @@ input,select,textarea{font-family:var(--font)}
 .r18-btn-enter:active{transform:scale(.97)}
 .r18-btn-leave{width:100%;height:52px;border:1.5px solid var(--gold);border-radius:12px;background:transparent;color:#8a6d1f;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s}
 .r18-btn-leave:hover{background:var(--gold-light)}
+/* ── Welcome Notice Modal（首購須知彈窗） ─────────────────── */
+#welcomeNoticeModal{position:fixed;inset:0;z-index:810;background:rgba(0,0,0,.52);display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#welcomeNoticeModal.open{display:flex}
+.wn-card{background:var(--white);border-radius:18px;width:100%;max-width:520px;margin:auto;box-shadow:0 24px 64px rgba(0,0,0,.28)}
+.wn-head{padding:26px 26px 0}
+.wn-body{padding:0 26px}
+.wn-foot{padding:16px 26px 26px}
+.wn-title-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.wn-badge{font-size:12px;color:#8a6d1f;font-weight:600;background:var(--gold-light);padding:2px 10px;border-radius:20px;display:inline-block;margin-top:4px}
+.wn-lead{font-size:13.5px;color:var(--ink2);line-height:1.75;margin:0 0 14px}
+.wn-sep{height:1px;background:#F0E9D8;margin-bottom:14px}
+.wn-section{margin-bottom:14px}
+.wn-section-title{display:flex;align-items:flex-start;gap:7px;font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:7px;line-height:1.4}
+.wn-list{margin:0;padding-left:18px;font-size:13px;color:var(--ink2);line-height:1.85}
+.wn-highlight{background:#FFFBF2;border:1px solid #E8D9A0;border-radius:10px;padding:13px 15px}
+.wn-pill{background:var(--gold-light);color:#8a6d1f;padding:1px 7px;border-radius:5px;font-weight:600;font-size:12px}
+.wn-tip{background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:10px 13px;font-size:12.5px;color:#166534;line-height:1.65;margin-bottom:0}
+.wn-btn{width:100%;height:52px;background:var(--gold);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:filter .15s,transform .15s;letter-spacing:.3px}
+.wn-btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.wn-btn:active{transform:scale(.98)}
 /* ── R18 後台 Checkbox Switch ───────────────────────────── */
 .r18-toggle-wrap{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:8px;cursor:pointer;user-select:none;transition:border-color .15s}
 .r18-toggle-wrap:hover{border-color:#f87171}
@@ -599,6 +619,7 @@ textarea.fi{min-height:64px;resize:vertical}
   #navFaqBtnMobile{display:none!important}
   .nbtn-cart-mobile{display:none!important}
   #mobileSearchWrap{display:none!important}
+  #mobilFilterFab{display:none!important}
 }
 #mobileTabBar{display:none!important}
 .sb-backdrop{
@@ -2246,6 +2267,63 @@ textarea.fi{min-height:64px;resize:vertical}
   </div>
 </div>
 
+<!-- 首購新手預購須知 Modal -->
+<div id="welcomeNoticeModal" role="dialog" aria-modal="true" aria-labelledby="wnTitle">
+  <div class="wn-card">
+    <div class="wn-head">
+      <div class="wn-title-row">
+        <span style="font-size:26px">🧸</span>
+        <div>
+          <div id="wnTitle" style="font-size:19px;font-weight:700;color:var(--ink);line-height:1.3">歡迎來到 Geto 玩具屋！</div>
+          <span class="wn-badge">首購必看須知</span>
+        </div>
+      </div>
+      <p class="wn-lead">嗨～感謝你從 FB 社團加入我們！為了保障你的玩具預購名額，下單前請先花 30 秒看一下這三個最重要的小規則喔：</p>
+      <div class="wn-sep"></div>
+    </div>
+    <div class="wn-body">
+
+      <!-- 規則 1 -->
+      <div class="wn-section">
+        <div class="wn-section-title"><span>📍</span><span>1. 預購跟現貨一起買？沒關係，系統會自動幫你分單！</span></div>
+        <ul class="wn-list">
+          <li>我們的購物車很聰明，想買什麼通通丟進去就對了！結帳時系統會自動幫你拆成「現貨單」跟「預購單」分開處理，不用自己辛苦分開結。</li>
+          <li>預購商品屬於「代訂服務」，到貨時間要看官方進度。玩具都有可能遇到廠商砍單或減量，<strong>沒辦法保證 100% 到貨</strong>，如果真的不幸被砍單，訂金一定全額退款給你。</li>
+          <li>現貨商品數量有限，賣完就沒囉！</li>
+        </ul>
+      </div>
+
+      <!-- 規則 2 -->
+      <div class="wn-section wn-highlight">
+        <div class="wn-section-title"><span>📍</span><span>2. 特別注意！下單後，如有訂金商品，匯款完成一定要記得回報末五碼！</span></div>
+        <ul class="wn-list">
+          <li><strong>付款時限：</strong>下單之後要在 <strong style="color:var(--gold)">48 小時（2天）</strong>內完成匯款喔。</li>
+          <li>最重要的一步：轉帳完後，請一定要去「我的訂單」頁面點選 <span class="wn-pill">💳 回報末五碼</span> 填寫你的帳號後五碼！</li>
+          <li style="color:#b45309">⚠️ 超過 48 小時只要「沒回報後五碼」，系統時間到就會自動取消訂單。相反地，<strong style="color:#1a7f4b">只要你有點擊回報，訂單就會自動亮起免死金牌，絕對不會被系統誤殺</strong>，可以安心等小編人工對帳！</li>
+        </ul>
+      </div>
+
+      <!-- 規則 3 -->
+      <div class="wn-section">
+        <div class="wn-section-title"><span>📍</span><span>3. 東西到了怎麼拿？</span></div>
+        <ul class="wn-list">
+          <li><strong>7-11 賣貨便：</strong>玩具到台灣後，我們會發 Email 寄一封【專屬賣貨便賣場連結】給你，到時再去連結裡二段下單就好囉。</li>
+          <li><strong>郵局寄送：</strong>商品到貨後會發信通知你補齊尾款，確認後就會幫你寄出。</li>
+          <li><strong>門市自取：</strong>收到到貨通知後，請在 5 天內來新店門市付款取貨，超過時間沒來又聯絡不到人的話，商品會釋出並列入黑名單喔。</li>
+        </ul>
+      </div>
+
+      <!-- 提示 -->
+      <div class="wn-tip" style="margin-bottom:14px">
+        💡 關於玩具瑕疵、延期或退換貨等其他疑難雜症，網頁右下角都有大大的「常見問題 (FAQ)」可以隨時點開看喔！
+      </div>
+    </div>
+    <div class="wn-foot">
+      <button class="wn-btn" onclick="closeWelcomeNotice()">我已瞭解，開始逛玩具！ 🧸</button>
+    </div>
+  </div>
+</div>
+
 <!-- R18 年齡確認 Modal -->
 <div id="r18Modal" role="dialog" aria-modal="true" aria-labelledby="r18ModalTitle">
   <div class="r18-box">
@@ -3496,12 +3574,13 @@ async function autoExpireOrders(orders){
   const toCancel = [];
   for(const o of orders){
     if(o.status !== 'new') continue; // 只處理待付款
-    if((o.price||0) <= 0) continue;  // 免訂金（待確認）不自動取消，等管理員處理
-    // 🛡️ 鋼鐵防線：顧客已回報末五碼，絕對不自動取消，必須留給小編人工對帳
+    // 🛡️ 免死金牌①：免訂金單（待人工確認），永不自動取消
+    if((o.price||0) <= 0) continue;
+    // 🛡️ 免死金牌②：已回報末五碼，永不自動取消
     if(o.payment_code) continue;
-    // 計算付款期限：min(下單後72小時, 訂單內最近結單日 23:59)
+    // ⏰ 付款期限：下單後 48 小時
     const created = new Date(o.created_at);
-    const deadline72h = new Date(created.getTime() + 72*60*60*1000);
+    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
     // 從 note 找最近結單日
     let productDeadline = null;
     try{
@@ -3515,8 +3594,8 @@ async function autoExpireOrders(orders){
       }
     }catch(e){}
     // 取最早的期限
-    const payLimit = productDeadline && productDeadline < deadline72h
-      ? productDeadline : deadline72h;
+    const payLimit = productDeadline && productDeadline < deadline48h
+      ? productDeadline : deadline48h;
     if(now > payLimit){
       toCancel.push(o);
     }
@@ -5427,12 +5506,22 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
         +'⏰ 注意！訂單內有商品將於 <b>'+nearestDeadline+'</b> 結單（剩約 '+Math.max(0,_hoursLeft)+' 小時），請盡快完成匯款，逾時系統將自動取消訂單。'
         +'</div>'
       : '';
-    payHtml = '<div style="background:#fff4e5;border:1px solid #ffd6a0;border-radius:8px;padding:12px 16px;margin-bottom:12px;text-align:left;font-size:13px;color:#8a4500;line-height:1.8">'
-      +'⚠️ <b>預購訂金匯款提醒</b><br>請於 <b>48 小時內</b>完成匯款，逾時視同取消。<br>'
-      +'匯款時請備註預購訂單編號 <b>'+(preOrderNum||'')+'</b><br>'
-      +'<div style="margin-top:8px;padding:8px 10px;background:#fffbe6;border-radius:6px;font-size:12px;color:#7c5e00;line-height:1.8">'
-      +'💡 <b>匯款後請回報末五碼：</b><br>'
-      +'點右上角頭像 → <b>我的訂單</b> → 找到該訂單編號 → 按「<b>回報末五碼</b>」'
+    payHtml =
+      '<div style="background:#FFFDF0;border:2px solid var(--gold);border-radius:10px;padding:16px 18px;margin-bottom:14px;text-align:left">'
+      +'<div style="font-size:14px;font-weight:700;color:#6b4d00;margin-bottom:10px">📦 預購商品匯款與對帳提醒</div>'
+      +'<p style="font-size:13px;color:#6b4d00;line-height:1.85;margin:0 0 10px">'
+      +'⚠️ 請於 <b>48 小時</b>內完成匯款，訂金到帳後，小編才會幫你下訂哦！逾時未付系統會自動取消。<br>'
+      +'轉帳時請在備註欄填寫您的「預購訂單編號」，方便小編核對。'
+      +'</p>'
+      +'<div style="border-top:1px solid #e8d9a0;padding-top:11px">'
+      +'<div style="font-size:13px;font-weight:700;color:#6b4d00;margin-bottom:6px">📣 最重要的一步：匯款後請回報末五碼</div>'
+      +'<p style="font-size:13px;color:#6b4d00;line-height:1.85;margin:0 0 6px">轉帳完成後，請務必點選網頁：</p>'
+      +'<p style="font-size:13px;color:#6b4d00;line-height:1.85;margin:0 0 10px">'
+      +'右上角頭像 ➔ 我的訂單 ➔ 找到這筆訂單編號 ➔ 點擊「<b>💳 回報末五碼</b>」按鈕填寫！'
+      +'</p>'
+      +'<div style="background:#F5EDD8;border-radius:6px;padding:9px 12px;font-size:12.5px;color:#8a6d1f;line-height:1.75">'
+      +'💡 只要你有及時回報，訂單就會自動亮起免死金牌，絕對不會被系統超時誤殺，可以安心等小編人工對帳！'
+      +'</div>'
       +'</div>'
       +'</div>'
       +'<div style="font-size:14px;font-weight:700;text-align:left;margin-bottom:10px">💳 匯款資訊</div>'
@@ -5853,6 +5942,24 @@ function cartChg(id,d){
 function cartRm(id){ cart=cart.filter(x=>String(x.id)!==String(id)); try{localStorage.setItem('tf_c',JSON.stringify(cart));}catch(e){} updBadge();renderCartPage(); }
 
 // ─── AUTH (Supabase) ──────────────────────────────────────
+// ─── 首購新手須知 Modal ─────────────────────────────────────
+async function _maybeShowWelcome(){
+  if(localStorage.getItem('geto_welcomed')) return; // 已看過，不再顯示
+  await _sbReady;
+  try{
+    const { data:{ session } } = await _sb.auth.getSession();
+    if(session?.user) return; // 已登入 = 老顧客，不顯示
+  }catch(e){}
+  document.getElementById('welcomeNoticeModal')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeWelcomeNotice(){
+  localStorage.setItem('geto_welcomed','true');
+  const modal = document.getElementById('welcomeNoticeModal');
+  if(modal) modal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 // ─── R18 年齡確認 Modal ──────────────────────────────────
 let _r18Callback = null; // 確認後要執行的 callback
 
@@ -8255,10 +8362,12 @@ async function autoExpireAdminOrders(orders){
   let changed = false;
   for(const o of orders){
     if(o.status !== 'new') continue;
-    // 🛡️ 鋼鐵防線：顧客已回報末五碼，絕對不自動取消，必須留給小編人工對帳
+    // 🛡️ 免死金牌①：免訂金單（待人工確認），永不自動取消
+    if((o.price||0) <= 0) continue;
+    // 🛡️ 免死金牌②：已回報末五碼，永不自動取消
     if(o.payment_code) continue;
     const created = new Date(o.created_at);
-    const deadline72h = new Date(created.getTime() + 72*60*60*1000);
+    const deadline48h = new Date(created.getTime() + 48*60*60*1000);
     let productDeadline = null;
     try{
       const items = JSON.parse(o.note||'[]');
@@ -8268,7 +8377,7 @@ async function autoExpireAdminOrders(orders){
       }).filter(Boolean).sort();
       if(deadlines.length) productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
     }catch(e){}
-    const payLimit = productDeadline && productDeadline < deadline72h ? productDeadline : deadline72h;
+    const payLimit = productDeadline && productDeadline < deadline48h ? productDeadline : deadline48h;
     if(now > payLimit){
       const {error} = await _sb.from('orders').update({status:'cancelled'}).eq('id',o.id);
       if(!error){ o.status='cancelled'; changed=true; }
@@ -10655,6 +10764,8 @@ if(_cacheValid){
 } else {
   syncProductsFromSupabase();
 }
+// 首購新手須知：商品資料確認後延遲 800ms 再判斷（確保 session 狀態已恢復）
+setTimeout(_maybeShowWelcome, 800);
 
 // 每小時重新整理商品顯示(結單自動下架)
 setInterval(()=>{ renderShop(); }, 60 * 60 * 1000);
