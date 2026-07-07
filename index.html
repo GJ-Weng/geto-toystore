@@ -4576,7 +4576,11 @@ function openDetail(id){
   const _relSec = document.getElementById('relatedSection');
   const _relGrid = document.getElementById('relatedGrid');
   if(_relSec && _relGrid){
-    const _pub = products.filter(x=>x.status==='published' && String(x.id)!==String(id));
+    const _pub = products.filter(x=>
+      x.status==='published' &&
+      String(x.id)!==String(id) &&
+      !isDeadlinePassed(x.deadline) // 排除已結單商品
+    );
     const _sameIp = p.ip ? _pub.filter(x=>x.ip===p.ip) : [];
     const _sameBrand = _pub.filter(x=>x.brand===p.brand && !_sameIp.includes(x));
     const _related = [..._sameIp, ..._sameBrand].slice(0,6);
