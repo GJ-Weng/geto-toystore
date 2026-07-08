@@ -5965,12 +5965,13 @@ function closeWelcomeNotice(){
 }
 
 // ─── 阻斷數字輸入框滾輪劫持行為 ────────────────────────────────
-// 游標停在 type="number" 輸入框內滾動滑鼠時，先讓輸入框失焦再交還捲頁控制權
+// 游標停在 type="number" 輸入框內時，阻斷滾輪修改數值並讓輸入框失焦
 document.addEventListener('wheel', function(e){
   if(document.activeElement && document.activeElement.type === 'number'){
-    document.activeElement.blur();
+    e.preventDefault(); // 必須 passive:false 才能呼叫，真正阻止數值被滾輪改掉
+    document.activeElement.blur(); // 失焦後之後的滾輪事件就直接捲頁，不再劫持
   }
-}, { passive: true });
+}, { passive: false });
 
 // ─── R18 年齡確認 Modal ──────────────────────────────────
 let _r18Callback = null; // 確認後要執行的 callback
