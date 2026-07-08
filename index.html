@@ -5964,6 +5964,14 @@ function closeWelcomeNotice(){
   document.body.style.overflow = '';
 }
 
+// ─── 阻斷數字輸入框滾輪劫持行為 ────────────────────────────────
+// 游標停在 type="number" 輸入框內滾動滑鼠時，先讓輸入框失焦再交還捲頁控制權
+document.addEventListener('wheel', function(e){
+  if(document.activeElement && document.activeElement.type === 'number'){
+    document.activeElement.blur();
+  }
+}, { passive: true });
+
 // ─── R18 年齡確認 Modal ──────────────────────────────────
 let _r18Callback = null; // 確認後要執行的 callback
 
