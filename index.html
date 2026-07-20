@@ -1363,8 +1363,10 @@ textarea.fi{min-height:64px;resize:vertical}
           <label id="ploc-A" class="ploc-opt" onclick="selPickupLoc('七張-頑瘋樂',this)">
             <input type="radio" name="ploc" style="margin-right:8px">
             <div style="flex:1">
-              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂</div>
-              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 16:30–21:00｜<b>自取須提前告知</b></div>
+              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂倉庫（自取、一番賞）</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 13:00–17:00｜<b>週日不開放</b></div>
+              <div style="font-size:11px;color:var(--ink3)">新北市新店區北新路二段170號</div>
+              <div style="font-size:11px;color:#8a6d1f;margin-top:1px">✨ 未來預計規劃 24 小時自助取件</div>
               <a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" target="_blank" onclick="event.stopPropagation()"
                 style="font-size:11px;color:#1a56c4;text-decoration:none">📍 Google Maps</a>
             </div>
@@ -1375,6 +1377,16 @@ textarea.fi{min-height:64px;resize:vertical}
               <div style="font-weight:600;font-size:13px">林口 — 7-11 亞昕門市</div>
               <div style="font-size:11px;color:var(--ink3);margin-top:2px">自取限<b>週日、週一</b>｜<b>須提前預約</b></div>
               <a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" target="_blank" onclick="event.stopPropagation()"
+                style="font-size:11px;color:#1a56c4;text-decoration:none">📍 Google Maps</a>
+            </div>
+          </label>
+          <label id="ploc-C" class="ploc-opt" onclick="selPickupLoc('師大-店面',this)">
+            <input type="radio" name="ploc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">師大 — 店面（自取、現貨、一番賞）</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜日 15:00–22:00</div>
+              <div style="font-size:11px;color:var(--ink3)">台北市大安區龍泉街57號</div>
+              <a href="https://maps.google.com/?q=台北市大安區龍泉街57號" target="_blank" onclick="event.stopPropagation()"
                 style="font-size:11px;color:#1a56c4;text-decoration:none">📍 Google Maps</a>
             </div>
           </label>
@@ -2185,7 +2197,7 @@ textarea.fi{min-height:64px;resize:vertical}
 
       <div class="faq-item" onclick="this.classList.toggle('open')">
         <div class="faq-q">📮 出貨方式是什麼？</div>
-        <div class="faq-a">出貨方式分為：<br>・<b>賣貨便寄送</b>：運費 NT$38（官方公告費率）。大型物件無法使用賣貨便時，將改以郵寄出貨（NT$80）並通知補款。<br>・<b>自取</b>：七張頑瘋樂（週一〜六 16:30–21:00，須提前告知）或林口 7-11 亞昕門市（限週日、週一，須預約）。</div>
+        <div class="faq-a">出貨方式分為：<br>・<b>賣貨便寄送</b>：運費 NT$38（官方公告費率）。大型物件無法使用賣貨便時，將改以郵寄出貨（NT$80）並通知補款。<br>・<b>自取</b>：七張頑瘋樂倉庫（週一〜六 13:00–17:00，週日不開放）、林口 7-11 亞昕門市（限週日、週一，須預約）、師大店面（週一〜日 15:00–22:00）。</div>
       </div>
 
       <div class="faq-item" onclick="this.classList.toggle('open')">
@@ -2329,7 +2341,7 @@ textarea.fi{min-height:64px;resize:vertical}
         <ul class="wn-list">
           <li><strong>7-11 賣貨便：</strong>玩具到台灣後，我們會發 Email 寄一封【專屬賣貨便賣場連結】給你，到時再去連結裡二段下單就好囉。</li>
           <li><strong>郵局寄送：</strong>商品到貨後會發信通知你補齊尾款，確認後就會幫你寄出。</li>
-          <li><strong>門市自取：</strong>收到到貨通知後，請在 5 天內來新店門市付款取貨，超過時間沒來又聯絡不到人的話，商品會釋出並列入黑名單喔。</li>
+          <li><strong>門市自取：</strong>收到到貨通知後，請在 3 日內回信或私訊管理員安排自取時間。七張頑瘋樂倉庫週一〜六 13:00–17:00（週日不開放）；林口 7-11 亞昕門市限週日、週一（須預約）；師大店面週一〜日 15:00–22:00。逾期未聯絡視同棄單。</li>
         </ul>
       </div>
 
@@ -3921,8 +3933,9 @@ function openChangeDelivery(orderId){
           <label class="ploc-opt" id="cdLocA" onclick="cdSelLoc('七張-頑瘋樂',this)" style="cursor:pointer">
             <input type="radio" name="cdPloc" style="margin-right:8px">
             <div style="flex:1">
-              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂</div>
-              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 16:30–21:00｜須提前告知</div>
+              <div style="font-weight:600;font-size:13px">七張 — 頑瘋樂倉庫（自取、一番賞）</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜六 13:00–17:00｜週日不開放</div>
+              <div style="font-size:11px;color:var(--ink3)">新北市新店區北新路二段170號</div>
             </div>
           </label>
           <label class="ploc-opt" id="cdLocB" onclick="cdSelLoc('林口-7-11亞昕門市',this)" style="cursor:pointer">
@@ -3930,6 +3943,14 @@ function openChangeDelivery(orderId){
             <div style="flex:1">
               <div style="font-weight:600;font-size:13px">林口 — 7-11 亞昕門市</div>
               <div style="font-size:11px;color:var(--ink3);margin-top:2px">限週日、週一｜須提前預約</div>
+            </div>
+          </label>
+          <label class="ploc-opt" id="cdLocC" onclick="cdSelLoc('師大-店面',this)" style="cursor:pointer">
+            <input type="radio" name="cdPloc" style="margin-right:8px">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">師大 — 店面（自取、現貨、一番賞）</div>
+              <div style="font-size:11px;color:var(--ink3);margin-top:2px">週一〜日 15:00–22:00</div>
+              <div style="font-size:11px;color:var(--ink3)">台北市大安區龍泉街57號</div>
             </div>
           </label>
         </div>
@@ -5565,10 +5586,12 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
   // ── 注意事項依配送方式 ──────────────────────────────────────
   // 自取地點說明
   const _pickupInfo = isPickup && pickupLoc ? (() => {
-    if(pickupLoc.includes('頑瘋樂'))
-      return '• 自取地點：<b>七張 — 頑瘋樂</b>(週一〜六 16:30–21:00)<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間，<b>須提前告知</b>';
-    if(pickupLoc.includes('亞昕'))
-      return '• 自取地點：<b>林口 — 7-11 亞昕門市</b>(限週日、週一)<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員預約自取，<b>須提前預約</b>';
+    if(pickupLoc.includes('頑瘋樂') || pickupLoc.includes('七張'))
+      return '• 自取地點：<b>七張 — 頑瘋樂倉庫</b>（週一〜六 13:00–17:00，週日不開放）<br>• 地址：新北市新店區北新路二段170號<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間';
+    if(pickupLoc.includes('亞昕') || pickupLoc.includes('林口'))
+      return '• 自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員預約自取，<b>須提前預約</b>';
+    if(pickupLoc.includes('師大'))
+      return '• 自取地點：<b>師大 — 店面</b>（週一〜日 15:00–22:00）<br>• 地址：台北市大安區龍泉街57號<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間';
     return '• 自取地點：'+pickupLoc+'<br>• 請於到貨通知後 <b>3 日內</b>回信或私訊 Facebook 社團管理員告知自取時間';
   })() : '';
 
@@ -9397,10 +9420,12 @@ async function sendStatusEmail(o, newStatus){
   // 自取到貨通知：加地點資訊和聯絡說明
   let reminderHtml = '';
   if(newStatus === 'pickup_ready'){
-    const _locDetail = _pickupLoc.includes('頑瘋樂')
-      ? '自取地點：<b>七張 — 頑瘋樂</b>(週一〜六 16:30–21:00)<br>地址：<a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" style="color:#1a56c4">Google Maps 導航</a>'
+    const _locDetail = (_pickupLoc.includes('頑瘋樂') || _pickupLoc.includes('七張'))
+      ? '自取地點：<b>七張 — 頑瘋樂倉庫</b>（週一〜六 13:00–17:00，週日不開放）<br>地址：新北市新店區北新路二段170號<br><a href="https://maps.app.goo.gl/XU1S7MASAGhSKpUL8" style="color:#1a56c4">Google Maps 導航</a>'
       : _pickupLoc.includes('亞昕')
-      ? '自取地點：<b>林口 — 7-11 亞昕門市</b>(限週日、週一)<br>地址：<a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" style="color:#1a56c4">Google Maps 導航</a>'
+      ? '自取地點：<b>林口 — 7-11 亞昕門市</b>（限週日、週一）<br>地址：<a href="https://maps.app.goo.gl/6XJ1NKgxJp2h5bKQA" style="color:#1a56c4">Google Maps 導航</a>'
+      : _pickupLoc.includes('師大')
+      ? '自取地點：<b>師大 — 店面</b>（週一〜日 15:00–22:00）<br>地址：台北市大安區龍泉街57號<br><a href="https://maps.google.com/?q=台北市大安區龍泉街57號" style="color:#1a56c4">Google Maps 導航</a>'
       : '自取地點：' + _pickupLoc;
     reminderHtml =
       '<div style="background:#fff4e5;border-radius:8px;padding:14px 16px;margin-top:12px;font-size:13px;line-height:1.9">'
