@@ -2293,6 +2293,26 @@ textarea.fi{min-height:64px;resize:vertical}
         </ul>
       </div>
 
+      <!-- 首購訂金說明 -->
+      <div class="wn-section" style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:13px 15px">
+        <div class="wn-section-title"><span>📍</span><span>4. 訂金怎麼算？三種情況說清楚</span></div>
+        <ul class="wn-list">
+          <li>
+            <b>🆕 本站全新顧客（從未在任何地方跟我們交易過）</b><br>
+            系統會自動收取<b>訂單總額的 50%</b> 作為訂金，無法調整，請做好心理準備喔！
+          </li>
+          <li style="margin-top:8px">
+            <b>🔄 曾在其他平台交易過，但本站第一次下單</b><br>
+            系統同樣會先自動收取<b>訂單總額的 50%</b>，不過你可以<b>私訊社團管理員</b>，告知我們你的交易紀錄，我們可以幫你把訂金往下調整！<br>
+            <span style="color:#6d28d9">⚠️ 但注意：調整有下限——若商品本身有設定固定訂金（如某商品設訂金 NT$500），則最低只能調整到「這些固定訂金的總和」，無法再更低，這是為了避免棄單風險。</span>
+          </li>
+          <li style="margin-top:8px">
+            <b>✅ 本站第二次（含）以上的老顧客</b><br>
+            恭喜你已解鎖老顧客待遇！只有商品頁面上<b>有特別標示訂金金額</b>的商品才會收訂金，沒有標示的商品一律免收訂金，輕鬆預購！
+          </li>
+        </ul>
+      </div>
+
       <!-- 規則 2 -->
       <div class="wn-section wn-highlight">
         <div class="wn-section-title"><span>📍</span><span>2. 特別注意！下單後，如有訂金商品，匯款完成一定要記得回報末五碼！</span></div>
@@ -5500,6 +5520,12 @@ function showConfirmPage({stockOrderNum='', preOrderNum='', stockDep=0, preDep=0
         +'<div class="bank-r"><span class="bank-r-lbl">帳號</span><span class="bank-r-val" style="font-family:monospace;letter-spacing:2px;font-size:15px">'+s.bankAccount+'</span></div>'
         +'<div class="bank-r"><span class="bank-r-lbl">戶名</span><span class="bank-r-val">'+s.bankHolder+'</span></div>'
         +'<div class="bank-r hi"><span class="bank-r-lbl">應付訂金</span><span class="bank-r-val">NT$ '+preDep.toLocaleString()+'</span></div>'
+        +(isFirstTimeBuyer()
+          ? '<div style="background:#F5F3FF;border:1px solid #C4B5FD;border-radius:8px;padding:10px 13px;margin-top:8px;font-size:12.5px;color:#5B21B6;line-height:1.75">'
+            +'💡 <b>首購說明</b>：您是本站新顧客，系統依規定收取預購總額的 50% 作為訂金。'
+            +'<br>若您曾在其他平台與我們交易過，歡迎付款前先<b>私訊社團管理員</b>告知，我們可以幫你往下調整訂金喔！'
+            +'</div>'
+          : '')
       : '<div style="color:var(--ink3);font-size:12px;padding:8px">(請聯繫小編確認匯款方式)</div>';
     // 判斷是否接近結單（結單日在 48 小時內）
     const _ddl = nearestDeadline ? new Date(nearestDeadline+'T23:59:59+08:00') : null;
