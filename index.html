@@ -8250,8 +8250,11 @@ function copyP(id){
   document.getElementById('fDeposit').value = p.deposit != null ? p.deposit : 0;
   document.getElementById('fStatus').value  = p.status  || 'published';
   if(p.deadline){
-    document.getElementById('fDeadline').value    = p.deadline;
-    document.getElementById('fDeadlineText').value = p.deadline.replace(/-/g,'/');
+    const _dParts = p.deadline.split(' ');
+    document.getElementById('fDeadline').value     = _dParts[0] || '';
+    document.getElementById('fDeadlineText').value = _dParts[0] ? _dParts[0].replace(/-/g,'/') : '';
+    const _fDTimeEl = document.getElementById('fDeadlineTime');
+    if(_fDTimeEl) _fDTimeEl.value = _dParts[1] || '';
   }
   // 如果有規格，展開規格列
   if((p.variants||[]).length > 0){
