@@ -3622,7 +3622,16 @@ async function autoExpireOrders(orders){
         return p?.deadline || null;
       }).filter(Boolean).sort();
       if(deadlines.length){
-        productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
+        // 用 isDeadlinePassed 相同的解析邏輯：支援 'YYYY-MM-DD' 與 'YYYY-MM-DD HH:MM' 兩種格式
+        const _dl = deadlines[0];
+        const _parts = _dl.trim().split(' ');
+        const [_y,_m,_d] = _parts[0].split('-').map(Number);
+        if(_parts[1]){
+          const [_hh,_mm] = _parts[1].split(':').map(Number);
+          productDeadline = new Date(_y, _m-1, _d, _hh, _mm, 0, 0);
+        } else {
+          productDeadline = new Date(_y, _m-1, _d, 23, 59, 59, 999);
+        }
       }
     }catch(e){}
     // 取最早的期限
@@ -4572,7 +4581,7 @@ function openDetail(id){
     const chips = lines.map(l=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--white);border:1px solid var(--border2);border-radius:20px;font-size:12.5px;font-weight:500;color:var(--ink2);white-space:nowrap"><span style="color:var(--gold);font-size:10px">▸</span>${l}</span>`).join('');
     return `<div style="margin-top:14px;padding:12px 16px;background:var(--bg);border-radius:8px;border-left:3px solid var(--gold);"><div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink3);margin-bottom:8px">📋 商品說明</div><div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div></div>`;
   })(p.description)}
-    ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
+    ${p.deadline?`<div class="dmeta-row"><span style="color:var(--red);font-weight:700">結單日期：${p.deadline.replace(' ',' ')}</span><span class="stbadge ${_deadlinePassed?'':'stpre'}" style="${_deadlinePassed?'background:#f5f5f5;color:#888':''}">${_deadlinePassed?'已結單':p.type==='預購'?'預購中':'現貨'}</span></div>`:''}
     ${p.arrival?`<div class="dmeta-row"><span>預計到貨：${p.arrival}</span></div>`:''}
   `;
 
@@ -8442,7 +8451,17 @@ async function autoExpireAdminOrders(orders){
         const p = products.find(x=>String(x.id)===String(it.product_id));
         return p?.deadline || null;
       }).filter(Boolean).sort();
-      if(deadlines.length) productDeadline = new Date(deadlines[0]+'T23:59:59+08:00');
+      if(deadlines.length){
+        const _dl = deadlines[0];
+        const _parts = _dl.trim().split(' ');
+        const [_y,_m,_d] = _parts[0].split('-').map(Number);
+        if(_parts[1]){
+          const [_hh,_mm] = _parts[1].split(':').map(Number);
+          productDeadline = new Date(_y, _m-1, _d, _hh, _mm, 0, 0);
+        } else {
+          productDeadline = new Date(_y, _m-1, _d, 23, 59, 59, 999);
+        }
+      }
     }catch(e){}
     const payLimit = productDeadline && productDeadline < deadline48h ? productDeadline : deadline48h;
     if(now > payLimit){
