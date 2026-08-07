@@ -581,6 +581,8 @@ textarea.fi{min-height:64px;resize:vertical}
   #navAuthMobile{display:flex!important}
   #authArea{display:none!important}
   /* 手機版：聊聊、鈴鐺 — 由 JS 依登入狀態控制顯示 */
+  /* 管理員訂單角標：由 JS 控制顯示，CSS 不介入 */
+  #adminOrderBellWrap{ /* 預設 display:none 由 HTML inline style 控制 */ }
   /* 手機版：常見問題快捷入口，不受登入狀態影響，永遠顯示 */
   #navFaqBtnMobile{display:flex!important}
   /* 購物車：桌機版隱藏，手機版icon顯示 */
@@ -1047,6 +1049,13 @@ textarea.fi{min-height:64px;resize:vertical}
     </div>
     <div class="nacts">
       <!-- 桌機版：通知鈴鐺（登入後顯示） -->
+      <!-- 管理員專屬：新訂單角標（只有管理員登入才顯示） -->
+      <div id="adminOrderBellWrap" style="display:none;position:relative">
+        <button class="nav-icon-btn" onclick="openAdmin();setTimeout(()=>swTab(3),300)" title="新訂單待處理" style="position:relative">
+          📋
+          <span id="adminOrderBadge" class="nav-cart-badge" style="display:none;background:#e67300"></span>
+        </button>
+      </div>
       <div id="notifBellWrap" style="display:none;position:relative">
         <button class="nav-icon-btn" id="notifBell" onclick="toggleNotifPanel()" title="通知">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -6344,6 +6353,9 @@ function startNewOrderPoller(){
 function stopNewOrderPoller(){
   if(_newOrderPoller){ clearInterval(_newOrderPoller); _newOrderPoller=null; }
   _stopTitleBlink();
+  // 登出時隱藏管理員訂單角標
+  const wrap = document.getElementById('adminOrderBellWrap');
+  if(wrap) wrap.style.display = 'none';
 }
 
 // 【全域版初始化】直接從 Supabase 抓當前所有 new 訂單建立基準集合
@@ -10406,13 +10418,31 @@ async function submitPayReport(){
 
 // ─── 管理員通知鈴鐺 ────────────────────────────────────────
 function updatePaymentBell(){
-  if(!isAdmin()) return;
+  if(!isAdmin()){
+    // 非管理員：隱藏訂單角標
+    const wrap = document.getElementById('adminOrderBellWrap');
+    if(wrap) wrap.style.display = 'none';
+    return;
+  }
   // 找有 payment_code 但 status 還是 'new' 的訂單（待確認匯款）
   const pending = _allAdminOrders.filter(o=>o.payment_code && o.status==='new');
   const bell = document.getElementById('payBell');
   if(bell){
     bell.style.display = pending.length ? '' : 'none';
     bell.textContent = pending.length > 9 ? '9+' : String(pending.length);
+  }
+  // 管理員訂單角標：所有 status==='new' 的新訂單
+  const newOrders = _allAdminOrders.filter(o=>o.status==='new');
+  const wrap = document.getElementById('adminOrderBellWrap');
+  const badge = document.getElementById('adminOrderBadge');
+  if(wrap) wrap.style.display = '';
+  if(badge){
+    if(newOrders.length){
+      badge.style.display = '';
+      badge.textContent = newOrders.length > 9 ? '9+' : String(newOrders.length);
+    } else {
+      badge.style.display = 'none';
+    }
   }
 }
 
