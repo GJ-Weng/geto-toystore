@@ -6315,6 +6315,8 @@ _sbReady.then(() => {
     // 用 setTimeout 等 isAdmin() 所需的 user 物件確實設定完畢後再執行
     setTimeout(()=>{
       if(isAdmin()){
+        // 立刻顯示訂單角標（從 Supabase 直接抓，不等後台開啟）
+        _refreshAdminOrderBadge();
         // 初始化已知訂單清單（非同步，不阻塞畫面）並立刻做一次新訂單掃描
         _initKnownOrdersFromServer().then(()=>{
           _checkNewOrders();          // 立刻掃一次
@@ -6391,6 +6393,17 @@ async function _checkNewOrders(){
       .eq('status','new')
       .order('created_at',{ascending:false});
     if(!data) return;
+
+    // 每次輪詢都同步更新角標數字
+    const badge = document.getElementById('adminOrderBadge');
+    if(badge){
+      if(data.length > 0){
+        badge.style.display = '';
+        badge.textContent = data.length > 9 ? '9+' : String(data.length);
+      } else {
+        badge.style.display = 'none';
+      }
+    }
 
     // 找出之前沒見過的 id
     const incoming = data.filter(o => !_knownNewOrderIds.has(String(o.id)));
@@ -10444,6 +10457,28 @@ function updatePaymentBell(){
       badge.style.display = 'none';
     }
   }
+}
+
+// 管理員訂單角標：直接從 Supabase 抓 new 狀態訂單數，不需要後台開啟
+async function _refreshAdminOrderBadge(){
+  if(!isAdmin()) return;
+  const wrap  = document.getElementById('adminOrderBellWrap');
+  const badge = document.getElementById('adminOrderBadge');
+  if(wrap) wrap.style.display = ''; // 先顯示按鈕本體
+  try{
+    await _sbReady;
+    const {data, error} = await _sb.from('orders').select('id', {count:'exact'}).eq('status','new');
+    if(error) return;
+    const count = data?.length || 0;
+    if(badge){
+      if(count > 0){
+        badge.style.display = '';
+        badge.textContent = count > 9 ? '9+' : String(count);
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }catch(e){}
 }
 
 // ─── FAQ ────────────────────────────────────────────────
