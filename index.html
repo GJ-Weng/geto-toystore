@@ -9105,7 +9105,7 @@ function openPostModal(orderId){
   let items=[];
   try{ items=JSON.parse(o.note||'[]'); }catch(e){}
   const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const dep   = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
+  const dep   = (o.price != null) ? (o.price||0) : items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
   const tail  = Math.max(0, total - dep);
 
   document.getElementById('postModalSub').textContent =
@@ -9427,8 +9427,8 @@ async function sendStatusEmail(o, newStatus){
     items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
   }
   const total = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const dep   = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
-  const tail  = total - dep;
+  const dep   = (o.price != null) ? (o.price||0) : items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
+  const tail  = Math.max(0, total - dep);
 
   // 依狀態決定信件內容
   const _isPickupOrder = (o.store||'').startsWith('自取');
@@ -10144,8 +10144,8 @@ function openMyshipModal(orderId){
   }
 
   const total   = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const dep     = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
-  const tail    = total - dep; // 尾款 = 顧客需在賣場付的金額
+  const dep     = (o.price != null) ? (o.price||0) : items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
+  const tail    = Math.max(0, total - dep); // 尾款 = 顧客需在賣場付的金額
   const custName= o.customer_name||'顧客';
   const shopName= `${custName} 訂單#${o.id}`;
 
@@ -10257,22 +10257,22 @@ function gen711Script(orderId){
   }
 
   const totalAmt   = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const depositAmt = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0) || o.price || 0;
-  const tailAmt    = totalAmt - depositAmt;
+  const depositAmt = (o.price != null) ? (o.price||0) : items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
+  const tailAmt    = Math.max(0, totalAmt - depositAmt);
   const payAmt     = tailAmt > 0 ? tailAmt : totalAmt;
 
   const ordNum    = String(o.id);
   const orderCode = o.order_code || ordNum;
   const storeName = (o.customer_name||'顧客') + ' 預購#' + orderCode;
 
-  // 每個商品獨立一筆，數量依照訂購數量，價格為該商品尾款
+  // 每個商品獨立一筆，按比例分攤實際已收訂金計算尾款
   const perItemProducts = items.map(it => {
-    const itTotal = it.price  || 0;
-    const itDep   = it.deposit|| 0;
-    const itTail  = itTotal - itDep;
-    const itPay   = itTail > 0 ? itTail : itTotal;
-    // 名稱帶數量，qty 固定為 1（跟批次出貨一致）
-    const pName   = ((it.product_name||'') + (it.variant ? ' ' + it.variant : '') + ' x' + (it.qty||1)).slice(0, 60);
+    const itTotal    = (it.price||0) * (it.qty||1);
+    const itRatio    = totalAmt > 0 ? itTotal / totalAmt : 0;
+    const itPaid     = Math.round(depositAmt * itRatio);
+    const itTail     = itTotal - itPaid;
+    const itPay      = itTail > 0 ? itTail : itTotal;
+    const pName      = ((it.product_name||'') + (it.variant ? ' ' + it.variant : '') + ' x' + (it.qty||1)).slice(0, 60);
     return { name: pName, qty: 1, price: itPay };
   });
 
