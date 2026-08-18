@@ -9840,9 +9840,17 @@ function bsGenScript(){
   const custName = cust?.name || selected[0]?.order?.customer_name || '顧客';
   const orderNums = [...new Set(selected.map(({order})=>order.order_code||order.id))].join('、');
   const storeName = custName + ' 預購#' + orderNums;
-  const bsProds = selected.map(({order,item}) => {
-    const itemTail = ((item.price||0) - (item.deposit||0)) * (item.qty||1);
-    const payAmt   = itemTail > 0 ? itemTail : (item.price||0)*(item.qty||1);
+  const bsProds = selected.map(({order,item,items}) => {
+    // 尾款計算：用訂單層級的「實際已收訂金(o.price)」反推每個商品的尾款比例
+    // 避免用 item.deposit（商品頁設定的固定訂金），因為首購50%等情境下實際收的訂金不同
+    const itemTotal = (item.price||0) * (item.qty||1);
+    const orderTotal = items.reduce((s,it)=>(s+(it.price||0)*(it.qty||1)),0);
+    const orderActualPaid = order.price || 0; // 訂單實際已收訂金
+    // 按此商品佔整筆訂單的金額比例，分攤已收訂金，算出此商品的尾款
+    const itemPaidRatio = orderTotal > 0 ? itemTotal / orderTotal : 0;
+    const itemPaid = Math.round(orderActualPaid * itemPaidRatio);
+    const itemTail = itemTotal - itemPaid;
+    const payAmt   = itemTail > 0 ? itemTail : itemTotal;
     const pName = ((item.product_name||'') + (item.variant?' '+item.variant:'') + ' x'+(item.qty||1)).slice(0,60);
     return { name: pName, qty: 1, price: payAmt };
   });
