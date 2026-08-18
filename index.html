@@ -10090,8 +10090,8 @@ async function doSendShipEmail(orderId){
   try{items=JSON.parse(o.note||'[]');}catch(e){}
   if(!Array.isArray(items)||!items.length) items=[{product_name:o.product_name,variant:o.variant,qty:o.qty,price:o.price,deposit:0}];
   const totalAmt = items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
-  const dep      = items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0)||o.price||0;
-  const tail     = totalAmt - dep;
+  const dep      = (o.price != null) ? (o.price||0) : items.reduce((s,i)=>s+(i.deposit||0)*(i.qty||1),0);
+  const tail     = Math.max(0, totalAmt - dep);
 
   const btn = document.querySelector('#shipEmailOverlay .script-copy');
   if(btn){ btn.disabled=true; btn.textContent='寄送中...'; }
